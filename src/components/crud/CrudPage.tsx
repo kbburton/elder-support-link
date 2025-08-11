@@ -274,6 +274,25 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
     onSuccess: async ({ action, row }) => {
       toast({ title: `Record ${action}`, description: `Successfully ${action} a record.` });
       qc.invalidateQueries({ queryKey });
+      
+      // Handle document linking for newly created items
+      if (action === "created" && row?.[idField] && form.documentLinks && form.documentLinks.length > 0) {
+        try {
+          const linkPromises = form.documentLinks.map((docId: string) => 
+            supabase.from('document_links').insert({
+              document_id: docId,
+              linked_item_id: row[idField],
+              linked_item_type: config.table === 'tasks' ? 'task' : 'appointment'
+            })
+          );
+          await Promise.all(linkPromises);
+          toast({ title: "Documents linked", description: `${form.documentLinks.length} document(s) linked to the new ${config.table.slice(0, -1)}.` });
+        } catch (e) {
+          console.warn("Document linking failed", e);
+          toast({ title: "Warning", description: "Item created but document linking failed." });
+        }
+      }
+      
       setEditing(null);
 
       // Immediate notifications on create
@@ -463,6 +482,24 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
                 )}
               </div>
             ))}
+            
+            {/* Document linking section for new tasks and appointments */}
+            {!editing && (config.table === 'tasks' || config.table === 'appointments') && (
+              <div className="border-t pt-4 space-y-3">
+                <label className="text-sm font-medium">Link Documents (optional)</label>
+                <TaskAppointmentDocumentLinker
+                  itemId={null}
+                  itemType={config.table === 'tasks' ? 'task' : 'appointment'}
+                  itemTitle="New item"
+                  onLinksChange={() => {}}
+                  isCreationMode={true}
+                  onDocumentLinksChange={(links) => {
+                    setForm((s) => ({ ...s, documentLinks: links }));
+                  }}
+                />
+              </div>
+            )}
+            
             <div className="flex gap-2">
               <Button onClick={() => upsertMutation.mutate()} disabled={upsertMutation.isPending}>{upsertMutation.isPending ? "Saving…" : "Save"}</Button>
               {editing && <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>}
