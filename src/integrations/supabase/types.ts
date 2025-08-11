@@ -513,11 +513,18 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "tasks_completed_by_user_id_fkey"
+            columns: ["completed_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
             foreignKeyName: "tasks_created_by_user_id_fkey"
             columns: ["created_by_user_id"]
             isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "tasks_group_id_fkey"
@@ -530,15 +537,15 @@ export type Database = {
             foreignKeyName: "tasks_primary_owner_id_fkey"
             columns: ["primary_owner_id"]
             isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "tasks_secondary_owner_id_fkey"
             columns: ["secondary_owner_id"]
             isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
           },
         ]
       }
