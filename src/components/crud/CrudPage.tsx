@@ -350,6 +350,11 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
                               if (v == null) return "—";
                               if (f.type === "date") return toInputDate(v);
                               if (f.type === "datetime") return toInputDateTime(v);
+                              if (f.type === "user_select") {
+                                // Display email for user_select fields
+                                const userProfile = groupMembers.find(member => member.id === v);
+                                return userProfile ? userProfile.email : String(v);
+                              }
                               return String(v);
                             })()}
                           </TableCell>
