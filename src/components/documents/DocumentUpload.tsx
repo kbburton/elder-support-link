@@ -84,9 +84,11 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
     setUploadProgress(0);
 
     try {
-      // Generate unique filename
+      // Preserve original filename but ensure uniqueness
       const fileExt = selectedFile.name.split('.').pop();
-      const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const baseName = selectedFile.name.replace(/\.[^/.]+$/, ""); // Remove extension
+      const timestamp = Date.now();
+      const fileName = `${baseName}_${timestamp}.${fileExt}`;
 
       // Upload file to storage
       setUploadProgress(25);
@@ -118,7 +120,8 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
           notes,
           uploaded_by_user_id: user.id,
           group_id: groupId,
-          processing_status: 'pending'
+          processing_status: 'pending',
+          original_filename: selectedFile.name // Store original filename
         })
         .select()
         .single();
