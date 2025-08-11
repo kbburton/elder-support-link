@@ -17,6 +17,7 @@ import ActivityLogPage from "./pages/app/ActivityLogPage";
 import AdminConsolePage from "./pages/app/AdminConsolePage";
 import SearchPage from "./pages/app/SearchPage";
 import ProfilePage from "./pages/app/ProfilePage";
+import GroupSettingsPage from "./pages/app/GroupSettingsPage";
 import UsersCrud from "./pages/crud/UsersCrud";
 import CareGroupsCrud from "./pages/crud/CareGroupsCrud";
 import CareGroupMembersCrud from "./pages/crud/CareGroupMembersCrud";
@@ -24,7 +25,6 @@ import AppointmentsCrud from "./pages/crud/AppointmentsCrud";
 import TasksCrud from "./pages/crud/TasksCrud";
 import DocumentsCrud from "./pages/crud/DocumentsCrud";
 import ActivityLogsCrud from "./pages/crud/ActivityLogsCrud";
-
 const queryClient = new QueryClient();
 const App = () => (
   <HelmetProvider>
@@ -47,6 +47,7 @@ const App = () => (
               <Route path="activity" element={<ActivityLogPage />} />
               <Route path="search" element={<SearchPage />} />
               <Route path="profile" element={<ProfilePage />} />
+              <Route path="settings" element={<GroupSettingsPage />} />
               <Route path="admin" element={<AdminConsolePage />} />
               <Route path="admin/users" element={<UsersCrud />} />
               <Route path="admin/care-groups" element={<CareGroupsCrud />} />

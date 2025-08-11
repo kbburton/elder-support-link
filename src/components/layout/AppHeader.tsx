@@ -12,8 +12,10 @@ const groups = [
 const AppHeader = () => {
   const navigate = useNavigate();
   const { groupId } = useParams();
-  const current = groups.find((g) => g.id === groupId) || groups[0];
-
+  const currentId = groupId || "demo";
+  const options = groups.some((g) => g.id === currentId)
+    ? groups
+    : [{ id: currentId, name: "Current Group" }, ...groups];
   return (
     <header className="h-14 flex items-center border-b px-4 gap-3">
       <SidebarTrigger className="ml-0" />
@@ -23,19 +25,19 @@ const AppHeader = () => {
       </div>
       <div className="ml-auto flex items-center gap-3">
         <Select
-          defaultValue={current.id}
+          defaultValue={currentId}
           onValueChange={(val) => navigate(`/app/${val}/calendar`)}
         >
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Select group" />
           </SelectTrigger>
           <SelectContent>
-            {groups.map((g) => (
+            {options.map((g) => (
               <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <Button variant="outline" onClick={() => navigate(`/app/${current.id}/search`)}>Search</Button>
+        <Button variant="outline" onClick={() => navigate(`/app/${currentId}/search`)}>Search</Button>
       </div>
     </header>
   );
