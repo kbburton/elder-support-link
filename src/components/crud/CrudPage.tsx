@@ -184,20 +184,20 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
 
   // Pre-fill creator field for new records so it shows in the read-only input
   useEffect(() => {
-    if (!editing && config.creatorFieldName && currentUserId) {
+    if (!editing && config.creatorFieldName && currentUserId && currentUserEmail) {
       setForm((prev) => {
         const newForm = { ...prev };
         if (prev[config.creatorFieldName!] == null || prev[config.creatorFieldName!] === "") {
           newForm[config.creatorFieldName!] = currentUserId;
         }
-        // Auto-populate creator email for tasks
-        if (config.table === "tasks" && currentUserEmail) {
+        // Always auto-populate creator email for new records
+        if (config.fields.some(f => f.name === 'created_by_email')) {
           newForm.created_by_email = currentUserEmail;
         }
         return newForm;
       });
     }
-  }, [editing, config.creatorFieldName, currentUserId, config.table, currentUserEmail]);
+  }, [editing, config.creatorFieldName, currentUserId, currentUserEmail, config.fields]);
 
   const upsertMutation = useMutation({
     mutationFn: async () => {
@@ -216,10 +216,10 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
         payload[config.creatorFieldName] = currentUserId;
         console.log('Setting creator field:', config.creatorFieldName, 'to:', currentUserId);
         
-        // Also set email if field exists
-        const user = await supabase.auth.getUser();
-        if (user.data.user?.email && config.fields.some(f => f.name === 'created_by_email')) {
-          payload.created_by_email = user.data.user.email;
+        // Always set email if field exists and we have current user email
+        if (currentUserEmail && config.fields.some(f => f.name === 'created_by_email')) {
+          payload.created_by_email = currentUserEmail;
+          console.log('Setting created_by_email to:', currentUserEmail);
         }
       }
 
