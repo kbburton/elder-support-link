@@ -8,8 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "@/hooks/use-toast";
 import SEO from "@/components/layout/SEO";
+import { TaskAppointmentDocumentLinker } from "@/components/documents/TaskAppointmentDocumentLinker";
 const sb = supabase as any;
 export type CrudField = {
   name: string;
@@ -333,16 +334,23 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-20">Actions</TableHead>
                     {config.fields.map((f) => (
                       <TableHead key={f.name}>{f.label ?? f.name}</TableHead>
                     ))}
-                    <TableHead>Actions</TableHead>
+                    {(config.table === 'tasks' || config.table === 'appointments') && (
+                      <TableHead className="w-32">Documents</TableHead>
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {data && data.length > 0 ? (
                     data.map((row) => (
                       <TableRow key={row[idField] ?? JSON.stringify(row)}>
+                        <TableCell className="space-x-1">
+                          <Button size="sm" variant="outline" onClick={() => setEditing(row)}>Edit</Button>
+                          <Button size="sm" variant="ghost" onClick={() => deleteMutation.mutate(row)}>Del</Button>
+                        </TableCell>
                         {config.fields.map((f) => (
                           <TableCell key={f.name} className="max-w-[260px] truncate">
                             {(() => {
@@ -359,15 +367,21 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
                             })()}
                           </TableCell>
                         ))}
-                        <TableCell className="space-x-2">
-                          <Button size="sm" variant="outline" onClick={() => setEditing(row)}>Edit</Button>
-                          <Button size="sm" variant="ghost" onClick={() => deleteMutation.mutate(row)}>Delete</Button>
-                        </TableCell>
+                        {(config.table === 'tasks' || config.table === 'appointments') && (
+                          <TableCell>
+                            <TaskAppointmentDocumentLinker
+                              itemId={row[idField]}
+                              itemType={config.table === 'tasks' ? 'task' : 'appointment'}
+                              itemTitle={row.title || row.description || 'Unnamed item'}
+                              onLinksChange={() => qc.invalidateQueries({ queryKey })}
+                            />
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={config.fields.length + 1} className="text-center text-muted-foreground">No records</TableCell>
+                      <TableCell colSpan={config.fields.length + 1 + ((config.table === 'tasks' || config.table === 'appointments') ? 1 : 0)} className="text-center text-muted-foreground">No records</TableCell>
                     </TableRow>
                   )}
                 </TableBody>

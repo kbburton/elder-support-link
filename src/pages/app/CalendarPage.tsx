@@ -18,6 +18,7 @@ import { format, isSameDay, isSameWeek, isBefore, addWeeks, startOfWeek, addDays
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import MonthlyOverview from "@/components/calendar/MonthlyOverview";
+import { TaskAppointmentDocumentLinker } from "@/components/documents/TaskAppointmentDocumentLinker";
 
 type Appointment = {
   id: string;
@@ -316,6 +317,17 @@ const CalendarPage = () => {
               <CardContent className="text-sm text-muted-foreground space-y-2">
                 <p>{format(parseISO(a.date_time), "EEE, p")} • {a.location || "No location"}</p>
                 <p className="text-xs">Created by: {a.created_by_email || "Unknown"}</p>
+                
+                {/* Document Links */}
+                <div className="py-2">
+                  <TaskAppointmentDocumentLinker
+                    itemId={a.id}
+                    itemType="appointment"
+                    itemTitle={a.description || 'Unnamed appointment'}
+                    onLinksChange={() => {}}
+                  />
+                </div>
+                
                 <div className="flex gap-2 pt-2">
                   <Button size="sm" variant="outline" onClick={() => onEdit(a)}>Edit</Button>
                   <Button size="sm" variant="ghost" onClick={() => downloadIcs(a)}>Add to my Calendar</Button>
@@ -389,10 +401,21 @@ const CalendarPage = () => {
                 )}
               </CardTitle>
             </CardHeader>
-            <CardContent className="text-sm text-muted-foreground space-y-2">
-              <p>{format(parseISO(a.date_time), "PPPP p")} • {a.location || "No location"}</p>
-              <p className="text-xs">Created by: {a.created_by_email || "Unknown"}</p>
-              <div className="flex flex-wrap gap-2 pt-2">
+              <CardContent className="text-sm text-muted-foreground space-y-2">
+                <p>{format(parseISO(a.date_time), "PPPP p")} • {a.location || "No location"}</p>
+                <p className="text-xs">Created by: {a.created_by_email || "Unknown"}</p>
+                
+                {/* Document Links */}
+                <div className="py-2">
+                  <TaskAppointmentDocumentLinker
+                    itemId={a.id}
+                    itemType="appointment"
+                    itemTitle={a.description || 'Unnamed appointment'}
+                    onLinksChange={() => {}}
+                  />
+                </div>
+                
+                <div className="flex flex-wrap gap-2 pt-2">
                 <Button size="sm" variant="outline" onClick={() => onEdit(a)}>Edit</Button>
                 <Button size="sm" variant="ghost" onClick={() => downloadIcs(a)}>Add to my Calendar</Button>
                 <Button size="sm" variant="ghost" onClick={() => createFollowUpTask(a)}>Create follow-up task</Button>
