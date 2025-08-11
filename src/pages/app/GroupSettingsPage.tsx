@@ -23,6 +23,7 @@ const GroupSchema = z.object({
   recipient_phone: z.string().optional(),
   date_of_birth: z.string().optional(),
   profile_description: z.string().optional(),
+  other_important_information: z.string().optional(),
 });
 
 type GroupFormValues = z.infer<typeof GroupSchema>;
@@ -43,6 +44,7 @@ export default function GroupSettingsPage() {
       recipient_phone: "",
       date_of_birth: "",
       profile_description: "",
+      other_important_information: "",
     },
   });
 
@@ -53,7 +55,7 @@ export default function GroupSettingsPage() {
       const { data, error } = await supabase
         .from("care_groups")
         .select(
-          "name, recipient_address, recipient_city, recipient_state, recipient_zip, recipient_phone, date_of_birth, profile_description"
+          "name, recipient_address, recipient_city, recipient_state, recipient_zip, recipient_phone, date_of_birth, profile_description, other_important_information"
         )
         .eq("id", groupId)
         .single();
@@ -73,6 +75,7 @@ export default function GroupSettingsPage() {
         recipient_phone: data.recipient_phone ?? "",
         date_of_birth: data.date_of_birth ?? "",
         profile_description: data.profile_description ?? "",
+        other_important_information: (data as any).other_important_information ?? "",
       });
     }
   }, [data, form]);
@@ -115,7 +118,7 @@ const onSubmit = (values: GroupFormValues) => saveMutation.mutate(values);
     <main>
       <SEO
         title="Group Settings - Edit care group"
-        description="Update care group information like name, address, phone, and description."
+        description="Update care group information like name, address, phone, description, and other important info."
         canonicalPath={typeof window !== "undefined" ? window.location.pathname : "/app/settings"}
       />
 
@@ -184,6 +187,20 @@ const onSubmit = (values: GroupFormValues) => saveMutation.mutate(values);
                       <FormLabel>Profile description</FormLabel>
                       <FormControl>
                         <Textarea placeholder="Brief description" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="other_important_information"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Other important information</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="Anything else we should know" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
