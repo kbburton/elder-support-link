@@ -225,6 +225,12 @@ export const DocumentList = ({ documents, onRefresh, userProfiles }: DocumentLis
     return profile?.email || 'Unknown user';
   };
 
+  const getFileName = (fileUrl: string) => {
+    if (!fileUrl) return 'Unknown file';
+    const parts = fileUrl.split('/');
+    return parts[parts.length - 1] || 'Unknown file';
+  };
+
   if (documents.length === 0) {
     return (
       <div className="text-center py-12">
@@ -256,7 +262,9 @@ export const DocumentList = ({ documents, onRefresh, userProfiles }: DocumentLis
                   <RefreshCw className="h-4 w-4 animate-spin text-primary" />
                 )}
                 {doc.processing_status === 'failed' && (
-                  <AlertCircle className="h-4 w-4 text-destructive" />
+                  <div title="Document processing failed - click Retry to reprocess">
+                    <AlertCircle className="h-4 w-4 text-destructive" />
+                  </div>
                 )}
               </div>
               <div className="flex items-center space-x-2">
@@ -269,9 +277,11 @@ export const DocumentList = ({ documents, onRefresh, userProfiles }: DocumentLis
             <CardContent className="flex-1 space-y-3">
               {/* Document Info */}
               <div className="text-xs text-muted-foreground space-y-1">
+                <div>File: {getFileName(doc.file_url)}</div>
                 <div>Uploaded: {format(new Date(doc.upload_date), 'MMM d, yyyy')}</div>
                 <div>By: {getUploaderEmail(doc.uploaded_by_user_id)}</div>
                 <div>Size: {formatFileSize(doc.file_size || 0)}</div>
+                <div>Type: {doc.file_type}</div>
               </div>
 
               {/* AI Summary */}
