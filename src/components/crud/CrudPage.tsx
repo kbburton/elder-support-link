@@ -376,15 +376,15 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
                   </Select>
                 ) : f.type === "user_select" ? (
                   <Select
-                    value={form[f.name] ?? ""}
-                    onValueChange={(value) => setForm((s) => ({ ...s, [f.name]: value }))}
+                    value={form[f.name] ?? "none"}
+                    onValueChange={(value) => setForm((s) => ({ ...s, [f.name]: value === "none" ? null : value }))}
                     disabled={f.readOnly}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder={f.placeholder || `Select ${f.label}`} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">None</SelectItem>
+                      <SelectItem value="none">None</SelectItem>
                       {groupMembers.map((member) => (
                         <SelectItem key={member.id} value={member.id}>
                           {member.name} ({member.email})
