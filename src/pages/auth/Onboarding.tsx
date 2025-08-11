@@ -19,6 +19,9 @@ const Onboarding = () => {
   const [formData, setFormData] = useState({
     name: "",
     recipientAddress: "",
+    recipientCity: "",
+    recipientState: "",
+    recipientZip: "",
     recipientPhone: "",
     specialDates: "",
     profileDescription: "",
@@ -27,7 +30,8 @@ const Onboarding = () => {
     hearing: "",
     vision: "",
     chronicConditions: "",
-    mentalHealth: ""
+    mentalHealth: "",
+    dateOfBirth: ""
   });
 
   // Join group form state
@@ -60,8 +64,14 @@ const Onboarding = () => {
           created_by_user_id: user.id,
           name: formData.name,
           recipient_address: formData.recipientAddress || null,
+          recipient_city: formData.recipientCity || null,
+          recipient_state: formData.recipientState || null,
+          recipient_zip: formData.recipientZip || null,
           recipient_phone: formData.recipientPhone || null,
-          special_dates: formData.specialDates ? JSON.parse(formData.specialDates) : null,
+          date_of_birth: formData.dateOfBirth || null,
+          special_dates: formData.specialDates
+            ? (() => { try { return JSON.parse(formData.specialDates); } catch { return { note: formData.specialDates }; } })()
+            : null,
           profile_description: formData.profileDescription || null,
           mobility: formData.mobility || null,
           memory: formData.memory || null,
@@ -207,6 +217,46 @@ const Onboarding = () => {
                 </div>
               </div>
 
+              <div className="grid gap-4 md:grid-cols-3">
+                <div>
+                  <Label htmlFor="city">City</Label>
+                  <Input
+                    id="city"
+                    value={formData.recipientCity}
+                    onChange={(e) => handleInputChange("recipientCity", e.target.value)}
+                    placeholder="City"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="state">State</Label>
+                  <Input
+                    id="state"
+                    value={formData.recipientState}
+                    onChange={(e) => handleInputChange("recipientState", e.target.value)}
+                    placeholder="State"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="zip">ZIP code</Label>
+                  <Input
+                    id="zip"
+                    value={formData.recipientZip}
+                    onChange={(e) => handleInputChange("recipientZip", e.target.value)}
+                    placeholder="ZIP code"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="dob">Date of birth</Label>
+                <Input
+                  id="dob"
+                  type="date"
+                  value={formData.dateOfBirth}
+                  onChange={(e) => handleInputChange("dateOfBirth", e.target.value)}
+                />
+              </div>
+
               <div>
                 <Label htmlFor="description">Profile description</Label>
                 <Textarea
@@ -218,7 +268,7 @@ const Onboarding = () => {
               </div>
 
               <div>
-                <Label htmlFor="specialDates">Special dates (JSON format)</Label>
+                <Label htmlFor="specialDates">Special dates (JSON or free text)</Label>
                 <Textarea
                   id="specialDates"
                   value={formData.specialDates}

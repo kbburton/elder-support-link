@@ -14,7 +14,415 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      activity_logs: {
+        Row: {
+          attachment_url: string | null
+          created_at: string
+          created_by_user_id: string | null
+          date_time: string
+          group_id: string | null
+          id: string
+          linked_appointment_id: string | null
+          linked_task_id: string | null
+          notes: string | null
+          title: string | null
+          type: string | null
+        }
+        Insert: {
+          attachment_url?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          date_time: string
+          group_id?: string | null
+          id?: string
+          linked_appointment_id?: string | null
+          linked_task_id?: string | null
+          notes?: string | null
+          title?: string | null
+          type?: string | null
+        }
+        Update: {
+          attachment_url?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          date_time?: string
+          group_id?: string | null
+          id?: string
+          linked_appointment_id?: string | null
+          linked_task_id?: string | null
+          notes?: string | null
+          title?: string | null
+          type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_logs_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_logs_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "care_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_logs_linked_appointment_id_fkey"
+            columns: ["linked_appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_logs_linked_task_id_fkey"
+            columns: ["linked_task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      appointments: {
+        Row: {
+          attending_user_id: string | null
+          category: string | null
+          created_at: string
+          created_by_user_id: string | null
+          date_time: string
+          description: string | null
+          group_id: string | null
+          id: string
+          location: string | null
+          outcome_notes: string | null
+          reminder_days_before: number | null
+        }
+        Insert: {
+          attending_user_id?: string | null
+          category?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          date_time: string
+          description?: string | null
+          group_id?: string | null
+          id?: string
+          location?: string | null
+          outcome_notes?: string | null
+          reminder_days_before?: number | null
+        }
+        Update: {
+          attending_user_id?: string | null
+          category?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          date_time?: string
+          description?: string | null
+          group_id?: string | null
+          id?: string
+          location?: string | null
+          outcome_notes?: string | null
+          reminder_days_before?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointments_attending_user_id_fkey"
+            columns: ["attending_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "care_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      care_group_members: {
+        Row: {
+          created_at: string
+          group_id: string | null
+          id: string
+          relationship_to_recipient: string | null
+          role: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          group_id?: string | null
+          id?: string
+          relationship_to_recipient?: string | null
+          role?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          group_id?: string | null
+          id?: string
+          relationship_to_recipient?: string | null
+          role?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "care_group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "care_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "care_group_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      care_groups: {
+        Row: {
+          chronic_conditions: string | null
+          created_at: string
+          created_by_user_id: string | null
+          date_of_birth: string | null
+          hearing: string | null
+          id: string
+          memory: string | null
+          mental_health: string | null
+          mobility: string | null
+          name: string
+          profile_description: string | null
+          recipient_address: string | null
+          recipient_city: string | null
+          recipient_phone: string | null
+          recipient_state: string | null
+          recipient_zip: string | null
+          special_dates: Json | null
+          vision: string | null
+        }
+        Insert: {
+          chronic_conditions?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          date_of_birth?: string | null
+          hearing?: string | null
+          id?: string
+          memory?: string | null
+          mental_health?: string | null
+          mobility?: string | null
+          name: string
+          profile_description?: string | null
+          recipient_address?: string | null
+          recipient_city?: string | null
+          recipient_phone?: string | null
+          recipient_state?: string | null
+          recipient_zip?: string | null
+          special_dates?: Json | null
+          vision?: string | null
+        }
+        Update: {
+          chronic_conditions?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          date_of_birth?: string | null
+          hearing?: string | null
+          id?: string
+          memory?: string | null
+          mental_health?: string | null
+          mobility?: string | null
+          name?: string
+          profile_description?: string | null
+          recipient_address?: string | null
+          recipient_city?: string | null
+          recipient_phone?: string | null
+          recipient_state?: string | null
+          recipient_zip?: string | null
+          special_dates?: Json | null
+          vision?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "care_groups_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      documents: {
+        Row: {
+          category: string | null
+          created_at: string
+          file_type: string | null
+          file_url: string | null
+          full_text: string | null
+          group_id: string | null
+          id: string
+          summary: string | null
+          title: string | null
+          upload_date: string
+          uploaded_by_user_id: string | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          file_type?: string | null
+          file_url?: string | null
+          full_text?: string | null
+          group_id?: string | null
+          id?: string
+          summary?: string | null
+          title?: string | null
+          upload_date?: string
+          uploaded_by_user_id?: string | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          file_type?: string | null
+          file_url?: string | null
+          full_text?: string | null
+          group_id?: string | null
+          id?: string
+          summary?: string | null
+          title?: string | null
+          upload_date?: string
+          uploaded_by_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documents_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "care_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_uploaded_by_user_id_fkey"
+            columns: ["uploaded_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks: {
+        Row: {
+          category: string | null
+          created_at: string
+          created_by_user_id: string | null
+          description: string | null
+          due_date: string | null
+          group_id: string | null
+          id: string
+          primary_owner_id: string | null
+          secondary_owner_id: string | null
+          status: string
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          description?: string | null
+          due_date?: string | null
+          group_id?: string | null
+          id?: string
+          primary_owner_id?: string | null
+          secondary_owner_id?: string | null
+          status?: string
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          description?: string | null
+          due_date?: string | null
+          group_id?: string | null
+          id?: string
+          primary_owner_id?: string | null
+          secondary_owner_id?: string | null
+          status?: string
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "care_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_primary_owner_id_fkey"
+            columns: ["primary_owner_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_secondary_owner_id_fkey"
+            columns: ["secondary_owner_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      users: {
+        Row: {
+          address: string | null
+          created_at: string
+          email: string
+          id: string
+          name: string
+          password_hash: string | null
+          phone: string | null
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          email: string
+          id?: string
+          name: string
+          password_hash?: string | null
+          phone?: string | null
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          password_hash?: string | null
+          phone?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
