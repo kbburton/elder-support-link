@@ -126,12 +126,12 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
     if (groupId && config.fields.some(f => f.type === "user_select")) {
       const loadGroupMembers = async () => {
         try {
-          // Get care group members
+          // Get care group members using the explicit foreign key relationship
           const { data: members, error } = await supabase
             .from('care_group_members')
             .select(`
               user_id,
-              profiles!inner(email, first_name, last_name)
+              profiles!care_group_members_user_id_fkey(email, first_name, last_name)
             `)
             .eq('group_id', groupId);
 
@@ -139,13 +139,42 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
 
           const formattedMembers = members?.map((member: any) => ({
             id: member.user_id,
-            email: member.profiles.email,
-            name: `${member.profiles.first_name || ''} ${member.profiles.last_name || ''}`.trim() || member.profiles.email
+            email: member.profiles?.email || '',
+            name: `${member.profiles?.first_name || ''} ${member.profiles?.last_name || ''}`.trim() || member.profiles?.email || 'Unknown'
           })) || [];
 
           setGroupMembers(formattedMembers);
         } catch (error) {
           console.error('Failed to load group members:', error);
+          // Fallback: try without the relationship if it fails
+          try {
+            const { data: rawMembers, error: rawError } = await supabase
+              .from('care_group_members')
+              .select('user_id')
+              .eq('group_id', groupId);
+            
+            if (rawError) throw rawError;
+            
+            if (rawMembers && rawMembers.length > 0) {
+              const userIds = rawMembers.map(m => m.user_id);
+              const { data: profiles, error: profilesError } = await supabase
+                .from('profiles')
+                .select('user_id, email, first_name, last_name')
+                .in('user_id', userIds);
+                
+              if (profilesError) throw profilesError;
+              
+              const formattedMembers = profiles?.map((profile: any) => ({
+                id: profile.user_id,
+                email: profile.email || '',
+                name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.email || 'Unknown'
+              })) || [];
+              
+              setGroupMembers(formattedMembers);
+            }
+          } catch (fallbackError) {
+            console.error('Fallback also failed:', fallbackError);
+          }
         }
       };
 
