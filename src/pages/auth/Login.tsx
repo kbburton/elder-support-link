@@ -23,8 +23,32 @@ const Login = () => {
       setLoading(true);
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      toast({ title: "Welcome back", description: "Signed in successfully." });
-      navigate("/onboarding", { replace: true });
+      
+      // Check if user has existing care groups
+      const { data: userGroups, error: groupsError } = await supabase
+        .from('care_group_members')
+        .select('group_id, care_groups(id, name)')
+        .eq('user_id', (await supabase.auth.getUser()).data.user?.id);
+      
+      if (groupsError) throw groupsError;
+      
+      if (userGroups && userGroups.length > 0) {
+        // User has care groups
+        if (userGroups.length === 1) {
+          // Single group - redirect directly
+          const groupId = userGroups[0].group_id;
+          toast({ title: "Welcome back", description: "Signed in successfully." });
+          navigate(`/app/${groupId}`, { replace: true });
+        } else {
+          // Multiple groups - show selection in onboarding
+          toast({ title: "Welcome back", description: "Choose your care group." });
+          navigate("/onboarding", { replace: true });
+        }
+      } else {
+        // No groups - go to onboarding to create one
+        toast({ title: "Welcome back", description: "Create or join a care group to get started." });
+        navigate("/onboarding", { replace: true });
+      }
     } catch (err: any) {
       const msg = err?.message?.toLowerCase?.() || "";
       if (msg.includes("confirm")) {

@@ -15,6 +15,27 @@ const Onboarding = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [joinLoading, setJoinLoading] = useState(false);
+  const [existingGroups, setExistingGroups] = useState<any[]>([]);
+  const [showGroupSelection, setShowGroupSelection] = useState(false);
+
+  useEffect(() => {
+    const loadExistingGroups = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: userGroups } = await supabase
+          .from('care_group_members')
+          .select('group_id, care_groups(id, name)')
+          .eq('user_id', user.id);
+        
+        if (userGroups && userGroups.length > 1) {
+          setExistingGroups(userGroups);
+          setShowGroupSelection(true);
+        }
+      }
+    };
+    loadExistingGroups();
+  }, []);
+
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session) {
@@ -210,10 +231,34 @@ const { data: { user }, error: userError } = await supabase.auth.getUser();
   return (
     <div className="min-h-screen container py-10">
       <SEO title="Onboarding — DaveAssist" description="Create or join a care group." />
-<div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold">Welcome to DaveAssist</h1>
         <Button variant="outline" onClick={handleSignOut}>Log out</Button>
       </div>
+      
+      {showGroupSelection && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Your care groups</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground mb-4">You're a member of multiple care groups. Select one to continue:</p>
+            <div className="grid gap-2">
+              {existingGroups.map((group) => (
+                <Button
+                  key={group.group_id}
+                  variant="outline"
+                  className="justify-start"
+                  onClick={() => navigate(`/app/${group.group_id}`)}
+                >
+                  {group.care_groups?.name || 'Unnamed Group'}
+                </Button>
+              ))}
+            </div>
+            <p className="text-muted-foreground text-sm mt-4">Or create/join a new group below:</p>
+          </CardContent>
+        </Card>
+      )}
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
