@@ -10,10 +10,11 @@ const config: CrudConfig = {
     { name: "category", label: "Category" },
     { name: "description", label: "Description", type: "textarea" },
     { name: "attending_user_id", label: "Attending User ID" },
-    { name: "created_by_user_id", label: "Created By (User ID)" },
+    
     { name: "reminder_days_before", label: "Reminder Days Before", type: "number" },
     { name: "outcome_notes", label: "Outcome Notes", type: "textarea" },
   ],
+  creatorFieldName: "created_by_user_id",
   orderBy: { column: "created_at", ascending: false },
 };
 

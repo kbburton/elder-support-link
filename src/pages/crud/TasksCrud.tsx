@@ -11,9 +11,10 @@ const config: CrudConfig = {
     { name: "due_date", label: "Due Date", type: "date" },
     { name: "primary_owner_id", label: "Primary Owner ID" },
     { name: "secondary_owner_id", label: "Secondary Owner ID" },
-    { name: "created_by_user_id", label: "Created By (User ID)" },
+    
     { name: "status", label: "Status" },
   ],
+  creatorFieldName: "created_by_user_id",
   orderBy: { column: "created_at", ascending: false },
 };
 

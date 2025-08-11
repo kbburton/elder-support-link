@@ -26,6 +26,7 @@ export type CrudConfig = {
   groupScoped?: boolean; // if true, filters by group_id from route and sets on insert
   fields: CrudField[];
   orderBy?: { column: string; ascending?: boolean };
+  creatorFieldName?: string; // if set, auto-populates with current user id on create
 };
 
 function toInputDate(value?: string | null) {
@@ -63,6 +64,7 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
   const idField = config.idField ?? "id";
   const [editing, setEditing] = useState<any | null>(null);
   const [form, setForm] = useState<Record<string, any>>({});
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const queryKey = useMemo(() => ["crud", config.table, groupId], [config.table, groupId]);
 
@@ -95,6 +97,12 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
     }
   }, [editing, config.fields]);
 
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setCurrentUserId(data.user?.id ?? null);
+    });
+  }, []);
+
   const upsertMutation = useMutation({
     mutationFn: async () => {
       const payload: Record<string, any> = {};
@@ -106,6 +114,7 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
         else payload[f.name] = val === "" ? null : val;
       }
       if (config.groupScoped && groupId) payload["group_id"] = groupId;
+      if (!editing && config.creatorFieldName && currentUserId) payload[config.creatorFieldName] = currentUserId;
 
       if (editing) {
         const { error } = await sb.from(config.table).update(payload).eq(idField, editing[idField]).select().maybeSingle();

@@ -11,13 +11,27 @@ const AppHeader = () => {
   const currentId = groupId || "demo";
 
   const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
-
+  const [userName, setUserName] = useState<string>("");
   useEffect(() => {
     const load = async () => {
       try {
         const { data: auth } = await supabase.auth.getUser();
         const uid = auth.user?.id;
         if (!uid) return;
+
+        // Load user's display name
+        try {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("first_name, last_name")
+            .eq("user_id", uid)
+            .maybeSingle();
+          const name =
+            (profile?.first_name || "") + (profile?.last_name ? ` ${profile.last_name}` : "");
+          setUserName(name.trim() || auth.user?.email || "User");
+        } catch {
+          setUserName(auth.user?.email || "User");
+        }
 
         const { data: memberships } = await supabase
           .from("care_group_members")
@@ -59,7 +73,7 @@ const AppHeader = () => {
       <SidebarTrigger className="ml-0" />
       <div className="flex items-center gap-2">
         <div className="h-6 w-6 rounded-md shadow-glow" style={{ background: "var(--gradient-primary)" }} />
-        <span className="font-medium">DaveAssist</span>
+        <span className="font-medium">DaveAssist{userName ? ` — ${userName}` : ""}</span>
       </div>
       <div className="ml-auto flex items-center gap-3">
         <Select value={currentId} onValueChange={(val) => navigate(`/app/${val}/calendar`)}>
