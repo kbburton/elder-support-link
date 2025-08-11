@@ -193,10 +193,23 @@ const { data: { user }, error: userError } = await supabase.auth.getUser();
     }
   };
 
+  const handleSignOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      toast({ title: "Sign out failed", description: error.message });
+      return;
+    }
+    toast({ title: "Signed out", description: "You have been signed out." });
+    navigate("/login", { replace: true });
+  };
+
   return (
     <div className="min-h-screen container py-10">
       <SEO title="Onboarding — DaveAssist" description="Create or join a care group." />
-      <h1 className="text-2xl font-semibold mb-6">Welcome to DaveAssist</h1>
+<div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-semibold">Welcome to DaveAssist</h1>
+        <Button variant="outline" onClick={handleSignOut}>Log out</Button>
+      </div>
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
