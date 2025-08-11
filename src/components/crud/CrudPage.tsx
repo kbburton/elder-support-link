@@ -278,14 +278,26 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
       // Handle document linking for newly created items
       if (action === "created" && row?.[idField] && form.documentLinks && form.documentLinks.length > 0) {
         try {
-          const linkPromises = form.documentLinks.map((docId: string) => 
-            supabase.from('document_links').insert({
-              document_id: docId,
-              linked_item_id: row[idField],
-              linked_item_type: config.table === 'tasks' ? 'task' : 'appointment'
-            })
-          );
-          await Promise.all(linkPromises);
+          // Use the appropriate table based on item type
+          if (config.table === 'tasks') {
+            const linkPromises = form.documentLinks.map((docId: string) => 
+              supabase.from('task_documents').insert({
+                document_id: docId,
+                task_id: row[config.idField || 'id'],
+                created_by_user_id: currentUserId
+              })
+            );
+            await Promise.all(linkPromises);
+          } else if (config.table === 'appointments') {
+            const linkPromises = form.documentLinks.map((docId: string) => 
+              supabase.from('appointment_documents').insert({
+                document_id: docId,
+                appointment_id: row[config.idField || 'id'],
+                created_by_user_id: currentUserId
+              })
+            );
+            await Promise.all(linkPromises);
+          }
           toast({ title: "Documents linked", description: `${form.documentLinks.length} document(s) linked to the new ${config.table.slice(0, -1)}.` });
         } catch (e) {
           console.warn("Document linking failed", e);

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Link, Unlink, Plus } from 'lucide-react';
@@ -10,10 +10,12 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
 interface TaskAppointmentDocumentLinkerProps {
-  itemId: string;
+  itemId: string | null;
   itemType: 'task' | 'appointment';
   itemTitle: string;
-  onLinksChange: () => void;
+  onLinksChange?: () => void;
+  isCreationMode?: boolean;
+  onDocumentLinksChange?: (documentIds: string[]) => void;
 }
 
 interface Document {
@@ -27,13 +29,16 @@ export const TaskAppointmentDocumentLinker = ({
   itemId, 
   itemType, 
   itemTitle, 
-  onLinksChange 
+  onLinksChange,
+  isCreationMode = false,
+  onDocumentLinksChange
 }: TaskAppointmentDocumentLinkerProps) => {
   const { groupId } = useParams();
   const { toast } = useToast();
   const [showDialog, setShowDialog] = useState(false);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string>('');
   const [isLinking, setIsLinking] = useState(false);
+  const [selectedDocuments, setSelectedDocuments] = useState<string[]>([]);
 
   // Fetch available documents
   const { data: documents = [] } = useQuery({
@@ -56,9 +61,8 @@ export const TaskAppointmentDocumentLinker = ({
   const { data: existingLinks = [], refetch: refetchLinks } = useQuery({
     queryKey: ['item-document-links', itemType, itemId],
     queryFn: async () => {
-      if (!itemId) return [];
+      if (!itemId || isCreationMode) return [];
       
-
       if (itemType === 'task') {
         const { data: linksData } = await supabase
           .from('task_documents')
@@ -103,24 +107,51 @@ export const TaskAppointmentDocumentLinker = ({
         })) || [];
       }
     },
-    enabled: !!itemId,
+    enabled: !!itemId && !isCreationMode,
   });
+
+  // For creation mode, manage selected documents locally
+  const [creationLinks, setCreationLinks] = useState<Array<{id: string, filename: string}>>([]);
+
+  useEffect(() => {
+    if (isCreationMode) {
+      // Update creation links when documents are selected/deselected
+      const links = documents
+        .filter(doc => selectedDocuments.includes(doc.id))
+        .map(doc => ({
+          id: doc.id,
+          filename: doc.original_filename || doc.title || 'Unknown'
+        }));
+      setCreationLinks(links);
+    }
+  }, [selectedDocuments, documents, isCreationMode]);
 
   const handleLink = async () => {
     if (!selectedDocumentId) return;
+
+    if (isCreationMode) {
+      // In creation mode, just update the selected documents
+      if (!selectedDocuments.includes(selectedDocumentId)) {
+        const newSelected = [...selectedDocuments, selectedDocumentId];
+        setSelectedDocuments(newSelected);
+        onDocumentLinksChange?.(newSelected);
+      }
+      setShowDialog(false);
+      setSelectedDocumentId('');
+      return;
+    }
 
     setIsLinking(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-
       if (itemType === 'task') {
         const { error } = await supabase
           .from('task_documents')
           .insert({
             document_id: selectedDocumentId,
-            task_id: itemId,
+            task_id: itemId!,
             created_by_user_id: user.id
           });
         if (error) throw error;
@@ -129,7 +160,7 @@ export const TaskAppointmentDocumentLinker = ({
           .from('appointment_documents')
           .insert({
             document_id: selectedDocumentId,
-            appointment_id: itemId,
+            appointment_id: itemId!,
             created_by_user_id: user.id
           });
         if (error) throw error;
@@ -143,7 +174,7 @@ export const TaskAppointmentDocumentLinker = ({
       setShowDialog(false);
       setSelectedDocumentId('');
       refetchLinks();
-      onLinksChange();
+      onLinksChange?.();
     } catch (error) {
       console.error('Link error:', error);
       toast({
@@ -157,21 +188,28 @@ export const TaskAppointmentDocumentLinker = ({
   };
 
   const handleUnlink = async (documentId: string) => {
-    try {
+    if (isCreationMode) {
+      // In creation mode, just remove from selected documents
+      const newSelected = selectedDocuments.filter(id => id !== documentId);
+      setSelectedDocuments(newSelected);
+      onDocumentLinksChange?.(newSelected);
+      return;
+    }
 
+    try {
       if (itemType === 'task') {
         const { error } = await supabase
           .from('task_documents')
           .delete()
           .eq('document_id', documentId)
-          .eq('task_id', itemId);
+          .eq('task_id', itemId!);
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from('appointment_documents')
           .delete()
           .eq('document_id', documentId)
-          .eq('appointment_id', itemId);
+          .eq('appointment_id', itemId!);
         if (error) throw error;
       }
 
@@ -181,7 +219,7 @@ export const TaskAppointmentDocumentLinker = ({
       });
 
       refetchLinks();
-      onLinksChange();
+      onLinksChange?.();
     } catch (error) {
       console.error('Unlink error:', error);
       toast({
@@ -193,14 +231,15 @@ export const TaskAppointmentDocumentLinker = ({
   };
 
   // Available documents (excluding already linked ones)
+  const linksToUse = isCreationMode ? creationLinks : existingLinks;
   const availableDocuments = documents.filter(
-    doc => !existingLinks.some(link => link.id === doc.id)
+    doc => !linksToUse.some(link => link.id === doc.id)
   );
 
   return (
     <div className="space-y-1">
       {/* Existing links */}
-      {existingLinks.map((link) => (
+      {linksToUse.map((link) => (
         <div key={link.id} className="flex items-center justify-between gap-2 text-xs">
           <Badge variant="outline" className="flex-1 justify-start text-xs">
             <Link className="h-2 w-2 mr-1" />
