@@ -11,34 +11,28 @@ const Register = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [address, setAddress] = useState("");
-  const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleContinue = async () => {
-    if (!name || !email) {
-      toast({ title: "Missing info", description: "Name and email are required." });
+  const handleSignUp = async () => {
+    if (!email || !password) {
+      toast({ title: "Missing info", description: "Email and password are required." });
       return;
     }
     try {
       setLoading(true);
-      const { error } = await (supabase as any).from("users").insert({
-        name,
+      const redirectUrl = `${window.location.origin}/onboarding`;
+      const { error } = await supabase.auth.signUp({
         email,
-        address: address || null,
-        phone: phone || null,
+        password,
+        options: { emailRedirectTo: redirectUrl }
       });
       if (error) throw error;
-      toast({ title: "Account created", description: "Your details have been saved." });
-      navigate("/onboarding");
+      toast({ title: "Check your email", description: "Confirm your email to finish sign up." });
+      navigate("/login", { replace: true });
     } catch (err: any) {
-      toast({
-        title: "Registration failed",
-        description: err?.message || "Please try again.",
-      });
+      toast({ title: "Registration failed", description: err?.message || "Please try again." });
     } finally {
       setLoading(false);
     }
@@ -52,14 +46,12 @@ const Register = () => {
           <CardTitle>Create account</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Input placeholder="Full name" value={name} onChange={(e) => setName(e.target.value)} />
           <Input placeholder="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
           <Input placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-          <Input placeholder="Address" value={address} onChange={(e) => setAddress(e.target.value)} />
-          <Input placeholder="Phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
-          <Button className="w-full" onClick={handleContinue} disabled={loading}>
-            {loading ? "Saving..." : "Continue"}
+          <Button className="w-full" onClick={handleSignUp} disabled={loading}>
+            {loading ? "Creating account..." : "Sign up"}
           </Button>
+          <Button variant="outline" className="w-full" onClick={() => navigate("/login")}>Back to Login</Button>
         </CardContent>
       </Card>
     </div>
