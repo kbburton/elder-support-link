@@ -2,6 +2,8 @@ import SEO from "@/components/layout/SEO";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import MonthlyOverview from "@/components/calendar/MonthlyOverview";
 
 const TasksPage = () => {
   return (
@@ -15,24 +17,37 @@ const TasksPage = () => {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        {[1,2,3].map((id) => (
-          <Card key={id}>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                Refill medication <Badge>Medical</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-muted-foreground space-y-2">
-              <p>Due: Friday • Owner: Jamie • Status: Open</p>
-              <div className="flex gap-2 pt-2">
-                <Button size="sm" variant="outline">Complete</Button>
-                <Button size="sm" variant="ghost">Duplicate</Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <Tabs defaultValue="tasks" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="tasks">Tasks</TabsTrigger>
+          <TabsTrigger value="overview">Calendar Overview</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="tasks">
+          <div className="grid gap-4 md:grid-cols-2">
+            {[1,2,3].map((id) => (
+              <Card key={id}>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    Refill medication <Badge>Medical</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="text-sm text-muted-foreground space-y-2">
+                  <p>Due: Friday • Owner: Jamie • Status: Open</p>
+                  <div className="flex gap-2 pt-2">
+                    <Button size="sm" variant="outline">Complete</Button>
+                    <Button size="sm" variant="ghost">Duplicate</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="overview">
+          <MonthlyOverview />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

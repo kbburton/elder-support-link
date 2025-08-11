@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { format, isSameDay, isSameWeek, isBefore, addWeeks, startOfWeek, addDays, parseISO, compareAsc } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
+import MonthlyOverview from "@/components/calendar/MonthlyOverview";
 
 type Appointment = {
   id: string;
@@ -51,7 +52,7 @@ const CalendarPage = () => {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(false);
   const [viewDate, setViewDate] = useState<Date>(new Date());
-  const [activeView, setActiveView] = useState<"month" | "week" | "agenda">("month");
+  const [activeView, setActiveView] = useState<"month" | "week" | "agenda" | "overview">("month");
   const [categoryFilter, setCategoryFilter] = useState<"all" | Category>("all");
 
   // New/Edit dialog
@@ -412,6 +413,9 @@ const CalendarPage = () => {
       <header className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Shared Calendar</h1>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={loadAppointments} disabled={loading}>
+            {loading ? "Loading..." : "Refresh"}
+          </Button>
           <Dialog open={openDialog} onOpenChange={setOpenDialog}>
             <DialogTrigger asChild>
               <Button variant="hero" onClick={onOpenNew}><Plus className="mr-2 h-4 w-4" /> New appointment</Button>
@@ -488,12 +492,18 @@ const CalendarPage = () => {
         </div>
       </header>
 
-      <Tabs value={activeView} onValueChange={(v) => setActiveView(v as any)}>
+      <Tabs value={activeView} onValueChange={(v) => setActiveView(v as any)} className="space-y-4">
         <TabsList>
-          <TabsTrigger value="month" className="flex items-center gap-2"><Calendar className="h-4 w-4" /> Month</TabsTrigger>
-          <TabsTrigger value="week" className="flex items-center gap-2"><CalendarClock className="h-4 w-4" /> Week</TabsTrigger>
-          <TabsTrigger value="agenda" className="flex items-center gap-2"><List className="h-4 w-4" /> Agenda</TabsTrigger>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="month">Month</TabsTrigger>
+          <TabsTrigger value="week">Week</TabsTrigger>
+          <TabsTrigger value="agenda">Agenda</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="overview">
+          <MonthlyOverview />
+        </TabsContent>
+
         <TabsContent value="month"><MonthView /></TabsContent>
         <TabsContent value="week"><WeekView /></TabsContent>
         <TabsContent value="agenda"><AgendaView /></TabsContent>
