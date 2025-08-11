@@ -16,6 +16,7 @@ import DocumentsPage from "./pages/app/DocumentsPage";
 import ActivityLogPage from "./pages/app/ActivityLogPage";
 import AdminConsolePage from "./pages/app/AdminConsolePage";
 import SearchPage from "./pages/app/SearchPage";
+import ProfilePage from "./pages/app/ProfilePage";
 import UsersCrud from "./pages/crud/UsersCrud";
 import CareGroupsCrud from "./pages/crud/CareGroupsCrud";
 import CareGroupMembersCrud from "./pages/crud/CareGroupMembersCrud";
@@ -44,6 +45,8 @@ const App = () => (
               <Route path="tasks" element={<TasksPage />} />
               <Route path="documents" element={<DocumentsPage />} />
               <Route path="activity" element={<ActivityLogPage />} />
+              <Route path="search" element={<SearchPage />} />
+              <Route path="profile" element={<ProfilePage />} />
               <Route path="admin" element={<AdminConsolePage />} />
               <Route path="admin/users" element={<UsersCrud />} />
               <Route path="admin/care-groups" element={<CareGroupsCrud />} />
@@ -52,7 +55,6 @@ const App = () => (
               <Route path="admin/tasks" element={<TasksCrud />} />
               <Route path="admin/documents" element={<DocumentsCrud />} />
               <Route path="admin/activity-logs" element={<ActivityLogsCrud />} />
-              <Route path="search" element={<SearchPage />} />
             </Route>
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

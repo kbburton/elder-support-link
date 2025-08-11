@@ -1,5 +1,5 @@
 import { NavLink, useParams } from "react-router-dom";
-import { Calendar, FileText, ListTodo, NotebookPen, Search, Shield } from "lucide-react";
+import { Calendar, FileText, ListTodo, NotebookPen, Search, Shield, User } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -20,6 +20,7 @@ const items = [
   { title: "Documents", url: "documents", icon: FileText },
   { title: "Activity Log", url: "activity", icon: NotebookPen },
   { title: "Search", url: "search", icon: Search },
+  { title: "Profile", url: "profile", icon: User },
   { title: "Admin", url: "admin", icon: Shield },
 ];
 
