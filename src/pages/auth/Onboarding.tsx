@@ -8,6 +8,7 @@ import SEO from "@/components/layout/SEO";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 
 const Onboarding = () => {
   const navigate = useNavigate();
@@ -52,14 +53,15 @@ const Onboarding = () => {
 
   // Join group form state
   const [groupCode, setGroupCode] = useState("");
-
+  const [relationship, setRelationship] = useState<string>("");
+  const [joinRelationship, setJoinRelationship] = useState<string>("");
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   const handleCreateGroup = async () => {
-    if (!formData.name.trim()) {
-      toast({ title: "Name required", description: "Please enter a name for the care recipient." });
+    if (!formData.name.trim() || !relationship) {
+      toast({ title: "Missing information", description: !formData.name.trim() ? "Please enter a name for the care recipient." : "Please select your relationship to the care recipient." });
       return;
     }
 
@@ -108,7 +110,8 @@ const { data: { user }, error: userError } = await supabase.auth.getUser();
         .insert({
           group_id: group.id,
           user_id: user.id,
-          role: "admin"
+          role: "admin",
+          relationship_to_recipient: relationship
         });
 
       if (memberError) throw memberError;
@@ -127,8 +130,8 @@ const { data: { user }, error: userError } = await supabase.auth.getUser();
   };
 
   const handleJoinGroup = async () => {
-    if (!groupCode.trim()) {
-      toast({ title: "Group code required", description: "Please enter a group ID or invite code." });
+    if (!groupCode.trim() || !joinRelationship) {
+      toast({ title: "Missing information", description: !groupCode.trim() ? "Please enter a group ID or invite code." : "Please select your relationship to the care recipient." });
       return;
     }
 
@@ -175,7 +178,8 @@ const { data: { user }, error: userError } = await supabase.auth.getUser();
         .insert({
           group_id: group.id,
           user_id: user.id,
-          role: "member"
+          role: "member",
+          relationship_to_recipient: joinRelationship
         });
 
       if (memberError) throw memberError;
@@ -225,6 +229,22 @@ const { data: { user }, error: userError } = await supabase.auth.getUser();
                   onChange={(e) => handleInputChange("name", e.target.value)}
                   placeholder="Enter the name of the person receiving care"
                 />
+              </div>
+              
+              <div>
+                <Label htmlFor="relationship">Your relationship to care recipient *</Label>
+                <Select value={relationship} onValueChange={setRelationship}>
+                  <SelectTrigger aria-label="Relationship">
+                    <SelectValue placeholder="Select relationship" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="spouse">Spouse</SelectItem>
+                    <SelectItem value="child">Child</SelectItem>
+                    <SelectItem value="other_relative">Other relative</SelectItem>
+                    <SelectItem value="friend">Friend</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               
               <div className="grid gap-4 md:grid-cols-2">
@@ -390,6 +410,21 @@ const { data: { user }, error: userError } = await supabase.auth.getUser();
             <p className="text-muted-foreground text-sm">
               Ask an admin for the group ID, then enter it here to join their care group.
             </p>
+            <div>
+              <Label htmlFor="joinRelationship">Your relationship to care recipient *</Label>
+              <Select value={joinRelationship} onValueChange={setJoinRelationship}>
+                <SelectTrigger aria-label="Relationship">
+                  <SelectValue placeholder="Select relationship" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="spouse">Spouse</SelectItem>
+                  <SelectItem value="child">Child</SelectItem>
+                  <SelectItem value="other_relative">Other relative</SelectItem>
+                  <SelectItem value="friend">Friend</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div>
               <Label htmlFor="groupCode">Group ID</Label>
               <Input

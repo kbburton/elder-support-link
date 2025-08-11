@@ -66,15 +66,15 @@ const Register = () => {
             <div className="space-y-4">
               <div>
                 <Label htmlFor="email">Email *</Label>
-                <Input id="email" placeholder="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                <Input id="email" placeholder="Email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
               </div>
               <div>
                 <Label htmlFor="password">Password *</Label>
-                <Input id="password" placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+                <Input id="password" placeholder="Password" type="password" autoComplete="new-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
               </div>
               <div>
                 <Label htmlFor="address1">Street address *</Label>
-                <Input id="address1" placeholder="Street address" value={address1} onChange={(e) => setAddress1(e.target.value)} />
+                <Input id="address1" placeholder="Street address" autoComplete="address-line1" required value={address1} onChange={(e) => setAddress1(e.target.value)} />
               </div>
               <div>
                 <Label htmlFor="address2">Street address 2</Label>
@@ -83,20 +83,20 @@ const Register = () => {
               <div className="grid gap-4 md:grid-cols-3">
                 <div>
                   <Label htmlFor="city">City *</Label>
-                  <Input id="city" placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} />
+                  <Input id="city" placeholder="City" autoComplete="address-level2" required value={city} onChange={(e) => setCity(e.target.value)} />
                 </div>
                 <div>
                   <Label htmlFor="state">State *</Label>
-                  <Input id="state" placeholder="State" value={stateProv} onChange={(e) => setStateProv(e.target.value)} />
+                  <Input id="state" placeholder="State" autoComplete="address-level1" required value={stateProv} onChange={(e) => setStateProv(e.target.value)} />
                 </div>
                 <div>
                   <Label htmlFor="zip">ZIP code *</Label>
-                  <Input id="zip" placeholder="ZIP code" value={zip} onChange={(e) => setZip(e.target.value)} />
+                  <Input id="zip" placeholder="ZIP code" autoComplete="postal-code" required value={zip} onChange={(e) => setZip(e.target.value)} />
                 </div>
               </div>
               <div>
                 <Label htmlFor="phone">Phone number *</Label>
-                <Input id="phone" placeholder="Phone number" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                <Input id="phone" placeholder="Phone number" type="tel" autoComplete="tel" required value={phone} onChange={(e) => setPhone(e.target.value)} />
               </div>
               <Button className="w-full" onClick={handleSignUp} disabled={loading}>
                 {loading ? "Creating account..." : "Sign up"}
