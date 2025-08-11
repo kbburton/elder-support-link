@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,23 @@ const Onboarding = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [joinLoading, setJoinLoading] = useState(false);
-
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        toast({ title: "Session expired", description: "Please log in again." });
+        navigate("/login", { replace: true });
+      }
+    });
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        toast({ title: "Session required", description: "Please log in again." });
+        navigate("/login", { replace: true });
+      }
+    });
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, [navigate, toast]);
   // Create group form state
   const [formData, setFormData] = useState({
     name: "",
@@ -51,9 +67,10 @@ const Onboarding = () => {
       setLoading(true);
       
       // Get current user
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
+const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) {
         toast({ title: "Authentication error", description: "Please log in again." });
+        navigate("/login", { replace: true });
         return;
       }
 
@@ -119,9 +136,10 @@ const Onboarding = () => {
       setJoinLoading(true);
       
       // Get current user
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
+const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) {
         toast({ title: "Authentication error", description: "Please log in again." });
+        navigate("/login", { replace: true });
         return;
       }
 
