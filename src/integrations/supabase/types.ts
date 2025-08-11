@@ -85,6 +85,30 @@ export type Database = {
           },
         ]
       }
+      appointment_documents: {
+        Row: {
+          appointment_id: string
+          created_at: string
+          created_by_user_id: string | null
+          document_id: string
+          id: string
+        }
+        Insert: {
+          appointment_id: string
+          created_at?: string
+          created_by_user_id?: string | null
+          document_id: string
+          id?: string
+        }
+        Update: {
+          appointment_id?: string
+          created_at?: string
+          created_by_user_id?: string | null
+          document_id?: string
+          id?: string
+        }
+        Relationships: []
+      }
       appointment_notification_recipients: {
         Row: {
           appointment_id: string

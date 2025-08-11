@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { DocumentLinker } from './DocumentLinker';
 
 interface Document {
   id: string;
@@ -240,13 +241,13 @@ export const DocumentList = ({ documents, onRefresh, userProfiles }: DocumentLis
         const FileIcon = getFileIcon(doc.file_type);
         
         return (
-          <Card key={doc.id} className="flex flex-col">
+          <Card key={doc.id} className="flex flex-col h-full">
             <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center space-x-2">
-                  <FileIcon className="h-5 w-5 text-primary" />
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center space-x-2 min-w-0 flex-1">
+                  <FileIcon className="h-5 w-5 text-primary flex-shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <CardTitle className="text-sm font-medium truncate">
+                    <CardTitle className="text-sm font-medium truncate" title={doc.title}>
                       {doc.title}
                     </CardTitle>
                   </div>
@@ -288,6 +289,13 @@ export const DocumentList = ({ documents, onRefresh, userProfiles }: DocumentLis
                   <p className="text-sm text-foreground line-clamp-2">{doc.notes}</p>
                 </div>
               )}
+
+              {/* Document Links */}
+              <DocumentLinker
+                documentId={doc.id}
+                documentTitle={doc.title}
+                onLinksChange={onRefresh}
+              />
 
               {/* Actions */}
               <div className="flex space-x-2 pt-2">
