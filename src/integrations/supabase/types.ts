@@ -182,13 +182,6 @@ export type Database = {
             referencedRelation: "care_groups"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "care_group_members_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
         ]
       }
       care_groups: {
@@ -252,15 +245,7 @@ export type Database = {
           special_dates?: Json | null
           vision?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "care_groups_created_by_user_id_fkey"
-            columns: ["created_by_user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       documents: {
         Row: {
