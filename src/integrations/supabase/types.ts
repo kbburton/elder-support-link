@@ -270,43 +270,88 @@ export type Database = {
         }
         Relationships: []
       }
+      document_access_logs: {
+        Row: {
+          action: string
+          created_at: string
+          document_id: string
+          group_id: string
+          id: string
+          ip_address: unknown | null
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          document_id: string
+          group_id: string
+          id?: string
+          ip_address?: unknown | null
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          document_id?: string
+          group_id?: string
+          id?: string
+          ip_address?: unknown | null
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       documents: {
         Row: {
           category: string | null
           created_at: string
+          file_size: number | null
           file_type: string | null
           file_url: string | null
           full_text: string | null
           group_id: string | null
           id: string
+          notes: string | null
+          processing_status: string | null
           summary: string | null
           title: string | null
+          updated_at: string | null
           upload_date: string
           uploaded_by_user_id: string | null
         }
         Insert: {
           category?: string | null
           created_at?: string
+          file_size?: number | null
           file_type?: string | null
           file_url?: string | null
           full_text?: string | null
           group_id?: string | null
           id?: string
+          notes?: string | null
+          processing_status?: string | null
           summary?: string | null
           title?: string | null
+          updated_at?: string | null
           upload_date?: string
           uploaded_by_user_id?: string | null
         }
         Update: {
           category?: string | null
           created_at?: string
+          file_size?: number | null
           file_type?: string | null
           file_url?: string | null
           full_text?: string | null
           group_id?: string | null
           id?: string
+          notes?: string | null
+          processing_status?: string | null
           summary?: string | null
           title?: string | null
+          updated_at?: string | null
           upload_date?: string
           uploaded_by_user_id?: string | null
         }

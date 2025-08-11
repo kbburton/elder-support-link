@@ -2,3 +2,6 @@ project_id = "yfwgegapmggwywrnzqvg"
 
 [functions.notify]
 verify_jwt = true
+
+[functions.process-document]
+verify_jwt = true
