@@ -120,13 +120,22 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
   useEffect(() => {
     if (!editing && config.creatorFieldName && currentUserId) {
       setForm((prev) => {
+        const newForm = { ...prev };
         if (prev[config.creatorFieldName!] == null || prev[config.creatorFieldName!] === "") {
-          return { ...prev, [config.creatorFieldName!]: currentUserId };
+          newForm[config.creatorFieldName!] = currentUserId;
         }
-        return prev;
+        // Also pre-fill email if the field exists
+        if (config.fields.some(f => f.name === 'created_by_email')) {
+          supabase.auth.getUser().then(({ data }) => {
+            if (data.user?.email && (prev.created_by_email == null || prev.created_by_email === "")) {
+              setForm(current => ({ ...current, created_by_email: data.user!.email }));
+            }
+          });
+        }
+        return newForm;
       });
     }
-  }, [editing, config.creatorFieldName, currentUserId]);
+  }, [editing, config.creatorFieldName, currentUserId, config.fields]);
 
   const upsertMutation = useMutation({
     mutationFn: async () => {
@@ -139,7 +148,16 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
         else payload[f.name] = val === "" ? null : val;
       }
       if (config.groupScoped && groupId) payload["group_id"] = groupId;
-      if (!editing && config.creatorFieldName && currentUserId) payload[config.creatorFieldName] = currentUserId;
+      
+      // Auto-fill creator fields with user ID and email on create
+      if (!editing && config.creatorFieldName && currentUserId) {
+        payload[config.creatorFieldName] = currentUserId;
+        // Also set email if field exists
+        const user = await supabase.auth.getUser();
+        if (user.data.user?.email && config.fields.some(f => f.name === 'created_by_email')) {
+          payload.created_by_email = user.data.user.email;
+        }
+      }
 
       if (editing && editing[idField]) {
         const { data: updated, error } = await sb

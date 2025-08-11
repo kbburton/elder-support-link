@@ -114,6 +114,7 @@ export type Database = {
           attending_user_id: string | null
           category: string | null
           created_at: string
+          created_by_email: string | null
           created_by_user_id: string | null
           date_time: string
           description: string | null
@@ -127,6 +128,7 @@ export type Database = {
           attending_user_id?: string | null
           category?: string | null
           created_at?: string
+          created_by_email?: string | null
           created_by_user_id?: string | null
           date_time: string
           description?: string | null
@@ -140,6 +142,7 @@ export type Database = {
           attending_user_id?: string | null
           category?: string | null
           created_at?: string
+          created_by_email?: string | null
           created_by_user_id?: string | null
           date_time?: string
           description?: string | null

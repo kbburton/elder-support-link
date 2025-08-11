@@ -55,7 +55,7 @@ export default function AppointmentsCrud() {
       { name: "location", label: "Location" },
       { name: "category", label: "Category" },
       { name: "description", label: "Description", type: "textarea" },
-      { name: "created_by_user_id", label: "Created By (User ID)", readOnly: true },
+      { name: "created_by_email", label: "Created By", readOnly: true },
       { name: "attending_user_id", label: "Attending User ID" },
       { name: "reminder_days_before", label: "Reminder Days Before", type: "number" },
       { name: "outcome_notes", label: "Outcome Notes", type: "textarea" },

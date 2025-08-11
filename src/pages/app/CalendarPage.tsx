@@ -29,6 +29,7 @@ type Appointment = {
   outcome_notes: string | null;
   reminder_days_before: number | null;
   created_by_user_id: string | null;
+  created_by_email: string | null;
 };
 
 const CATEGORIES = ["Medical", "Financial/Legal", "Personal/Social", "Other"] as const;
@@ -83,6 +84,7 @@ const CalendarPage = () => {
           outcome_notes: null,
           reminder_days_before: 1,
           created_by_user_id: null,
+          created_by_email: "demo@example.com",
         },
         {
           id: "d2",
@@ -95,6 +97,7 @@ const CalendarPage = () => {
           outcome_notes: null,
           reminder_days_before: 1,
           created_by_user_id: null,
+          created_by_email: "demo@example.com",
         },
       ];
       setAppointments(demo);
@@ -105,7 +108,7 @@ const CalendarPage = () => {
     try {
       const { data, error } = await supabase
         .from("appointments")
-        .select("id, date_time, location, category, description, attending_user_id, group_id, outcome_notes, reminder_days_before, created_by_user_id")
+        .select("id, date_time, location, category, description, attending_user_id, group_id, outcome_notes, reminder_days_before, created_by_user_id, created_by_email")
         .eq("group_id", groupId)
         .order("date_time", { ascending: true });
       if (error) throw error;
@@ -180,6 +183,7 @@ const CalendarPage = () => {
     const iso = composeISO(formDate, formTime);
     try {
       const userId = (await supabase.auth.getUser()).data.user?.id;
+      const userEmail = (await supabase.auth.getUser()).data.user?.email;
       const payload: any = {
         ...(editing?.id ? { id: editing.id } : {}),
         group_id: groupId,
@@ -192,6 +196,7 @@ const CalendarPage = () => {
         outcome_notes: formOutcome || null,
       };
       if (!editing?.id && userId) payload.created_by_user_id = userId;
+      if (!editing?.id && userEmail) payload.created_by_email = userEmail;
 
       const { error } = await supabase.from("appointments").upsert(payload as any, { onConflict: "id" });
       if (error) throw error;
@@ -309,7 +314,7 @@ const CalendarPage = () => {
               </CardHeader>
               <CardContent className="text-sm text-muted-foreground space-y-2">
                 <p>{format(parseISO(a.date_time), "EEE, p")} • {a.location || "No location"}</p>
-                <p className="text-xs">Created by: {a.created_by_user_id || "Unknown"}</p>
+                <p className="text-xs">Created by: {a.created_by_email || "Unknown"}</p>
                 <div className="flex gap-2 pt-2">
                   <Button size="sm" variant="outline" onClick={() => onEdit(a)}>Edit</Button>
                   <Button size="sm" variant="ghost" onClick={() => downloadIcs(a)}>Add to my Calendar</Button>
@@ -385,7 +390,7 @@ const CalendarPage = () => {
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground space-y-2">
               <p>{format(parseISO(a.date_time), "PPPP p")} • {a.location || "No location"}</p>
-              <p className="text-xs">Created by: {a.created_by_user_id || "Unknown"}</p>
+              <p className="text-xs">Created by: {a.created_by_email || "Unknown"}</p>
               <div className="flex flex-wrap gap-2 pt-2">
                 <Button size="sm" variant="outline" onClick={() => onEdit(a)}>Edit</Button>
                 <Button size="sm" variant="ghost" onClick={() => downloadIcs(a)}>Add to my Calendar</Button>
