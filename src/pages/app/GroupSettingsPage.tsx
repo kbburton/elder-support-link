@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import SEO from "@/components/layout/SEO";
@@ -12,6 +12,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 const GroupSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -28,6 +29,7 @@ type GroupFormValues = z.infer<typeof GroupSchema>;
 
 export default function GroupSettingsPage() {
   const { groupId } = useParams();
+  const navigate = useNavigate();
   const { toast } = useToast();
 
   const form = useForm<GroupFormValues>({
@@ -92,7 +94,22 @@ export default function GroupSettingsPage() {
     },
   });
 
-  const onSubmit = (values: GroupFormValues) => saveMutation.mutate(values);
+const deleteMutation = useMutation({
+  mutationFn: async () => {
+    if (!groupId || groupId === "demo") throw new Error("Cannot delete this group.");
+    const { error } = await supabase.from("care_groups").delete().eq("id", groupId);
+    if (error) throw error;
+  },
+  onSuccess: () => {
+    toast({ title: "Group deleted", description: "This care group has been removed." });
+    navigate("/app/demo/calendar");
+  },
+  onError: (err: any) => {
+    toast({ title: "Delete failed", description: err.message ?? "Please try again.", variant: "destructive" });
+  },
+});
+
+const onSubmit = (values: GroupFormValues) => saveMutation.mutate(values);
 
   return (
     <main>
@@ -238,6 +255,40 @@ export default function GroupSettingsPage() {
                 </CardFooter>
               </form>
             </Form>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="mt-8">
+        <Card className="border-destructive/30">
+          <CardHeader>
+            <CardTitle>Danger zone</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-3">
+              Deleting a care group is permanent and cannot be undone.
+            </p>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" disabled={groupId === "demo" || deleteMutation.isPending}>
+                  {deleteMutation.isPending ? "Deleting..." : "Delete this group"}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete this care group?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently delete the group. Appointments, tasks, and documents that reference this group will no longer be accessible from this group.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => deleteMutation.mutate()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    Confirm delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </CardContent>
         </Card>
       </section>
