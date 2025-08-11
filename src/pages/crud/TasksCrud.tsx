@@ -32,8 +32,8 @@ const config: CrudConfig = {
         { value: "completed", label: "Completed" }
       ]
     },
-    { name: "completed_at", label: "Completed At", type: "datetime", readOnly: true },
-    { name: "completed_by_email", label: "Completed By", readOnly: true },
+    { name: "completed_at", label: "Completed At", type: "datetime" },
+    { name: "completed_by_email", label: "Completed By", type: "user_select" },
     { name: "created_by_email", label: "Created By", readOnly: true },
   ],
   creatorFieldName: "created_by_user_id",

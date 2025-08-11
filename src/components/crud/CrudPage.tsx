@@ -194,18 +194,10 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
         if (config.table === "tasks" && currentUserEmail) {
           newForm.created_by_email = currentUserEmail;
         }
-        // Also pre-fill email if the field exists
-        if (config.fields.some(f => f.name === 'created_by_email')) {
-          supabase.auth.getUser().then(({ data }) => {
-            if (data.user?.email && (prev.created_by_email == null || prev.created_by_email === "")) {
-              setForm(current => ({ ...current, created_by_email: data.user!.email }));
-            }
-          });
-        }
         return newForm;
       });
     }
-  }, [editing, config.creatorFieldName, currentUserId, config.fields]);
+  }, [editing, config.creatorFieldName, currentUserId, config.table, currentUserEmail]);
 
   const upsertMutation = useMutation({
     mutationFn: async () => {
@@ -235,10 +227,16 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
         const isNowCompleted = payload.status === "completed";
         
         if (!wasCompleted && isNowCompleted) {
-          // Task is being marked as completed
-          payload.completed_at = new Date().toISOString();
-          payload.completed_by_user_id = currentUserId;
-          payload.completed_by_email = currentUserEmail;
+          // Task is being marked as completed - auto-fill unless already set
+          if (!payload.completed_at) {
+            payload.completed_at = new Date().toISOString();
+          }
+          if (!payload.completed_by_user_id) {
+            payload.completed_by_user_id = currentUserId;
+          }
+          if (!payload.completed_by_email) {
+            payload.completed_by_email = currentUserEmail;
+          }
         } else if (wasCompleted && !isNowCompleted) {
           // Task is being unmarked as completed
           payload.completed_at = null;
@@ -375,7 +373,15 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
             {config.groupScoped && (
               <p className="text-xs text-muted-foreground">Group: {groupId ?? "(none)"}</p>
             )}
-            {config.fields.map((f) => (
+            {config.fields
+              .filter((f) => {
+                // Hide completion fields unless status is completed
+                if (config.table === "tasks" && (f.name === "completed_at" || f.name === "completed_by_email")) {
+                  return form.status === "completed";
+                }
+                return true;
+              })
+              .map((f) => (
               <div key={f.name} className="space-y-1">
                 <label className="text-sm font-medium">{f.label ?? f.name}</label>
                 {f.type === "textarea" ? (
