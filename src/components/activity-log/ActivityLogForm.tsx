@@ -116,9 +116,11 @@ const ActivityLogForm = ({ editingEntry, onSave, onCancel }: ActivityLogFormProp
         created_by_email: currentUserEmail,
       };
 
-      // Clean up empty fields
+      // Clean up empty fields and handle special "none" values
       Object.keys(payload).forEach(key => {
-        if (payload[key as keyof typeof payload] === "") {
+        if (payload[key as keyof typeof payload] === "" || 
+            payload[key as keyof typeof payload] === "no_task" ||
+            payload[key as keyof typeof payload] === "no_appointment") {
           payload[key as keyof typeof payload] = null;
         }
       });
@@ -351,7 +353,7 @@ const ActivityLogForm = ({ editingEntry, onSave, onCancel }: ActivityLogFormProp
                   <SelectValue placeholder="Select related task" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No task selected</SelectItem>
+                  <SelectItem value="no_task">No task selected</SelectItem>
                   {tasks?.map((task) => (
                     <SelectItem key={task.id} value={task.id}>
                       {task.title} ({task.status})
@@ -371,7 +373,7 @@ const ActivityLogForm = ({ editingEntry, onSave, onCancel }: ActivityLogFormProp
                   <SelectValue placeholder="Select related appointment" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No appointment selected</SelectItem>
+                  <SelectItem value="no_appointment">No appointment selected</SelectItem>
                   {appointments?.map((appointment) => (
                     <SelectItem key={appointment.id} value={appointment.id}>
                       {appointment.category} - {appointment.description} 

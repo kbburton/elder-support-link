@@ -18,8 +18,8 @@ const ActivityLogPage = () => {
   const [editingEntry, setEditingEntry] = useState<any | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [typeFilter, setTypeFilter] = useState("");
-  const [dateFilter, setDateFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all_types");
+  const [dateFilter, setDateFilter] = useState("all_dates");
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [isGroupAdmin, setIsGroupAdmin] = useState(false);
 
@@ -56,11 +56,11 @@ const ActivityLogPage = () => {
         query = query.or(`title.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%`);
       }
 
-      if (typeFilter) {
+      if (typeFilter && typeFilter !== "all_types") {
         query = query.eq("type", typeFilter);
       }
 
-      if (dateFilter) {
+      if (dateFilter && dateFilter !== "all_dates") {
         const now = new Date();
         let startDate: Date;
         
@@ -187,7 +187,7 @@ const ActivityLogPage = () => {
                   <SelectValue placeholder="Filter by type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All types</SelectItem>
+                  <SelectItem value="all_types">All types</SelectItem>
                   <SelectItem value="inperson">In-Person Visit</SelectItem>
                   <SelectItem value="phone">Phone Call</SelectItem>
                   <SelectItem value="video">Video Call</SelectItem>
@@ -203,7 +203,7 @@ const ActivityLogPage = () => {
                   <SelectValue placeholder="Filter by date" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All dates</SelectItem>
+                  <SelectItem value="all_dates">All dates</SelectItem>
                   <SelectItem value="today">Today</SelectItem>
                   <SelectItem value="week">Past week</SelectItem>
                   <SelectItem value="month">This month</SelectItem>
@@ -215,8 +215,8 @@ const ActivityLogPage = () => {
                 variant="outline" 
                 onClick={() => {
                   setSearchTerm("");
-                  setTypeFilter("");
-                  setDateFilter("");
+                  setTypeFilter("all_types");
+                  setDateFilter("all_dates");
                 }}
                 className="w-full"
               >
@@ -251,7 +251,7 @@ const ActivityLogPage = () => {
             <CardContent className="p-6">
               <div className="text-center space-y-2">
                 <p className="text-muted-foreground">No activity log entries found.</p>
-                {(searchTerm || typeFilter || dateFilter) && (
+                {(searchTerm || (typeFilter && typeFilter !== "all_types") || (dateFilter && dateFilter !== "all_dates")) && (
                   <p className="text-sm text-muted-foreground">
                     Try adjusting your search or filter criteria.
                   </p>
