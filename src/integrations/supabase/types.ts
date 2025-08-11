@@ -402,10 +402,68 @@ export type Database = {
         }
         Relationships: []
       }
+      task_documents: {
+        Row: {
+          created_at: string
+          created_by_user_id: string | null
+          document_id: string
+          id: string
+          task_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_user_id?: string | null
+          document_id: string
+          id?: string
+          task_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by_user_id?: string | null
+          document_id?: string
+          id?: string
+          task_id?: string
+        }
+        Relationships: []
+      }
+      task_updates: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          task_id: string
+          updated_at: string
+          user_email: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          task_id: string
+          updated_at?: string
+          user_email: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          task_id?: string
+          updated_at?: string
+          user_email?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       tasks: {
         Row: {
           category: string | null
+          completed_at: string | null
+          completed_by_email: string | null
+          completed_by_user_id: string | null
           created_at: string
+          created_by_email: string | null
           created_by_user_id: string | null
           description: string | null
           due_date: string | null
@@ -419,7 +477,11 @@ export type Database = {
         }
         Insert: {
           category?: string | null
+          completed_at?: string | null
+          completed_by_email?: string | null
+          completed_by_user_id?: string | null
           created_at?: string
+          created_by_email?: string | null
           created_by_user_id?: string | null
           description?: string | null
           due_date?: string | null
@@ -433,7 +495,11 @@ export type Database = {
         }
         Update: {
           category?: string | null
+          completed_at?: string | null
+          completed_by_email?: string | null
+          completed_by_user_id?: string | null
           created_at?: string
+          created_by_email?: string | null
           created_by_user_id?: string | null
           description?: string | null
           due_date?: string | null
