@@ -15,6 +15,7 @@ const config: CrudConfig = {
     
   ],
   creatorFieldName: "created_by_user_id",
+  notifyOnCreateEntity: "activity_logs",
   orderBy: { column: "created_at", ascending: false },
 };
 

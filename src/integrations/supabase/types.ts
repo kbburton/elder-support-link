@@ -85,6 +85,30 @@ export type Database = {
           },
         ]
       }
+      appointment_notification_recipients: {
+        Row: {
+          appointment_id: string
+          created_at: string
+          days_before: number
+          id: string
+          user_id: string
+        }
+        Insert: {
+          appointment_id: string
+          created_at?: string
+          days_before: number
+          id?: string
+          user_id: string
+        }
+        Update: {
+          appointment_id?: string
+          created_at?: string
+          days_before?: number
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       appointments: {
         Row: {
           attending_user_id: string | null
@@ -307,10 +331,47 @@ export type Database = {
           },
         ]
       }
+      notification_preferences: {
+        Row: {
+          created_at: string
+          group_id: string
+          id: string
+          notify_on_new_activity_log: boolean
+          notify_on_new_appointment: boolean
+          notify_on_new_document: boolean
+          notify_on_new_task: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          group_id: string
+          id?: string
+          notify_on_new_activity_log?: boolean
+          notify_on_new_appointment?: boolean
+          notify_on_new_document?: boolean
+          notify_on_new_task?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          group_id?: string
+          id?: string
+          notify_on_new_activity_log?: boolean
+          notify_on_new_appointment?: boolean
+          notify_on_new_document?: boolean
+          notify_on_new_task?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           address: string | null
           created_at: string
+          email: string | null
           first_name: string | null
           last_name: string | null
           phone: string | null
@@ -322,6 +383,7 @@ export type Database = {
         Insert: {
           address?: string | null
           created_at?: string
+          email?: string | null
           first_name?: string | null
           last_name?: string | null
           phone?: string | null
@@ -333,6 +395,7 @@ export type Database = {
         Update: {
           address?: string | null
           created_at?: string
+          email?: string | null
           first_name?: string | null
           last_name?: string | null
           phone?: string | null

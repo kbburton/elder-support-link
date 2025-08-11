@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,10 @@ export type CrudConfig = {
   fields: CrudField[];
   orderBy?: { column: string; ascending?: boolean };
   creatorFieldName?: string; // if set, auto-populates with current user id on create
+  notifyOnCreateEntity?: "tasks" | "appointments" | "documents" | "activity_logs"; // send immediate notifications
+  onAfterSave?: (payload: { action: "created" | "updated"; row: any }) => void; // optional hook
 };
+
 
 function toInputDate(value?: string | null) {
   if (!value) return "";
@@ -80,6 +83,16 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
     },
   });
 
+  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    const openId = searchParams.get("openId");
+    if (openId && Array.isArray(data)) {
+      const row = data.find((r: any) => String(r[idField]) === openId);
+      if (row) setEditing(row);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, data]);
+
   useEffect(() => {
     if (editing) {
       const initial: Record<string, any> = {};
@@ -116,24 +129,52 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
       if (config.groupScoped && groupId) payload["group_id"] = groupId;
       if (!editing && config.creatorFieldName && currentUserId) payload[config.creatorFieldName] = currentUserId;
 
-      if (editing) {
-        const { error } = await sb.from(config.table).update(payload).eq(idField, editing[idField]).select().maybeSingle();
+      if (editing && editing[idField]) {
+        const { data: updated, error } = await sb
+          .from(config.table)
+          .update(payload)
+          .eq(idField, editing[idField])
+          .select()
+          .maybeSingle();
         if (error) throw error;
-        return "updated";
+        return { action: "updated" as const, row: updated };
       } else {
-        const { error } = await sb.from(config.table).insert(payload).select().maybeSingle();
+        const { data: created, error } = await sb
+          .from(config.table)
+          .insert(payload)
+          .select()
+          .maybeSingle();
         if (error) throw error;
-        return "created";
+        return { action: "created" as const, row: created };
       }
     },
-    onSuccess: (action) => {
+    onSuccess: async ({ action, row }) => {
       toast({ title: `Record ${action}`, description: `Successfully ${action} a record.` });
       qc.invalidateQueries({ queryKey });
       setEditing(null);
+
+      // Immediate notifications on create
+      if (action === "created" && config.notifyOnCreateEntity && groupId && row?.[idField]) {
+        try {
+          await supabase.functions.invoke("notify", {
+            body: {
+              type: "immediate",
+              entity: config.notifyOnCreateEntity,
+              group_id: groupId,
+              item_id: row[idField],
+              baseUrl: typeof window !== "undefined" ? window.location.origin : undefined,
+            },
+          });
+        } catch (e) {
+          console.warn("Notification send failed", e);
+        }
+      }
+
+      config.onAfterSave?.({ action, row });
     },
     onError: (e: any) => {
-      toast({ title: "Operation failed", description: e.message, });
-    }
+      toast({ title: "Operation failed", description: e.message });
+    },
   });
 
   const deleteMutation = useMutation({

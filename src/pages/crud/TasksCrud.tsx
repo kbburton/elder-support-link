@@ -15,6 +15,7 @@ const config: CrudConfig = {
     { name: "status", label: "Status" },
   ],
   creatorFieldName: "created_by_user_id",
+  notifyOnCreateEntity: "tasks",
   orderBy: { column: "created_at", ascending: false },
 };
 

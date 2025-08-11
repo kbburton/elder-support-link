@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-
+import { Switch } from "@/components/ui/switch";
 const GroupSchema = z.object({
   name: z.string().min(1, "Name is required"),
   recipient_address: z.string().optional(),
@@ -113,6 +113,63 @@ const deleteMutation = useMutation({
 });
 
 const onSubmit = (values: GroupFormValues) => saveMutation.mutate(values);
+
+// Notification preferences state
+const [userId, setUserId] = useState<string | null>(null);
+const [prefsId, setPrefsId] = useState<string | null>(null);
+const [prefs, setPrefs] = useState({
+  notify_on_new_task: false,
+  notify_on_new_appointment: false,
+  notify_on_new_document: false,
+  notify_on_new_activity_log: false,
+});
+
+useEffect(() => {
+  const load = async () => {
+    const { data: authData } = await supabase.auth.getUser();
+    const uid = authData.user?.id ?? null;
+    setUserId(uid);
+    if (!uid || !groupId) return;
+    const { data: np } = await supabase
+      .from("notification_preferences")
+      .select("id, notify_on_new_task, notify_on_new_appointment, notify_on_new_document, notify_on_new_activity_log")
+      .eq("user_id", uid)
+      .eq("group_id", groupId)
+      .maybeSingle();
+    if (np) {
+      setPrefsId(np.id as string);
+      setPrefs({
+        notify_on_new_task: !!(np as any).notify_on_new_task,
+        notify_on_new_appointment: !!(np as any).notify_on_new_appointment,
+        notify_on_new_document: !!(np as any).notify_on_new_document,
+        notify_on_new_activity_log: !!(np as any).notify_on_new_activity_log,
+      });
+    } else {
+      setPrefsId(null);
+    }
+  };
+  load();
+}, [groupId]);
+
+const savePrefs = async () => {
+  if (!groupId || !userId) return;
+  if (prefsId) {
+    const { error } = await supabase
+      .from("notification_preferences")
+      .update(prefs)
+      .eq("id", prefsId);
+    if (error) return toast({ title: "Save failed", description: error.message });
+  } else {
+    const { error, data } = await supabase
+      .from("notification_preferences")
+      .insert({ ...prefs, group_id: groupId, user_id: userId })
+      .select()
+      .maybeSingle();
+    if (!error && data) setPrefsId((data as any).id);
+    if (error) return toast({ title: "Save failed", description: error.message });
+  }
+  toast({ title: "Preferences saved", description: "Notification preferences updated." });
+};
 
   return (
     <main>
@@ -272,6 +329,37 @@ const onSubmit = (values: GroupFormValues) => saveMutation.mutate(values);
                 </CardFooter>
               </form>
             </Form>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="mt-8">
+        <Card>
+          <CardHeader>
+            <CardTitle>Notification preferences</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <label className="flex items-center justify-between gap-4">
+                <span className="text-sm">Email me when a new task is added</span>
+                <Switch checked={prefs.notify_on_new_task} onCheckedChange={(v) => setPrefs((s) => ({ ...s, notify_on_new_task: !!v }))} />
+              </label>
+              <label className="flex items-center justify-between gap-4">
+                <span className="text-sm">Email me when a new appointment is added</span>
+                <Switch checked={prefs.notify_on_new_appointment} onCheckedChange={(v) => setPrefs((s) => ({ ...s, notify_on_new_appointment: !!v }))} />
+              </label>
+              <label className="flex items-center justify-between gap-4">
+                <span className="text-sm">Email me when a new document is added</span>
+                <Switch checked={prefs.notify_on_new_document} onCheckedChange={(v) => setPrefs((s) => ({ ...s, notify_on_new_document: !!v }))} />
+              </label>
+              <label className="flex items-center justify-between gap-4">
+                <span className="text-sm">Email me when a new activity log is added</span>
+                <Switch checked={prefs.notify_on_new_activity_log} onCheckedChange={(v) => setPrefs((s) => ({ ...s, notify_on_new_activity_log: !!v }))} />
+              </label>
+            </div>
+            <div className="pt-2">
+              <Button onClick={savePrefs}>Save preferences</Button>
+            </div>
           </CardContent>
         </Card>
       </section>

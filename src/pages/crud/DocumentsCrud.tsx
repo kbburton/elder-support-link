@@ -15,6 +15,7 @@ const config: CrudConfig = {
     { name: "full_text", label: "Full Text (OCR)", type: "textarea" },
   ],
   creatorFieldName: "uploaded_by_user_id",
+  notifyOnCreateEntity: "documents",
   orderBy: { column: "created_at", ascending: false },
 };
 
