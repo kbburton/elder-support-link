@@ -298,12 +298,12 @@ export const DocumentList = ({ documents, onRefresh, userProfiles }: DocumentLis
               />
 
               {/* Actions */}
-              <div className="flex space-x-2 pt-2">
-                <Button size="sm" variant="outline" onClick={() => handleView(doc)}>
+              <div className="flex flex-wrap gap-2 pt-2">
+                <Button size="sm" variant="outline" onClick={() => handleView(doc)} className="flex-shrink-0">
                   <Eye className="h-3 w-3 mr-1" />
                   View
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => handleDownload(doc)}>
+                <Button size="sm" variant="outline" onClick={() => handleDownload(doc)} className="flex-shrink-0">
                   <Download className="h-3 w-3 mr-1" />
                   Download
                 </Button>
@@ -314,6 +314,7 @@ export const DocumentList = ({ documents, onRefresh, userProfiles }: DocumentLis
                     variant="outline" 
                     onClick={() => reprocessDocument(doc.id)}
                     disabled={processingDocument === doc.id}
+                    className="flex-shrink-0"
                   >
                     <RefreshCw className={`h-3 w-3 mr-1 ${processingDocument === doc.id ? 'animate-spin' : ''}`} />
                     Retry
@@ -322,7 +323,7 @@ export const DocumentList = ({ documents, onRefresh, userProfiles }: DocumentLis
 
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button size="sm" variant="outline" className="text-destructive hover:text-destructive">
+                    <Button size="sm" variant="outline" className="text-destructive hover:text-destructive flex-shrink-0">
                       <Trash2 className="h-3 w-3" />
                     </Button>
                   </AlertDialogTrigger>
