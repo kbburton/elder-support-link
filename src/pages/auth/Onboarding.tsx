@@ -117,7 +117,7 @@ const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (memberError) throw memberError;
 
       toast({ title: "Care group created", description: "Successfully created your care group." });
-      navigate(`/app/${group.id}/dashboard`);
+      navigate(`/app/${group.id}`);
     } catch (err: any) {
       console.error("Error creating group:", err);
       toast({
@@ -168,7 +168,7 @@ const { data: { user }, error: userError } = await supabase.auth.getUser();
 
       if (existingMember) {
         toast({ title: "Already a member", description: "You're already part of this care group." });
-        navigate(`/app/${group.id}/dashboard`);
+        navigate(`/app/${group.id}`);
         return;
       }
 
@@ -185,7 +185,7 @@ const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (memberError) throw memberError;
 
       toast({ title: "Joined care group", description: "Successfully joined the care group." });
-      navigate(`/app/${group.id}/dashboard`);
+      navigate(`/app/${group.id}`);
     } catch (err: any) {
       console.error("Error joining group:", err);
       toast({
