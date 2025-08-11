@@ -363,13 +363,6 @@ export type Database = {
             referencedRelation: "care_groups"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "documents_uploaded_by_user_id_fkey"
-            columns: ["uploaded_by_user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
         ]
       }
       notification_preferences: {

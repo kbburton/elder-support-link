@@ -47,41 +47,34 @@ const DocumentsPage = () => {
     enabled: !!groupId,
   });
 
-  // Fetch user profiles for display
+  // Fetch user profiles for display - simplified approach
   const { data: userProfiles = [] } = useQuery({
-    queryKey: ['user-profiles', groupId],
+    queryKey: ['user-emails', groupId],
     queryFn: async () => {
       if (!groupId) return [];
       
-      // First get group members
-      const { data: members, error: membersError } = await supabase
-        .from('care_group_members')
-        .select('user_id')
+      // Get all documents for this group to find unique user IDs
+      const { data: docs } = await supabase
+        .from('documents')
+        .select('uploaded_by_user_id')
         .eq('group_id', groupId);
 
-      if (membersError || !members) {
-        console.error('Failed to load group members:', membersError);
-        return [];
-      }
+      if (!docs) return [];
 
-      // Then get profiles for those users
-      const userIds = members.map(m => m.user_id);
+      // Get unique user IDs
+      const userIds = [...new Set(docs.map(d => d.uploaded_by_user_id).filter(Boolean))];
       if (userIds.length === 0) return [];
 
-      const { data: profiles, error: profilesError } = await supabase
+      // Get profiles for those users
+      const { data: profiles } = await supabase
         .from('profiles')
         .select('user_id, email')
         .in('user_id', userIds);
 
-      if (profilesError) {
-        console.error('Failed to load profiles:', profilesError);
-        return [];
-      }
-
-      return profiles.map(profile => ({
+      return profiles?.map(profile => ({
         id: profile.user_id,
         email: profile.email || 'Unknown'
-      }));
+      })) || [];
     },
     enabled: !!groupId,
   });
