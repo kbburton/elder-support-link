@@ -1,16 +1,16 @@
 import SEO from "@/components/layout/SEO";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import MonthlyOverview from "@/components/calendar/MonthlyOverview";
+import TasksCrud from "@/pages/crud/TasksCrud";
 
 const TasksPage = () => {
   return (
     <div className="space-y-6">
-      <SEO title="Tasks — DaveAssist" description="Assign and track tasks across caregivers." />
+      <SEO title="Tasks — DaveAssist" description="Manage and coordinate care tasks." />
+      
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Tasks</h2>
+        <h2 className="text-xl font-semibold">Task Center</h2>
         <div className="flex gap-2">
           <Button variant="hero">New task</Button>
           <Button variant="outline">Templates</Button>
@@ -20,31 +20,14 @@ const TasksPage = () => {
       <Tabs defaultValue="tasks" className="space-y-4">
         <TabsList>
           <TabsTrigger value="tasks">Tasks</TabsTrigger>
-          <TabsTrigger value="overview">Calendar Overview</TabsTrigger>
+          <TabsTrigger value="calendar">Calendar Overview</TabsTrigger>
         </TabsList>
-
-        <TabsContent value="tasks">
-          <div className="grid gap-4 md:grid-cols-2">
-            {[1,2,3].map((id) => (
-              <Card key={id}>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    Refill medication <Badge>Medical</Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="text-sm text-muted-foreground space-y-2">
-                  <p>Due: Friday • Owner: Jamie • Status: Open</p>
-                  <div className="flex gap-2 pt-2">
-                    <Button size="sm" variant="outline">Complete</Button>
-                    <Button size="sm" variant="ghost">Duplicate</Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+        
+        <TabsContent value="tasks" className="space-y-4">
+          <TasksCrud />
         </TabsContent>
-
-        <TabsContent value="overview">
+        
+        <TabsContent value="calendar">
           <MonthlyOverview />
         </TabsContent>
       </Tabs>

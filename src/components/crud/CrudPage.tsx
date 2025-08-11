@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "@/components/ui/use-toast";
@@ -13,10 +14,11 @@ const sb = supabase as any;
 export type CrudField = {
   name: string;
   label?: string;
-  type?: "text" | "textarea" | "number" | "date" | "datetime";
+  type?: "text" | "textarea" | "number" | "date" | "datetime" | "select" | "user_select";
   placeholder?: string;
   required?: boolean;
   readOnly?: boolean;
+  options?: Array<{ value: string; label: string }>;
 };
 
 export type CrudConfig = {
@@ -68,6 +70,8 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
   const [editing, setEditing] = useState<any | null>(null);
   const [form, setForm] = useState<Record<string, any>>({});
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const [groupMembers, setGroupMembers] = useState<Array<{ id: string; email: string; name: string }>>([]);
 
   const queryKey = useMemo(() => ["crud", config.table, groupId], [config.table, groupId]);
 
@@ -113,8 +117,41 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       setCurrentUserId(data.user?.id ?? null);
+      setCurrentUserEmail(data.user?.email ?? null);
     });
   }, []);
+
+  // Load group members for user_select fields
+  useEffect(() => {
+    if (groupId && config.fields.some(f => f.type === "user_select")) {
+      const loadGroupMembers = async () => {
+        try {
+          // Get care group members
+          const { data: members, error } = await supabase
+            .from('care_group_members')
+            .select(`
+              user_id,
+              profiles!inner(email, first_name, last_name)
+            `)
+            .eq('group_id', groupId);
+
+          if (error) throw error;
+
+          const formattedMembers = members?.map((member: any) => ({
+            id: member.user_id,
+            email: member.profiles.email,
+            name: `${member.profiles.first_name || ''} ${member.profiles.last_name || ''}`.trim() || member.profiles.email
+          })) || [];
+
+          setGroupMembers(formattedMembers);
+        } catch (error) {
+          console.error('Failed to load group members:', error);
+        }
+      };
+
+      loadGroupMembers();
+    }
+  }, [groupId, config.fields]);
 
   // Pre-fill creator field for new records so it shows in the read-only input
   useEffect(() => {
@@ -123,6 +160,10 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
         const newForm = { ...prev };
         if (prev[config.creatorFieldName!] == null || prev[config.creatorFieldName!] === "") {
           newForm[config.creatorFieldName!] = currentUserId;
+        }
+        // Auto-populate creator email for tasks
+        if (config.table === "tasks" && currentUserEmail) {
+          newForm.created_by_email = currentUserEmail;
         }
         // Also pre-fill email if the field exists
         if (config.fields.some(f => f.name === 'created_by_email')) {
@@ -156,6 +197,24 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
         const user = await supabase.auth.getUser();
         if (user.data.user?.email && config.fields.some(f => f.name === 'created_by_email')) {
           payload.created_by_email = user.data.user.email;
+        }
+      }
+
+      // Handle task completion tracking
+      if (config.table === "tasks") {
+        const wasCompleted = editing?.status === "completed";
+        const isNowCompleted = payload.status === "completed";
+        
+        if (!wasCompleted && isNowCompleted) {
+          // Task is being marked as completed
+          payload.completed_at = new Date().toISOString();
+          payload.completed_by_user_id = currentUserId;
+          payload.completed_by_email = currentUserEmail;
+        } else if (wasCompleted && !isNowCompleted) {
+          // Task is being unmarked as completed
+          payload.completed_at = null;
+          payload.completed_by_user_id = null;
+          payload.completed_by_email = null;
         }
       }
 
@@ -296,7 +355,43 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
                     value={form[f.name] ?? ""}
                     onChange={(e) => setForm((s) => ({ ...s, [f.name]: e.target.value }))}
                     rows={4}
+                    readOnly={f.readOnly}
                   />
+                ) : f.type === "select" ? (
+                  <Select
+                    value={form[f.name] ?? ""}
+                    onValueChange={(value) => setForm((s) => ({ ...s, [f.name]: value }))}
+                    disabled={f.readOnly}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={f.placeholder || `Select ${f.label}`} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {f.options?.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : f.type === "user_select" ? (
+                  <Select
+                    value={form[f.name] ?? ""}
+                    onValueChange={(value) => setForm((s) => ({ ...s, [f.name]: value }))}
+                    disabled={f.readOnly}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={f.placeholder || `Select ${f.label}`} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">None</SelectItem>
+                      {groupMembers.map((member) => (
+                        <SelectItem key={member.id} value={member.id}>
+                          {member.name} ({member.email})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 ) : (
                   <Input
                     type={f.type === "number" ? "number" : f.type === "date" ? "date" : f.type === "datetime" ? "datetime-local" : "text"}
