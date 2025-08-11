@@ -103,3 +103,30 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+/* DaveAssist design tokens and utilities */
+@layer base {
+  :root {
+    --brand: 252 85% 62%;
+    --brand-2: 286 70% 55%;
+    --brand-foreground: 0 0% 100%;
+    --gradient-primary: linear-gradient(135deg, hsl(var(--brand)), hsl(var(--brand-2)));
+    --shadow-glow: 0 10px 30px -10px hsl(var(--brand) / 0.35);
+    --transition-smooth: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .dark {
+    --brand: 252 85% 70%;
+    --brand-2: 286 70% 62%;
+    --brand-foreground: 0 0% 100%;
+  }
+}
+
+@layer utilities {
+  .bg-hero {
+    background-image:
+      radial-gradient(800px circle at var(--cursor-x,50%) var(--cursor-y,50%), hsl(var(--brand) / 0.25), transparent 60%),
+      linear-gradient(135deg, hsl(var(--brand) / 0.12), transparent);
+  }
+  .shadow-glow { box-shadow: var(--shadow-glow); }
+  .transition-smooth { transition: var(--transition-smooth); }
+}
