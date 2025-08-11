@@ -48,6 +48,7 @@ export type Database = {
         Row: {
           attachment_url: string | null
           created_at: string
+          created_by_email: string | null
           created_by_user_id: string | null
           date_time: string
           group_id: string | null
@@ -61,6 +62,7 @@ export type Database = {
         Insert: {
           attachment_url?: string | null
           created_at?: string
+          created_by_email?: string | null
           created_by_user_id?: string | null
           date_time: string
           group_id?: string | null
@@ -74,6 +76,7 @@ export type Database = {
         Update: {
           attachment_url?: string | null
           created_at?: string
+          created_by_email?: string | null
           created_by_user_id?: string | null
           date_time?: string
           group_id?: string | null
