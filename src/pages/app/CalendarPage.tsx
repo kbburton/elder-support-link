@@ -191,6 +191,8 @@ const CalendarPage = () => {
 
       const { error } = await supabase.from("appointments").upsert(payload as any, { onConflict: "id" });
       if (error) throw error;
+      if (iso) setViewDate(parseISO(iso));
+      setEditing(null);
       toast({ title: editing ? "Appointment updated" : "Appointment created" });
       setOpenDialog(false);
       await loadAppointments();
@@ -401,7 +403,7 @@ const CalendarPage = () => {
         <div className="flex gap-2">
           <Dialog open={openDialog} onOpenChange={setOpenDialog}>
             <DialogTrigger asChild>
-              <Button variant="hero"><Plus className="mr-2 h-4 w-4" /> New appointment</Button>
+              <Button variant="hero" onClick={onOpenNew}><Plus className="mr-2 h-4 w-4" /> New appointment</Button>
             </DialogTrigger>
             <DialogContent className="max-w-lg">
               <DialogHeader>
