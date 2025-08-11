@@ -16,9 +16,15 @@ import DocumentsPage from "./pages/app/DocumentsPage";
 import ActivityLogPage from "./pages/app/ActivityLogPage";
 import AdminConsolePage from "./pages/app/AdminConsolePage";
 import SearchPage from "./pages/app/SearchPage";
+import UsersCrud from "./pages/crud/UsersCrud";
+import CareGroupsCrud from "./pages/crud/CareGroupsCrud";
+import CareGroupMembersCrud from "./pages/crud/CareGroupMembersCrud";
+import AppointmentsCrud from "./pages/crud/AppointmentsCrud";
+import TasksCrud from "./pages/crud/TasksCrud";
+import DocumentsCrud from "./pages/crud/DocumentsCrud";
+import ActivityLogsCrud from "./pages/crud/ActivityLogsCrud";
 
 const queryClient = new QueryClient();
-
 const App = () => (
   <HelmetProvider>
     <QueryClientProvider client={queryClient}>
@@ -39,6 +45,13 @@ const App = () => (
               <Route path="documents" element={<DocumentsPage />} />
               <Route path="activity" element={<ActivityLogPage />} />
               <Route path="admin" element={<AdminConsolePage />} />
+              <Route path="admin/users" element={<UsersCrud />} />
+              <Route path="admin/care-groups" element={<CareGroupsCrud />} />
+              <Route path="admin/members" element={<CareGroupMembersCrud />} />
+              <Route path="admin/appointments" element={<AppointmentsCrud />} />
+              <Route path="admin/tasks" element={<TasksCrud />} />
+              <Route path="admin/documents" element={<DocumentsCrud />} />
+              <Route path="admin/activity-logs" element={<ActivityLogsCrud />} />
               <Route path="search" element={<SearchPage />} />
             </Route>
 
