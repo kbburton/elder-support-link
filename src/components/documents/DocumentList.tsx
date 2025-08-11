@@ -33,6 +33,7 @@ interface Document {
   processing_status: string;
   uploaded_by_user_id: string;
   group_id: string;
+  original_filename?: string;
 }
 
 interface DocumentListProps {
@@ -225,7 +226,9 @@ export const DocumentList = ({ documents, onRefresh, userProfiles }: DocumentLis
     return profile?.email || 'Unknown user';
   };
 
-  const getFileName = (fileUrl: string) => {
+  const getFileName = (fileUrl: string, originalFilename?: string) => {
+    // Use original filename if available, otherwise extract from URL
+    if (originalFilename) return originalFilename;
     if (!fileUrl) return 'Unknown file';
     const parts = fileUrl.split('/');
     return parts[parts.length - 1] || 'Unknown file';
@@ -277,7 +280,7 @@ export const DocumentList = ({ documents, onRefresh, userProfiles }: DocumentLis
             <CardContent className="flex-1 space-y-3">
               {/* Document Info */}
               <div className="text-xs text-muted-foreground space-y-1">
-                <div>File: {getFileName(doc.file_url)}</div>
+                <div>File: {getFileName(doc.file_url, doc.original_filename)}</div>
                 <div>Uploaded: {format(new Date(doc.upload_date), 'MMM d, yyyy')}</div>
                 <div>By: {getUploaderEmail(doc.uploaded_by_user_id)}</div>
                 <div>Size: {formatFileSize(doc.file_size || 0)}</div>

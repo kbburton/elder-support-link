@@ -338,6 +338,7 @@ export type Database = {
           group_id: string | null
           id: string
           notes: string | null
+          original_filename: string | null
           processing_status: string | null
           summary: string | null
           title: string | null
@@ -355,6 +356,7 @@ export type Database = {
           group_id?: string | null
           id?: string
           notes?: string | null
+          original_filename?: string | null
           processing_status?: string | null
           summary?: string | null
           title?: string | null
@@ -372,6 +374,7 @@ export type Database = {
           group_id?: string | null
           id?: string
           notes?: string | null
+          original_filename?: string | null
           processing_status?: string | null
           summary?: string | null
           title?: string | null
