@@ -116,6 +116,18 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
     });
   }, []);
 
+  // Pre-fill creator field for new records so it shows in the read-only input
+  useEffect(() => {
+    if (!editing && config.creatorFieldName && currentUserId) {
+      setForm((prev) => {
+        if (prev[config.creatorFieldName!] == null || prev[config.creatorFieldName!] === "") {
+          return { ...prev, [config.creatorFieldName!]: currentUserId };
+        }
+        return prev;
+      });
+    }
+  }, [editing, config.creatorFieldName, currentUserId]);
+
   const upsertMutation = useMutation({
     mutationFn: async () => {
       const payload: Record<string, any> = {};
