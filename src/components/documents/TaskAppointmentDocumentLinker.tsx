@@ -54,7 +54,7 @@ export const TaskAppointmentDocumentLinker = ({
       if (error) throw error;
       return data as Document[];
     },
-    enabled: !!groupId && groupId !== ':groupId' && showDialog,
+    enabled: !!groupId && groupId !== ':groupId' && (showDialog || isCreationMode),
   });
 
   // Fetch existing links
@@ -114,7 +114,7 @@ export const TaskAppointmentDocumentLinker = ({
   const [creationLinks, setCreationLinks] = useState<Array<{id: string, filename: string}>>([]);
 
   useEffect(() => {
-    if (isCreationMode) {
+    if (isCreationMode && documents.length > 0) {
       // Update creation links when documents are selected/deselected
       const links = documents
         .filter(doc => selectedDocuments.includes(doc.id))
@@ -124,7 +124,7 @@ export const TaskAppointmentDocumentLinker = ({
         }));
       setCreationLinks(links);
     }
-  }, [selectedDocuments, documents, isCreationMode]);
+  }, [selectedDocuments, isCreationMode]); // Removed documents from dependencies to prevent infinite loop
 
   const handleLink = async () => {
     if (!selectedDocumentId) return;

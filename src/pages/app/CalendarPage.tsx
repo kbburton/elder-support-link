@@ -67,6 +67,7 @@ const CalendarPage = () => {
   const [formAttending, setFormAttending] = useState<string>("");
   const [formReminderDays, setFormReminderDays] = useState<string>("1");
   const [formOutcome, setFormOutcome] = useState("");
+  const [formDocumentLinks, setFormDocumentLinks] = useState<string[]>([]);
 
   const isDemo = groupId === "demo";
 
@@ -147,6 +148,7 @@ const CalendarPage = () => {
     setFormOutcome("");
     setFormDate(new Date());
     setFormTime("09:00");
+    setFormDocumentLinks([]);
     setOpenDialog(true);
   };
 
@@ -200,8 +202,25 @@ const CalendarPage = () => {
       if (!editing?.id && userId) payload.created_by_user_id = userId;
       if (!editing?.id && userEmail) payload.created_by_email = userEmail;
 
-      const { error } = await supabase.from("appointments").upsert(payload as any, { onConflict: "id" });
+      const { data: result, error } = await supabase.from("appointments").upsert(payload as any, { onConflict: "id" }).select().single();
       if (error) throw error;
+      
+      // Handle document linking for new appointments
+      if (!editing?.id && formDocumentLinks.length > 0 && result?.id) {
+        try {
+          const linkPromises = formDocumentLinks.map((docId: string) => 
+            supabase.from('appointment_documents').insert({
+              document_id: docId,
+              appointment_id: result.id,
+              created_by_user_id: userId
+            })
+          );
+          await Promise.all(linkPromises);
+        } catch (linkError) {
+          console.warn("Document linking failed", linkError);
+        }
+      }
+      
       if (iso) setViewDate(parseISO(iso));
       setEditing(null);
       toast({ title: editing ? "Appointment updated" : "Appointment created" });
@@ -501,8 +520,19 @@ const CalendarPage = () => {
                   <Label htmlFor="outcome">Outcome notes (after event)</Label>
                   <Textarea id="outcome" placeholder="Add notes or outcomes after the appointment" value={formOutcome} onChange={(e) => setFormOutcome(e.target.value)} />
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" disabled><Upload className="mr-2 h-4 w-4" /> Add attachment (coming soon)</Button>
+                <div className="border-t pt-4">
+                  <Label className="text-sm font-medium">Link Documents (optional)</Label>
+                  <TaskAppointmentDocumentLinker
+                    itemId={null}
+                    itemType="appointment"
+                    itemTitle="New appointment"
+                    onLinksChange={() => {}}
+                    isCreationMode={true}
+                    onDocumentLinksChange={(links) => {
+                      // Store document links to be processed after appointment creation
+                      setFormDocumentLinks(links);
+                    }}
+                  />
                 </div>
               </div>
               <DialogFooter>
