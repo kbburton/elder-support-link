@@ -11,7 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface TaskAppointmentDocumentLinkerProps {
   itemId: string | null;
-  itemType: 'task' | 'appointment';
+  itemType: 'task' | 'appointment' | 'activity_log';
   itemTitle: string;
   onLinksChange?: () => void;
   isCreationMode?: boolean;
@@ -84,7 +84,7 @@ export const TaskAppointmentDocumentLinker = ({
           category: doc.category || 'Other',
           filename: doc.original_filename || doc.title || 'Unknown'
         })) || [];
-      } else {
+      } else if (itemType === 'appointment') {
         const { data: linksData } = await supabase
           .from('appointment_documents')
           .select('document_id')
@@ -105,7 +105,31 @@ export const TaskAppointmentDocumentLinker = ({
           category: doc.category || 'Other',
           filename: doc.original_filename || doc.title || 'Unknown'
         })) || [];
+      } else if (itemType === 'activity_log') {
+        const { data: linksData } = await supabase
+          .from('document_links')
+          .select('document_id')
+          .eq('linked_item_id', itemId)
+          .eq('linked_item_type', 'activity_log');
+        
+        if (!linksData || linksData.length === 0) return [];
+        
+        // Get document details
+        const documentIds = linksData.map(link => link.document_id);
+        const { data: documentsData } = await supabase
+          .from('documents')
+          .select('id, title, category, original_filename')
+          .in('id', documentIds);
+          
+        return documentsData?.map(doc => ({
+          id: doc.id,
+          title: doc.title || 'Unknown Document',
+          category: doc.category || 'Other',
+          filename: doc.original_filename || doc.title || 'Unknown'
+        })) || [];
       }
+      
+      return [];
     },
     enabled: !!itemId && !isCreationMode,
   });
@@ -155,13 +179,22 @@ export const TaskAppointmentDocumentLinker = ({
             created_by_user_id: user.id
           });
         if (error) throw error;
-      } else {
+      } else if (itemType === 'appointment') {
         const { error } = await supabase
           .from('appointment_documents')
           .insert({
             document_id: selectedDocumentId,
             appointment_id: itemId!,
             created_by_user_id: user.id
+          });
+        if (error) throw error;
+      } else if (itemType === 'activity_log') {
+        const { error } = await supabase
+          .from('document_links')
+          .insert({
+            document_id: selectedDocumentId,
+            linked_item_id: itemId!,
+            linked_item_type: 'activity_log'
           });
         if (error) throw error;
       }
@@ -204,12 +237,20 @@ export const TaskAppointmentDocumentLinker = ({
           .eq('document_id', documentId)
           .eq('task_id', itemId!);
         if (error) throw error;
-      } else {
+      } else if (itemType === 'appointment') {
         const { error } = await supabase
           .from('appointment_documents')
           .delete()
           .eq('document_id', documentId)
           .eq('appointment_id', itemId!);
+        if (error) throw error;
+      } else if (itemType === 'activity_log') {
+        const { error } = await supabase
+          .from('document_links')
+          .delete()
+          .eq('document_id', documentId)
+          .eq('linked_item_id', itemId!)
+          .eq('linked_item_type', 'activity_log');
         if (error) throw error;
       }
 
