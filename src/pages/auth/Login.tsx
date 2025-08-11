@@ -26,7 +26,34 @@ const Login = () => {
       toast({ title: "Welcome back", description: "Signed in successfully." });
       navigate("/onboarding", { replace: true });
     } catch (err: any) {
-      toast({ title: "Sign in failed", description: err?.message || "Please try again." });
+      const msg = err?.message?.toLowerCase?.() || "";
+      if (msg.includes("confirm")) {
+        toast({ title: "Email not confirmed", description: "Check your inbox for the confirmation email, then try again." });
+      } else {
+        toast({ title: "Sign in failed", description: err?.message || "Please try again." });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendConfirmation = async () => {
+    if (!email) {
+      toast({ title: "Email required", description: "Enter your email to resend confirmation." });
+      return;
+    }
+    try {
+      setLoading(true);
+      const redirectUrl = `${window.location.origin}/onboarding`;
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+        options: { emailRedirectTo: redirectUrl }
+      });
+      if (error) throw error;
+      toast({ title: "Email sent", description: "Confirmation email resent. Please check your inbox." });
+    } catch (err: any) {
+      toast({ title: "Could not resend", description: err?.message || "Please try again." });
     } finally {
       setLoading(false);
     }
@@ -44,6 +71,9 @@ const Login = () => {
           <Input placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
           <Button className="w-full" onClick={handleSignIn} disabled={loading}>
             {loading ? "Signing in..." : "Sign in"}
+          </Button>
+          <Button variant="outline" className="w-full" onClick={handleResendConfirmation} disabled={!email || loading}>
+            Resend confirmation email
           </Button>
           <Button variant="outline" className="w-full" onClick={() => navigate("/register")}>Create account</Button>
         </CardContent>
