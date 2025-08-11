@@ -214,12 +214,18 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
       // Auto-fill creator fields with user ID and email on create
       if (!editing && config.creatorFieldName && currentUserId) {
         payload[config.creatorFieldName] = currentUserId;
+        console.log('Setting creator field:', config.creatorFieldName, 'to:', currentUserId);
+        
         // Also set email if field exists
         const user = await supabase.auth.getUser();
         if (user.data.user?.email && config.fields.some(f => f.name === 'created_by_email')) {
           payload.created_by_email = user.data.user.email;
         }
       }
+
+      console.log('Final payload before insert:', payload);
+      console.log('Current user ID:', currentUserId);
+      console.log('Is editing:', !!editing);
 
       // Handle task completion tracking
       if (config.table === "tasks") {
