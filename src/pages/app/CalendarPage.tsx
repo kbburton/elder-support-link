@@ -184,7 +184,7 @@ const CalendarPage = () => {
         location: formLocation || null,
         category: formCategory || "Other",
         description: formTitle,
-        attending_user_id: formAttending || user?.id || null,
+        attending_user_id: formAttending ? formAttending : null,
         reminder_days_before: formReminderDays ? parseInt(formReminderDays, 10) : null,
         outcome_notes: formOutcome || null,
       };
