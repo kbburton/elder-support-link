@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Filter, Plus, Search } from 'lucide-react';
 import SEO from "@/components/layout/SEO";
@@ -15,18 +15,49 @@ import { useToast } from "@/components/ui/use-toast";
 const DOCUMENT_CATEGORIES = ['All', 'Medical', 'Legal', 'Financial', 'Personal', 'Other'];
 
 const DocumentsPage = () => {
-  const { groupId } = useParams();
+  const { groupId } = useParams<{ groupId: string }>();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [showUpload, setShowUpload] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
 
+  // Debug logging
+  console.log('DocumentsPage groupId:', groupId);
+
+  // Check if we need to redirect to a valid group
+  useEffect(() => {
+    if (!groupId || groupId === ':groupId') {
+      // Redirect to the first available group
+      const fetchAndRedirect = async () => {
+        try {
+          const { data: user } = await supabase.auth.getUser();
+          if (!user.user) return;
+
+          const { data: groups } = await supabase
+            .from('care_group_members')
+            .select('group_id')
+            .eq('user_id', user.user.id)
+            .limit(1);
+
+          if (groups && groups.length > 0) {
+            navigate(`/app/${groups[0].group_id}/documents`, { replace: true });
+          }
+        } catch (error) {
+          console.error('Failed to redirect to valid group:', error);
+        }
+      };
+      fetchAndRedirect();
+    }
+  }, [groupId, navigate]);
+
   // Fetch documents
   const { data: documents = [], refetch: refetchDocuments, isLoading } = useQuery({
     queryKey: ['documents', groupId],
     queryFn: async () => {
-      if (!groupId) return [];
+      if (!groupId || groupId === ':groupId') return [];
       
+      console.log('Fetching documents for groupId:', groupId);
       const { data, error } = await supabase
         .from('documents')
         .select('*')
@@ -34,6 +65,7 @@ const DocumentsPage = () => {
         .order('upload_date', { ascending: false });
 
       if (error) {
+        console.error('Documents fetch error:', error);
         toast({
           title: 'Failed to load documents',
           description: error.message,
@@ -42,16 +74,17 @@ const DocumentsPage = () => {
         return [];
       }
 
+      console.log('Fetched documents:', data);
       return data;
     },
-    enabled: !!groupId,
+    enabled: !!groupId && groupId !== ':groupId',
   });
 
   // Fetch user profiles for display - simplified approach
   const { data: userProfiles = [] } = useQuery({
     queryKey: ['user-emails', groupId],
     queryFn: async () => {
-      if (!groupId) return [];
+      if (!groupId || groupId === ':groupId') return [];
       
       // Get all documents for this group to find unique user IDs
       const { data: docs } = await supabase
@@ -76,7 +109,7 @@ const DocumentsPage = () => {
         email: profile.email || 'Unknown'
       })) || [];
     },
-    enabled: !!groupId,
+    enabled: !!groupId && groupId !== ':groupId',
   });
 
   // Filter documents based on search term and category
