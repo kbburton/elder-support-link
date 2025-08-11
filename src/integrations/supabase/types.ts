@@ -196,6 +196,7 @@ export type Database = {
           mental_health: string | null
           mobility: string | null
           name: string
+          other_important_information: string | null
           profile_description: string | null
           recipient_address: string | null
           recipient_city: string | null
@@ -216,6 +217,7 @@ export type Database = {
           mental_health?: string | null
           mobility?: string | null
           name: string
+          other_important_information?: string | null
           profile_description?: string | null
           recipient_address?: string | null
           recipient_city?: string | null
@@ -236,6 +238,7 @@ export type Database = {
           mental_health?: string | null
           mobility?: string | null
           name?: string
+          other_important_information?: string | null
           profile_description?: string | null
           recipient_address?: string | null
           recipient_city?: string | null
