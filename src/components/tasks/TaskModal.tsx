@@ -1,0 +1,325 @@
+import { useState, useEffect } from "react";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { toast } from "@/hooks/use-toast";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { CalendarIcon } from "lucide-react";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
+
+interface Task {
+  id: string;
+  title: string;
+  description?: string;
+  status: "Open" | "InProgress" | "Completed";
+  priority?: "High" | "Medium" | "Low";
+  category?: string;
+  due_date?: string;
+  primary_owner_id?: string;
+  secondary_owner_id?: string;
+}
+
+interface TaskModalProps {
+  task: Task | null;
+  isOpen: boolean;
+  onClose: () => void;
+  groupId: string;
+}
+
+export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
+  const [formData, setFormData] = useState({
+    title: "",
+    description: "",
+    status: "Open" as "Open" | "InProgress" | "Completed",
+    priority: "Medium" as "High" | "Medium" | "Low",
+    category: "",
+    due_date: "",
+    primary_owner_id: "",
+    secondary_owner_id: "",
+  });
+  const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
+  const queryClient = useQueryClient();
+
+    // Get group members for assignee options
+  const { data: groupMembers = [] } = useQuery({
+    queryKey: ["groupMembers", groupId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("care_group_members")
+        .select("user_id")
+        .eq("group_id", groupId);
+
+      if (error) throw error;
+      
+      // Get profile data for each user
+      if (!data?.length) return [];
+      
+      const userIds = data.map(m => m.user_id);
+      const { data: profiles, error: profileError } = await supabase
+        .from("profiles")
+        .select("user_id, email, first_name, last_name")
+        .in("user_id", userIds);
+        
+      if (profileError) throw profileError;
+      
+      return profiles?.map(profile => ({
+        id: profile.user_id,
+        email: profile.email || "",
+        name: `${profile.first_name || ""} ${profile.last_name || ""}`.trim() || profile.email || ""
+      })) || [];
+    },
+  });
+
+  useEffect(() => {
+    if (task) {
+      setFormData({
+        title: task.title,
+        description: task.description || "",
+        status: task.status,
+        priority: task.priority || "Medium",
+        category: task.category || "",
+        due_date: task.due_date ? task.due_date.split("T")[0] : "",
+        primary_owner_id: task.primary_owner_id || "",
+        secondary_owner_id: task.secondary_owner_id || "",
+      });
+      setDueDate(task.due_date ? new Date(task.due_date) : undefined);
+    } else {
+      setFormData({
+        title: "",
+        description: "",
+        status: "Open",
+        priority: "Medium",
+        category: "",
+        due_date: "",
+        primary_owner_id: "",
+        secondary_owner_id: "",
+      });
+      setDueDate(undefined);
+    }
+  }, [task]);
+
+  const updateTask = useMutation({
+    mutationFn: async (data: any) => {
+      const { error } = await supabase
+        .from("tasks")
+        .update(data)
+        .eq("id", task!.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      toast({
+        title: "Task updated",
+        description: "Task has been updated successfully.",
+      });
+      onClose();
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update task.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!task) return;
+
+    const submitData = {
+      ...formData,
+      due_date: dueDate ? dueDate.toISOString().split("T")[0] : null,
+      primary_owner_id: formData.primary_owner_id || null,
+      secondary_owner_id: formData.secondary_owner_id || null,
+    };
+
+    updateTask.mutate(submitData);
+  };
+
+  const categories = ["Medical", "Personal", "Financial", "Legal", "Other"];
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Edit Task</DialogTitle>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <Label htmlFor="title">Title *</Label>
+            <Input
+              id="title"
+              value={formData.title}
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              required
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="description">Description</Label>
+            <Textarea
+              id="description"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              rows={3}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="status">Status</Label>
+              <Select
+                value={formData.status}
+                onValueChange={(value) => setFormData({ ...formData, status: value as any })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Open">Open</SelectItem>
+                  <SelectItem value="InProgress">In Progress</SelectItem>
+                  <SelectItem value="Completed">Completed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="priority">Priority</Label>
+              <Select
+                value={formData.priority}
+                onValueChange={(value) => setFormData({ ...formData, priority: value as any })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="High">High</SelectItem>
+                  <SelectItem value="Medium">Medium</SelectItem>
+                  <SelectItem value="Low">Low</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="category">Category</Label>
+              <Select
+                value={formData.category}
+                onValueChange={(value) => setFormData({ ...formData, category: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {category}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Due Date</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !dueDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dueDate ? format(dueDate, "PPP") : <span>Pick a date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={dueDate}
+                    onSelect={setDueDate}
+                    initialFocus
+                    className="p-3 pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="primary_owner">Primary Owner</Label>
+              <Select
+                value={formData.primary_owner_id}
+                onValueChange={(value) => setFormData({ ...formData, primary_owner_id: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select primary owner" />
+                </SelectTrigger>
+                <SelectContent>
+                  {groupMembers.map((member) => (
+                    <SelectItem key={member.id} value={member.id}>
+                      {member.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="secondary_owner">Secondary Owner</Label>
+              <Select
+                value={formData.secondary_owner_id}
+                onValueChange={(value) => setFormData({ ...formData, secondary_owner_id: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select secondary owner" />
+                </SelectTrigger>
+                <SelectContent>
+                  {groupMembers.map((member) => (
+                    <SelectItem key={member.id} value={member.id}>
+                      {member.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={updateTask.isPending}>
+              {updateTask.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

@@ -109,8 +109,8 @@ export default function SharedCalendar({
       dueDate: task.due_date ? new Date(task.due_date) : undefined,
       category: task.category || 'Other',
       status: task.status,
-      isCompleted: task.status === 'completed',
-      isOverdue: task.due_date && task.status !== 'completed' ? isBefore(new Date(task.due_date), new Date()) : false,
+      isCompleted: task.status === 'Completed',
+      isOverdue: task.due_date && task.status !== 'Completed' ? isBefore(new Date(task.due_date), new Date()) : false,
       description: task.description,
       createdBy: task.created_by_email
     }))

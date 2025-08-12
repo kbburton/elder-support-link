@@ -193,7 +193,7 @@ export default function LinkedContacts({ itemId, itemType, itemTitle }: LinkedCo
               created_by_email: user.data.user.email,
               title: `Follow-up with ${contactName}`,
               description: `Related to ${itemType}: ${itemTitle || "Unknown"}`,
-              status: "open",
+              status: "Open",
             })
             .select()
             .single();

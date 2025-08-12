@@ -239,7 +239,7 @@ const ActivityLogForm = ({ editingEntry, onSave, onCancel }: ActivityLogFormProp
           group_id: groupId,
           created_by_user_id: currentUserId,
           created_by_email: currentUserEmail,
-          status: "open",
+          status: "Open",
         })
         .select()
         .single();

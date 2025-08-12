@@ -3,12 +3,25 @@ import { useParams } from "react-router-dom";
 import SEO from "@/components/layout/SEO";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import TasksCrud from "@/pages/crud/TasksCrud";
 import SharedCalendar from "@/components/calendar/SharedCalendar";
+import { TaskList } from "@/components/tasks/TaskList";
+import { TaskFilters } from "@/components/tasks/TaskFilters";
+import { Plus } from "lucide-react";
 
 const TasksPage = () => {
   const { groupId } = useParams<{ groupId: string }>();
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [sortBy, setSortBy] = useState("created_at");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [hideCompleted, setHideCompleted] = useState(false);
+  const [filters, setFilters] = useState({
+    status: [] as string[],
+    assignee: undefined,
+    priority: [] as string[],
+    category: [] as string[],
+    dueDateRange: undefined,
+    mine: false,
+  });
 
   if (!groupId) {
     return <div>Group ID not found</div>;
@@ -20,20 +33,38 @@ const TasksPage = () => {
       
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Task Center</h2>
-        <div className="flex gap-2">
-          <Button variant="hero">New task</Button>
-          <Button variant="outline">Templates</Button>
-        </div>
+        <Button variant="hero">
+          <Plus className="h-4 w-4 mr-2" />
+          New task
+        </Button>
       </div>
 
       <Tabs defaultValue="tasks" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="tasks">Tasks</TabsTrigger>
+          <TabsTrigger value="tasks">Tasks to accomplish</TabsTrigger>
           <TabsTrigger value="calendar">Calendar Overview</TabsTrigger>
         </TabsList>
         
-        <TabsContent value="tasks" className="space-y-4">
-          <TasksCrud />
+        <TabsContent value="tasks" className="space-y-6">
+          <TaskFilters
+            groupId={groupId}
+            sortBy={sortBy}
+            setSortBy={setSortBy}
+            filters={filters}
+            setFilters={setFilters}
+            hideCompleted={hideCompleted}
+            setHideCompleted={setHideCompleted}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+          />
+          
+          <TaskList
+            groupId={groupId}
+            sortBy={sortBy}
+            filters={filters}
+            hideCompleted={hideCompleted}
+            searchQuery={searchQuery}
+          />
         </TabsContent>
         
         <TabsContent value="calendar">
