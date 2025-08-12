@@ -43,6 +43,7 @@ interface DocumentListProps {
 }
 
 const getFileIcon = (fileType: string) => {
+  if (!fileType) return File;
   if (fileType.includes('pdf')) return FileText;
   if (fileType.includes('image')) return Image;
   if (fileType.includes('sheet') || fileType.includes('excel')) return FileSpreadsheet;
