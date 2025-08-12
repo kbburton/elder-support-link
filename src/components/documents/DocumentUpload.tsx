@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
-import { Upload, File, X } from 'lucide-react';
+import { Upload, File, X, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Progress } from '@/components/ui/progress';
+import { validateFile, validateBatch, FILE_LIMITS } from '@/utils/file-limits';
 
 interface DocumentUploadProps {
   onUploadComplete: () => void;
@@ -25,56 +26,82 @@ const DOCUMENT_CATEGORIES = [
   'Other'
 ];
 
-const ACCEPTED_FILE_TYPES = {
-  'application/pdf': ['.pdf'],
-  'image/jpeg': ['.jpg', '.jpeg'],
-  'image/png': ['.png'],
-  'application/msword': ['.doc'],
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-  'application/vnd.ms-excel': ['.xls'],
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx']
-};
+const ACCEPTED_FILE_TYPES = FILE_LIMITS.ALLOWED_DOCUMENT_TYPES.reduce((acc, type) => {
+  acc[type] = [];
+  return acc;
+}, {} as Record<string, string[]>);
 
 export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProps) => {
   const { groupId } = useParams();
   const { toast } = useToast();
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('');
   const [notes, setNotes] = useState('');
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
-    const file = acceptedFiles[0];
-    if (file) {
-      if (file.size > 25 * 1024 * 1024) { // 25MB limit
-        toast({
-          title: 'File too large',
-          description: 'File size must be less than 25MB',
-          variant: 'destructive'
-        });
-        return;
+    const validFiles: File[] = [];
+    const errors: string[] = [];
+    
+    for (const file of acceptedFiles) {
+      // Validate individual file
+      const fileValidation = validateFile(file);
+      if (!fileValidation.isValid) {
+        errors.push(`${file.name}: ${fileValidation.message}`);
+        continue;
       }
-      setSelectedFile(file);
-      if (!title) {
-        setTitle(file.name.split('.')[0]);
-      }
+      validFiles.push(file);
     }
-  }, [title, toast]);
+    
+    if (validFiles.length === 0) {
+      toast({
+        title: 'No valid files',
+        description: errors.join('\n'),
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    // Validate batch size
+    const batchValidation = validateBatch([...selectedFiles, ...validFiles]);
+    if (!batchValidation.isValid) {
+      toast({
+        title: 'Batch size exceeded',
+        description: batchValidation.message,
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    setSelectedFiles(prev => [...prev, ...validFiles]);
+    
+    if (errors.length > 0) {
+      toast({
+        title: 'Some files skipped',
+        description: errors.join('\n'),
+        variant: 'destructive'
+      });
+    }
+    
+    if (!title && validFiles.length === 1) {
+      setTitle(validFiles[0].name.split('.')[0]);
+    }
+  }, [selectedFiles, title, toast]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: ACCEPTED_FILE_TYPES,
-    multiple: false,
-    maxSize: 25 * 1024 * 1024 // 25MB
+    multiple: true,
+    maxSize: FILE_LIMITS.MAX_FILE_SIZE
   });
 
   const handleUpload = async () => {
-    if (!selectedFile || !category || !groupId) {
+    if (selectedFiles.length === 0 || !category || !groupId) {
       toast({
         title: 'Missing information',
-        description: 'Please select a file and category',
+        description: 'Please select files and category',
         variant: 'destructive'
       });
       return;
@@ -84,74 +111,76 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
     setUploadProgress(0);
 
     try {
-      // Preserve original filename but ensure uniqueness
-      const fileExt = selectedFile.name.split('.').pop();
-      const baseName = selectedFile.name.replace(/\.[^/.]+$/, ""); // Remove extension
-      const timestamp = Date.now();
-      const fileName = `${baseName}_${timestamp}.${fileExt}`;
-
-      // Upload file to storage
-      setUploadProgress(25);
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('documents')
-        .upload(fileName, selectedFile);
-
-      if (uploadError) {
-        throw new Error(`Upload failed: ${uploadError.message}`);
-      }
-
-      setUploadProgress(50);
-
-      // Get current user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         throw new Error('User not authenticated');
       }
 
-      // Create document record
-      const { data: documentData, error: dbError } = await supabase
-        .from('documents')
-        .insert({
-          title: title || selectedFile.name,
-          category,
-          file_url: uploadData.path,
-          file_type: selectedFile.type,
-          file_size: selectedFile.size,
-          notes,
-          uploaded_by_user_id: user.id,
-          group_id: groupId,
-          processing_status: 'pending',
-          original_filename: selectedFile.name // Store original filename
-        })
-        .select()
-        .single();
+      const totalFiles = selectedFiles.length;
+      const progressPerFile = 80 / totalFiles; // Reserve 20% for completion
+      let currentProgress = 0;
 
-      if (dbError) {
-        throw new Error(`Database error: ${dbError.message}`);
-      }
+      const uploadedDocuments = [];
 
-      setUploadProgress(75);
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i];
+        
+        // Server-side validation will be done in the edge function
+        const fileExt = file.name.split('.').pop();
+        const baseName = file.name.replace(/\.[^/.]+$/, "");
+        const timestamp = Date.now();
+        const fileName = `${baseName}_${timestamp}_${i}.${fileExt}`;
 
-      // Process document with AI
-      try {
-        const { error: functionError } = await supabase.functions.invoke('process-document', {
-          body: { documentId: documentData.id }
-        });
+        // Upload file to storage
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('documents')
+          .upload(fileName, file);
 
-        if (functionError) {
-          console.warn('AI processing failed:', functionError);
-          // Don't fail the upload if AI processing fails
+        if (uploadError) {
+          throw new Error(`Upload failed for ${file.name}: ${uploadError.message}`);
         }
-      } catch (aiError) {
-        console.warn('AI processing error:', aiError);
-        // Continue with upload even if AI processing fails
+
+        // Create document record
+        const documentTitle = selectedFiles.length === 1 && title ? title : file.name;
+        
+        const { data: documentData, error: dbError } = await supabase
+          .from('documents')
+          .insert({
+            title: documentTitle,
+            category,
+            file_url: uploadData.path,
+            file_type: file.type,
+            file_size: file.size,
+            notes,
+            uploaded_by_user_id: user.id,
+            group_id: groupId,
+            processing_status: 'pending',
+            original_filename: file.name
+          })
+          .select()
+          .single();
+
+        if (dbError) {
+          throw new Error(`Database error for ${file.name}: ${dbError.message}`);
+        }
+
+        uploadedDocuments.push(documentData);
+        currentProgress += progressPerFile;
+        setUploadProgress(Math.round(currentProgress));
+
+        // Process document with AI (don't await to avoid blocking)
+        supabase.functions.invoke('process-document', {
+          body: { documentId: documentData.id }
+        }).catch(error => {
+          console.warn(`AI processing failed for ${file.name}:`, error);
+        });
       }
 
       setUploadProgress(100);
 
       toast({
         title: 'Upload successful',
-        description: 'Document uploaded and is being processed'
+        description: `${totalFiles} document${totalFiles > 1 ? 's' : ''} uploaded and being processed`
       });
 
       onUploadComplete();
@@ -190,14 +219,38 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
           `}
         >
           <input {...getInputProps()} />
-          {selectedFile ? (
-            <div className="flex items-center justify-center space-x-2">
-              <File className="h-8 w-8 text-primary" />
-              <div>
-                <p className="font-medium">{selectedFile.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                </p>
+          {selectedFiles.length > 0 ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-center space-x-2 mb-3">
+                <File className="h-8 w-8 text-primary" />
+                <div>
+                  <p className="font-medium">{selectedFiles.length} file{selectedFiles.length > 1 ? 's' : ''} selected</p>
+                  <p className="text-sm text-muted-foreground">
+                    {(selectedFiles.reduce((sum, f) => sum + f.size, 0) / 1024 / 1024).toFixed(2)} MB total
+                  </p>
+                </div>
+              </div>
+              <div className="max-h-32 overflow-y-auto space-y-1">
+                {selectedFiles.map((file, index) => (
+                  <div key={index} className="flex items-center justify-between text-sm bg-muted/50 rounded p-2">
+                    <span className="truncate">{file.name}</span>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-muted-foreground">
+                        {(file.size / 1024 / 1024).toFixed(1)}MB
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+                        }}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ) : (
@@ -205,11 +258,15 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
               <Upload className="h-12 w-12 mx-auto text-muted-foreground" />
               <div>
                 <p className="text-lg font-medium">
-                  {isDragActive ? 'Drop file here' : 'Click or drag file to upload'}
+                  {isDragActive ? 'Drop files here' : 'Click or drag files to upload'}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  PDF, images, Word, Excel files up to 25MB
+                  PDF, DOCX, XLSX, PPTX, TXT, JPG, PNG, WebP up to 25MB each
                 </p>
+                <div className="flex items-center justify-center space-x-1 text-xs text-muted-foreground mt-2">
+                  <AlertTriangle className="h-3 w-3" />
+                  <span>Executable files are blocked for security</span>
+                </div>
               </div>
             </div>
           )}
@@ -273,10 +330,10 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
           </Button>
           <Button 
             onClick={handleUpload} 
-            disabled={!selectedFile || !category || uploading}
+            disabled={selectedFiles.length === 0 || !category || uploading}
             className="flex-1"
           >
-            {uploading ? 'Uploading...' : 'Upload Document'}
+            {uploading ? 'Uploading...' : `Upload ${selectedFiles.length} Document${selectedFiles.length > 1 ? 's' : ''}`}
           </Button>
         </div>
       </CardContent>

@@ -32,6 +32,24 @@ serve(async (req) => {
 
     console.log('Processing document:', documentId);
 
+    // First, validate the document with security checks
+    try {
+      const { error: validationError } = await supabaseClient.functions.invoke('validate-document', {
+        body: { documentId }
+      });
+
+      if (validationError) {
+        console.error('Document validation failed:', validationError);
+        return new Response(
+          JSON.stringify({ error: 'Document validation failed', details: validationError }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        );
+      }
+    } catch (validationError) {
+      console.error('Validation service error:', validationError);
+      // Continue with processing - validation is an extra security layer
+    }
+
     // Get document from database
     const { data: document, error: docError } = await supabaseClient
       .from('documents')
