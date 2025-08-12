@@ -1155,6 +1155,18 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      reindex_row: {
+        Args: { p_entity_type: string; p_entity_id: string }
+        Returns: undefined
+      }
+      remove_from_index: {
+        Args: { p_entity_type: string; p_entity_id: string }
+        Returns: undefined
+      }
+      retry_search_job: {
+        Args: { p_job_id: string }
+        Returns: undefined
+      }
       search_all: {
         Args: { q: string; group_id: string; lim?: number }
         Returns: {

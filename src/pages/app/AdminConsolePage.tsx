@@ -127,6 +127,12 @@ const AdminConsolePage = () => {
               <CardContent className="text-muted-foreground">CRUD activity logs</CardContent>
             </Card>
           </Link>
+          <Link to={`${base}/search-jobs`}>
+            <Card className="h-full hover:bg-muted/50 transition-colors">
+              <CardHeader><CardTitle>Search Jobs</CardTitle></CardHeader>
+              <CardContent className="text-muted-foreground">Monitor search indexing</CardContent>
+            </Card>
+          </Link>
         </div>
       </div>
     </div>

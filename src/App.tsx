@@ -31,6 +31,7 @@ import ContactsPage from "./pages/app/ContactsPage";
 import ContactDetailPage from "./pages/app/ContactDetailPage";
 import ContactFormPage from "./pages/app/ContactFormPage";
 import ContactsImportPage from "./pages/app/ContactsImportPage";
+import SearchJobsPage from "./pages/app/SearchJobsPage";
 const queryClient = new QueryClient();
 const App = () => (
   <HelmetProvider>
@@ -69,6 +70,7 @@ const App = () => (
               <Route path="admin/tasks" element={<TasksCrud />} />
               <Route path="admin/documents" element={<DocumentsCrud />} />
               <Route path="admin/activity-logs" element={<ActivityLogsCrud />} />
+              <Route path="admin/search-jobs" element={<SearchJobsPage />} />
             </Route>
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
