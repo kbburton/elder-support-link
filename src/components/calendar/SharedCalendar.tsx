@@ -12,6 +12,7 @@ import { CalendarItem } from "./CalendarItem";
 import { CalendarLegend } from "./CalendarLegend";
 import { CalendarViews } from "./CalendarViews";
 import { TaskModal } from "@/components/tasks/TaskModal";
+import { AppointmentModal } from "@/components/appointments/AppointmentModal";
 
 export interface SharedCalendarProps {
   view: 'month' | 'week' | 'day' | 'list';
@@ -59,6 +60,8 @@ export default function SharedCalendar({
   const [activeView, setActiveView] = useState(view);
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
+  const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -177,38 +180,58 @@ export default function SharedCalendar({
     }, 100);
   };
 
+  const handleItemClick = (event: any) => {
+    if (event.entityType === 'task') {
+      setSelectedTask(event);
+      setIsTaskModalOpen(true);
+    } else if (event.entityType === 'appointment') {
+      setSelectedAppointment(event);
+      setIsAppointmentModalOpen(true);
+    }
+  };
+
+  const handleAppointmentModalClose = () => {
+    setIsAppointmentModalOpen(false);
+    setSelectedAppointment(null);
+    // Invalidate queries to refresh data
+    queryClient.invalidateQueries({ queryKey: ["appointments"] });
+    queryClient.invalidateQueries({ queryKey: ["calendarEvents"] });
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={handleTodayClick}
-          >
-            Today
-          </Button>
-        </div>
-
-        {/* Big date picker */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className="justify-start">
-              <CalendarIcon className="mr-2 h-4 w-4" />
-              {format(selectedDate, "MMMM yyyy")}
+      {(activeView === 'day' || view === 'day') && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleTodayClick}
+            >
+              Today
             </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="end">
-            <Calendar 
-              mode="single" 
-              selected={selectedDate} 
-              onSelect={handleDateSelect} 
-              initialFocus 
-              className={cn("p-3 pointer-events-auto")} 
-            />
-          </PopoverContent>
-        </Popover>
-      </div>
+          </div>
+
+          {/* Big date picker */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="justify-start">
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {format(selectedDate, "MMMM yyyy")}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar 
+                mode="single" 
+                selected={selectedDate} 
+                onSelect={handleDateSelect} 
+                initialFocus 
+                className={cn("p-3 pointer-events-auto")} 
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
+      )}
 
       <CalendarViews 
         view={activeView}
@@ -216,7 +239,7 @@ export default function SharedCalendar({
         events={filteredEvents}
         onDateChange={onSelectedDateChange}
         groupId={groupId}
-        onTaskClick={handleTaskClick}
+        onItemClick={handleItemClick}
       />
 
       {showLegend && (
@@ -230,6 +253,14 @@ export default function SharedCalendar({
         task={selectedTask}
         isOpen={isTaskModalOpen}
         onClose={handleTaskModalClose}
+        groupId={groupId}
+      />
+
+      {/* Appointment Modal */}
+      <AppointmentModal
+        appointment={selectedAppointment}
+        isOpen={isAppointmentModalOpen}
+        onClose={handleAppointmentModalClose}
         groupId={groupId}
       />
     </div>

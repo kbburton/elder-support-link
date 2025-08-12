@@ -30,9 +30,10 @@ interface CalendarViewsProps {
   onDateChange: (date: Date) => void;
   groupId: string;
   onTaskClick?: (taskId: string) => void;
+  onItemClick?: (event: CalendarEvent) => void;
 }
 
-export function CalendarViews({ view, selectedDate, events, onDateChange, groupId, onTaskClick }: CalendarViewsProps) {
+export function CalendarViews({ view, selectedDate, events, onDateChange, groupId, onTaskClick, onItemClick }: CalendarViewsProps) {
   const navigatePrevious = () => {
     switch (view) {
       case 'month':
@@ -62,27 +63,27 @@ export function CalendarViews({ view, selectedDate, events, onDateChange, groupI
   };
 
   if (view === 'month') {
-    return <MonthView selectedDate={selectedDate} events={events} onNavigatePrevious={navigatePrevious} onNavigateNext={navigateNext} groupId={groupId} onTaskClick={onTaskClick} />;
+    return <MonthView selectedDate={selectedDate} events={events} onNavigatePrevious={navigatePrevious} onNavigateNext={navigateNext} groupId={groupId} onItemClick={onItemClick} />;
   }
 
   if (view === 'week') {
-    return <WeekView selectedDate={selectedDate} events={events} onNavigatePrevious={navigatePrevious} onNavigateNext={navigateNext} groupId={groupId} onTaskClick={onTaskClick} />;
+    return <WeekView selectedDate={selectedDate} events={events} onNavigatePrevious={navigatePrevious} onNavigateNext={navigateNext} groupId={groupId} onItemClick={onItemClick} />;
   }
 
   if (view === 'day') {
-    return <DayView selectedDate={selectedDate} events={events} onNavigatePrevious={navigatePrevious} onNavigateNext={navigateNext} groupId={groupId} onTaskClick={onTaskClick} />;
+    return <DayView selectedDate={selectedDate} events={events} onNavigatePrevious={navigatePrevious} onNavigateNext={navigateNext} groupId={groupId} onItemClick={onItemClick} />;
   }
 
-  return <ListView events={events} groupId={groupId} onTaskClick={onTaskClick} />;
+  return <ListView events={events} groupId={groupId} onItemClick={onItemClick} />;
 }
 
-function MonthView({ selectedDate, events, onNavigatePrevious, onNavigateNext, groupId, onTaskClick }: {
+function MonthView({ selectedDate, events, onNavigatePrevious, onNavigateNext, groupId, onItemClick }: {
   selectedDate: Date;
   events: CalendarEvent[];
   onNavigatePrevious: () => void;
   onNavigateNext: () => void;
   groupId: string;
-  onTaskClick?: (taskId: string) => void;
+  onItemClick?: (event: CalendarEvent) => void;
 }) {
   const monthStart = startOfMonth(selectedDate);
   const monthEnd = endOfMonth(selectedDate);
@@ -144,11 +145,7 @@ function MonthView({ selectedDate, events, onNavigatePrevious, onNavigateNext, g
                         status={event.status}
                         primaryOwnerName={event.primaryOwnerName}
                         secondaryOwnerName={event.secondaryOwnerName}
-                        onClick={() => {
-                          if (event.entityType === 'task' && onTaskClick) {
-                            onTaskClick(event.id);
-                          }
-                        }}
+                        onClick={() => onItemClick?.(event)}
                         size="small"
                       />
                     </div>
@@ -167,13 +164,13 @@ function MonthView({ selectedDate, events, onNavigatePrevious, onNavigateNext, g
   );
 }
 
-function WeekView({ selectedDate, events, onNavigatePrevious, onNavigateNext, groupId, onTaskClick }: {
+function WeekView({ selectedDate, events, onNavigatePrevious, onNavigateNext, groupId, onItemClick }: {
   selectedDate: Date;
   events: CalendarEvent[];
   onNavigatePrevious: () => void;
   onNavigateNext: () => void;
   groupId: string;
-  onTaskClick?: (taskId: string) => void;
+  onItemClick?: (event: CalendarEvent) => void;
 }) {
   const weekStart = startOfWeek(selectedDate);
   const weekEnd = endOfWeek(selectedDate);
@@ -224,11 +221,7 @@ function WeekView({ selectedDate, events, onNavigatePrevious, onNavigateNext, gr
                           status={event.status}
                           primaryOwnerName={event.primaryOwnerName}
                           secondaryOwnerName={event.secondaryOwnerName}
-                          onClick={() => {
-                            if (event.entityType === 'task' && onTaskClick) {
-                              onTaskClick(event.id);
-                            }
-                          }}
+                          onClick={() => onItemClick?.(event)}
                           size="medium"
                         />
                       </div>
@@ -243,13 +236,13 @@ function WeekView({ selectedDate, events, onNavigatePrevious, onNavigateNext, gr
   );
 }
 
-function DayView({ selectedDate, events, onNavigatePrevious, onNavigateNext, groupId, onTaskClick }: {
+function DayView({ selectedDate, events, onNavigatePrevious, onNavigateNext, groupId, onItemClick }: {
   selectedDate: Date;
   events: CalendarEvent[];
   onNavigatePrevious: () => void;
   onNavigateNext: () => void;
   groupId: string;
-  onTaskClick?: (taskId: string) => void;
+  onItemClick?: (event: CalendarEvent) => void;
 }) {
   const dayEvents = events.filter(event => {
     const eventDate = event.startTime || event.dueDate;
@@ -293,11 +286,7 @@ function DayView({ selectedDate, events, onNavigatePrevious, onNavigateNext, gro
                     status={event.status}
                     primaryOwnerName={event.primaryOwnerName}
                     secondaryOwnerName={event.secondaryOwnerName}
-                    onClick={() => {
-                      if (event.entityType === 'task' && onTaskClick) {
-                        onTaskClick(event.id);
-                      }
-                    }}
+                    onClick={() => onItemClick?.(event)}
                     size="large"
                     showDetails={true}
                     location={event.location}
@@ -313,7 +302,7 @@ function DayView({ selectedDate, events, onNavigatePrevious, onNavigateNext, gro
   );
 }
 
-function ListView({ events, groupId, onTaskClick }: { events: CalendarEvent[]; groupId: string; onTaskClick?: (taskId: string) => void; }) {
+function ListView({ events, groupId, onItemClick }: { events: CalendarEvent[]; groupId: string; onItemClick?: (event: CalendarEvent) => void; }) {
   // Sort events by date
   const sortedEvents = [...events].sort((a, b) => {
     const dateA = a.startTime || a.dueDate || new Date(0);
@@ -348,11 +337,7 @@ function ListView({ events, groupId, onTaskClick }: { events: CalendarEvent[]; g
                     status={event.status}
                     primaryOwnerName={event.primaryOwnerName}
                     secondaryOwnerName={event.secondaryOwnerName}
-                    onClick={() => {
-                      if (event.entityType === 'task' && onTaskClick) {
-                        onTaskClick(event.id);
-                      }
-                    }}
+                    onClick={() => onItemClick?.(event)}
                     size="large"
                     showDetails={true}
                     location={event.location}
