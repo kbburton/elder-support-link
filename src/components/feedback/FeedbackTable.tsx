@@ -147,6 +147,21 @@ export function FeedbackTable({
         .update({ status })
         .eq("id", itemId);
       if (error) throw error;
+
+      // Send notification email in background (don't block UX on failure)
+      try {
+        await supabase.functions.invoke('notify', {
+          body: {
+            type: 'feedback-update',
+            feedback_id: itemId,
+            update_type: 'status',
+            baseUrl: window.location.origin,
+          },
+        });
+      } catch (notifyError) {
+        console.error('Failed to send feedback status notification:', notifyError);
+        // Continue silently - don't block user experience
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["feedback-items"] });

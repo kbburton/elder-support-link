@@ -95,11 +95,27 @@ export function FeedbackModal({ isOpen, onClose, groupId }: FeedbackModalProps) 
         created_by_email: profile?.email || user.email || "",
       };
 
-      const { error } = await supabase
+      const { data: insertedFeedback, error } = await supabase
         .from("feedback_items")
-        .insert(finalValues);
+        .insert(finalValues)
+        .select()
+        .single();
 
       if (error) throw error;
+
+      // Send notification email in background (don't block UX on failure)
+      try {
+        await supabase.functions.invoke('notify', {
+          body: {
+            type: 'feedback-new',
+            feedback_id: insertedFeedback.id,
+            baseUrl: window.location.origin,
+          },
+        });
+      } catch (notifyError) {
+        console.error('Failed to send feedback notification:', notifyError);
+        // Continue silently - don't block user experience
+      }
     },
     onSuccess: () => {
       toast({
