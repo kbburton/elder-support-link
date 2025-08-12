@@ -6,10 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Edit, Phone, Mail, MapPin, Clock, AlertTriangle, User } from "lucide-react";
+import { ArrowLeft, Edit, Phone, Mail, MapPin, Clock, AlertTriangle, User, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import ReverseLinkedItems from "@/components/contacts/ReverseLinkedItems";
+import { generateVCardFile } from "@/utils/vcard";
 
 interface Contact {
   id: string;
@@ -91,6 +92,15 @@ export default function ContactDetailPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const exportContact = () => {
+    if (!contact) return;
+    generateVCardFile([contact]);
+    toast({
+      title: "Export successful",
+      description: "Contact exported to vCard file.",
+    });
   };
 
   const getContactName = (contact: Contact) => {
@@ -180,12 +190,18 @@ export default function ContactDetailPage() {
             )}
           </div>
         </div>
-        <Button asChild>
-          <Link to={`/app/${groupId}/contacts/${contact.id}/edit`}>
-            <Edit className="h-4 w-4 mr-2" />
-            Edit
-          </Link>
-        </Button>
+        <div className="flex items-center space-x-2">
+          <Button variant="outline" onClick={exportContact}>
+            <Download className="h-4 w-4 mr-2" />
+            Export vCard
+          </Button>
+          <Button asChild>
+            <Link to={`/app/${groupId}/contacts/${contact.id}/edit`}>
+              <Edit className="h-4 w-4 mr-2" />
+              Edit
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="overview" className="space-y-6">

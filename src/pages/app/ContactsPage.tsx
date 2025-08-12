@@ -7,9 +7,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, Plus, Search, Filter, Phone, Mail, MapPin } from "lucide-react";
+import { Users, Plus, Search, Filter, Phone, Mail, MapPin, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { generateVCardFile } from "@/utils/vcard";
 
 interface Contact {
   id: string;
@@ -18,10 +19,15 @@ interface Contact {
   organization_name: string | null;
   contact_type: string;
   phone_primary: string | null;
+  phone_secondary: string | null;
   email_personal: string | null;
   email_work: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
   city: string | null;
   state: string | null;
+  postal_code: string | null;
+  photo_url: string | null;
   is_emergency_contact: boolean;
   created_at: string;
 }
@@ -75,6 +81,24 @@ export default function ContactsPage() {
     return matchesSearch && matchesType && matchesEmergency;
   });
 
+  const exportContacts = (selectedContacts?: Contact[]) => {
+    const contactsToExport = selectedContacts || filteredContacts;
+    if (contactsToExport.length === 0) {
+      toast({
+        title: "No contacts to export",
+        description: "Please select contacts to export or clear your filters.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    generateVCardFile(contactsToExport);
+    toast({
+      title: "Export successful",
+      description: `Exported ${contactsToExport.length} contact(s) to vCard file.`,
+    });
+  };
+
   const getContactName = (contact: Contact) => {
     if (contact.organization_name) {
       return contact.organization_name;
@@ -112,12 +136,28 @@ export default function ContactsPage() {
           <h1 className="text-2xl font-semibold">Contacts</h1>
           <Badge variant="outline">{contacts.length} contacts</Badge>
         </div>
-        <Button asChild>
-          <Link to={`/app/${groupId}/contacts/new`}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Contact
-          </Link>
-        </Button>
+        <div className="flex items-center space-x-2">
+          <Button asChild>
+            <Link to={`/app/${groupId}/contacts/new`}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Contact
+            </Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link to={`/app/${groupId}/contacts/import`}>
+              <Plus className="h-4 w-4 mr-2" />
+              Import CSV
+            </Link>
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => exportContacts()}
+            disabled={filteredContacts.length === 0}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export vCard
+          </Button>
+        </div>
       </div>
 
       <Card>

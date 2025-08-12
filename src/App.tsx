@@ -30,6 +30,7 @@ import ActivityLogsCrud from "./pages/crud/ActivityLogsCrud";
 import ContactsPage from "./pages/app/ContactsPage";
 import ContactDetailPage from "./pages/app/ContactDetailPage";
 import ContactFormPage from "./pages/app/ContactFormPage";
+import ContactsImportPage from "./pages/app/ContactsImportPage";
 const queryClient = new QueryClient();
 const App = () => (
   <HelmetProvider>
@@ -52,6 +53,7 @@ const App = () => (
               <Route path="documents" element={<DocumentsPage />} />
               <Route path="activity" element={<ActivityLogPage />} />
               <Route path="contacts" element={<ContactsPage />} />
+              <Route path="contacts/import" element={<ContactsImportPage />} />
               <Route path="contacts/new" element={<ContactFormPage />} />
               <Route path="contacts/:contactId" element={<ContactDetailPage />} />
               <Route path="contacts/:contactId/edit" element={<ContactFormPage />} />
