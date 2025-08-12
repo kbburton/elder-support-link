@@ -71,12 +71,18 @@ serve(async (req) => {
       ? `${profile.first_name} ${profile.last_name}` 
       : senderEmail;
 
-    // Check if user is admin of the group using service role
+    // Check if user is admin of the group using direct query (since service role doesn't have auth.uid())
     console.log("Checking if user is admin of group:", groupId);
-    const { data: isAdmin, error: adminError } = await supabaseClient
-      .rpc('is_user_admin_of_group', { group_uuid: groupId });
+    const { data: adminCheck, error: adminError } = await supabaseClient
+      .from('care_group_members')
+      .select('is_admin')
+      .eq('group_id', groupId)
+      .eq('user_id', user.id)
+      .single();
 
-    console.log("Admin check result:", { isAdmin, adminError });
+    console.log("Admin check result:", { adminCheck, adminError });
+    
+    const isAdmin = adminCheck?.is_admin === true;
     
     if (adminError || !isAdmin) {
       console.error("Admin check error:", adminError);
