@@ -1007,7 +1007,15 @@ export type Database = {
           yearly_day?: number | null
           yearly_month?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "task_recurrence_rules_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       task_updates: {
         Row: {
