@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { format, isPast } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 import { TaskModal } from "./TaskModal";
+import { triggerReindex } from "@/utils/reindex";
 
 interface Task {
   id: string;
@@ -17,6 +18,7 @@ interface Task {
   category?: string;
   due_date?: string;
   completed_at?: string;
+  completed_by_user_id?: string;
   primary_owner_id?: string;
   secondary_owner_id?: string;
   created_by_email?: string;
@@ -97,21 +99,7 @@ export function TaskList({ groupId, sortBy, filters, hideCompleted, searchQuery 
   });
 
   const updateTaskStatus = useMutation({
-    mutationFn: async ({ taskId, status }: { taskId: string; status: "Open" | "InProgress" | "Completed" }) => {
-      const updates: any = { status };
-      
-      if (status === "Completed") {
-        updates.completed_at = new Date().toISOString();
-        // Get current user info for completed_by fields
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          updates.completed_by_email = user.email;
-        }
-      } else {
-        updates.completed_at = null;
-        updates.completed_by_email = null;
-      }
-
+    mutationFn: async ({ taskId, updates }: { taskId: string; updates: any }) => {
       const { error } = await supabase
         .from("tasks")
         .update(updates)
@@ -119,17 +107,22 @@ export function TaskList({ groupId, sortBy, filters, hideCompleted, searchQuery 
 
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: async (_, { taskId }) => {
+      // Trigger reindex fire-and-forget
+      try {
+        await triggerReindex('tasks', taskId);
+      } catch (error) {
+        console.warn('Failed to trigger reindex:', error);
+      }
+      
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    },
+    onError: (error, { taskId }) => {
+      // Revert optimistic update
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
       toast({
-        title: "Task updated",
-        description: "Task status has been updated successfully.",
-      });
-    },
-    onError: (error) => {
-      toast({
         title: "Error",
-        description: "Failed to update task status.",
+        description: "Failed to update task status. Changes have been reverted.",
         variant: "destructive",
       });
     },
@@ -140,16 +133,43 @@ export function TaskList({ groupId, sortBy, filters, hideCompleted, searchQuery 
     setIsModalOpen(true);
   };
 
-  const handleStatusChange = (taskId: string, currentStatus: string) => {
-    let newStatus: "Open" | "InProgress" | "Completed";
+  const handleStatusChange = async (taskId: string, currentStatus: string) => {
+    // Get current user for completion tracking
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const isCompleting = currentStatus !== "Completed";
     
-    if (currentStatus === "Completed") {
-      newStatus = "Open";
+    let updates: any;
+    if (isCompleting) {
+      // Completing the task
+      updates = {
+        status: "Completed",
+        completed_at: new Date().toISOString(),
+        completed_by_user_id: user.id,
+        completed_by_email: user.email,
+      };
     } else {
-      newStatus = "Completed";
+      // Uncompleting the task
+      updates = {
+        status: "InProgress",
+        completed_at: null,
+        completed_by_user_id: null,
+        completed_by_email: null,
+      };
     }
-    
-    updateTaskStatus.mutate({ taskId, status: newStatus });
+
+    // Optimistic update
+    queryClient.setQueryData(["tasks", groupId, sortBy, filters, hideCompleted, searchQuery], (oldTasks: Task[] | undefined) => {
+      if (!oldTasks) return oldTasks;
+      return oldTasks.map(task => 
+        task.id === taskId 
+          ? { ...task, ...updates }
+          : task
+      );
+    });
+
+    updateTaskStatus.mutate({ taskId, updates });
   };
 
   const getPriorityColor = (priority?: string) => {
