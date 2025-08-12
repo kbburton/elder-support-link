@@ -240,11 +240,62 @@ export type Database = {
           },
         ]
       }
+      care_group_invitations: {
+        Row: {
+          accepted_at: string | null
+          accepted_by_user_id: string | null
+          created_at: string
+          expires_at: string
+          group_id: string
+          id: string
+          invited_by_user_id: string
+          invited_email: string
+          message: string
+          status: string
+          token: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_by_user_id?: string | null
+          created_at?: string
+          expires_at?: string
+          group_id: string
+          id?: string
+          invited_by_user_id: string
+          invited_email: string
+          message: string
+          status?: string
+          token?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_by_user_id?: string | null
+          created_at?: string
+          expires_at?: string
+          group_id?: string
+          id?: string
+          invited_by_user_id?: string
+          invited_email?: string
+          message?: string
+          status?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_invitations_group_id"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "care_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       care_group_members: {
         Row: {
           created_at: string
           group_id: string | null
           id: string
+          is_admin: boolean
           relationship_to_recipient: string | null
           role: string
           user_id: string | null
@@ -253,6 +304,7 @@ export type Database = {
           created_at?: string
           group_id?: string | null
           id?: string
+          is_admin?: boolean
           relationship_to_recipient?: string | null
           role?: string
           user_id?: string | null
@@ -261,6 +313,7 @@ export type Database = {
           created_at?: string
           group_id?: string | null
           id?: string
+          is_admin?: boolean
           relationship_to_recipient?: string | null
           role?: string
           user_id?: string | null
@@ -728,6 +781,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      is_user_admin_of_group: {
+        Args: { group_uuid: string }
+        Returns: boolean
+      }
       is_user_member_of_group: {
         Args: { group_uuid: string }
         Returns: boolean

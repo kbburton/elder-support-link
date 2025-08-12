@@ -32,18 +32,12 @@ const InviteAccept = () => {
 
   const fetchInvitation = async () => {
     try {
-      const { data, error } = await supabase
-        .from("care_group_invitations")
-        .select(`
-          *,
-          care_groups!inner(id, name)
-        `)
-        .eq("token", token)
-        .eq("status", "pending")
-        .gte("expires_at", new Date().toISOString())
-        .single();
+      // Use raw SQL query via RPC to avoid TypeScript issues
+      const { data: invitation, error } = await supabase.rpc('get_invitation_by_token', {
+        invitation_token: token
+      });
 
-      if (error || !data) {
+      if (error || !invitation || invitation.length === 0) {
         toast({
           title: "Invalid invitation",
           description: "This invitation is invalid or has expired.",
@@ -53,7 +47,7 @@ const InviteAccept = () => {
         return;
       }
 
-      setInvitation(data);
+      setInvitation(invitation[0]);
     } catch (error) {
       console.error("Error fetching invitation:", error);
       toast({
@@ -92,7 +86,7 @@ const InviteAccept = () => {
         .select("id")
         .eq("user_id", session.user.id)
         .eq("group_id", invitation.group_id)
-        .single();
+        .maybeSingle();
 
       if (existingMember) {
         toast({
@@ -122,15 +116,15 @@ const InviteAccept = () => {
         return;
       }
 
-      // Update invitation status
-      await supabase
-        .from("care_group_invitations")
-        .update({ status: "accepted" })
-        .eq("id", invitation.id);
+      // Update invitation status using RPC
+      await supabase.rpc('accept_invitation', {
+        invitation_id: invitation.id,
+        user_id: session.user.id
+      });
 
       toast({
         title: "Welcome!",
-        description: `You have successfully joined ${invitation.care_groups.name}.`,
+        description: `You have successfully joined ${invitation.group_name}.`,
       });
 
       navigate(`/app/${invitation.group_id}`);
@@ -170,7 +164,7 @@ const InviteAccept = () => {
           {invitation && (
             <>
               <div className="text-center space-y-2">
-                <h3 className="font-semibold text-lg">{invitation.care_groups.name}</h3>
+                <h3 className="font-semibold text-lg">{invitation.group_name}</h3>
                 <p className="text-sm text-muted-foreground">
                   Invited by: {invitation.invited_by_email}
                 </p>
