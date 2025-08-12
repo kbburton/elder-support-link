@@ -182,11 +182,19 @@ export default function SharedCalendar({
 
   const handleItemClick = (event: any) => {
     if (event.entityType === 'task') {
-      setSelectedTask(event);
-      setIsTaskModalOpen(true);
+      // Find the original task data
+      const task = tasks.find(t => t.id === event.id);
+      if (task) {
+        setSelectedTask(task);
+        setIsTaskModalOpen(true);
+      }
     } else if (event.entityType === 'appointment') {
-      setSelectedAppointment(event);
-      setIsAppointmentModalOpen(true);
+      // Find the original appointment data
+      const appointment = appointments.find(a => a.id === event.id);
+      if (appointment) {
+        setSelectedAppointment(appointment);
+        setIsAppointmentModalOpen(true);
+      }
     }
   };
 
