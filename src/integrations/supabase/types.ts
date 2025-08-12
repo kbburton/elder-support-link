@@ -1119,6 +1119,19 @@ export type Database = {
           message: string
         }[]
       }
+      get_search_jobs: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          id: string
+          entity_type: string
+          entity_id: string
+          operation: string
+          status: string
+          error_message: string
+          created_at: string
+          updated_at: string
+        }[]
+      }
       gtrgm_compress: {
         Args: { "": unknown }
         Returns: unknown

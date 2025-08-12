@@ -31,10 +31,10 @@ const SearchJobsPage = () => {
   const fetchJobs = async () => {
     try {
       // Use RPC to get search jobs since they're in admin schema
-      const { data, error } = await supabase.rpc('get_search_jobs');
+      const { data, error } = await supabase.rpc('get_search_jobs') as { data: SearchJob[] | null, error: any };
 
       if (error) throw error;
-      setJobs(data || []);
+      setJobs((data as SearchJob[]) || []);
     } catch (error) {
       console.error('Error fetching search jobs:', error);
       toast({
