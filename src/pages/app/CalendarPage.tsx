@@ -744,45 +744,180 @@ const CalendarPage = () => {
     </div>
   );
 
-  const WeekView = () => (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setViewDate(addDays(viewDate, -7))}>Previous</Button>
-          <Button variant="outline" onClick={() => setViewDate(addDays(viewDate, 7))}>Next</Button>
-        </div>
-        <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as any)}>
-          <SelectTrigger className="w-[200px]"><SelectValue placeholder="Filter by category" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All categories</SelectItem>
-            {CATEGORIES.map((c) => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
-        {weekDays.map((day) => (
-          <div key={day.toISOString()} className="rounded-md border p-2">
-            <div className="text-sm font-medium">{format(day, "EEE d")}</div>
-            <div className="mt-2 space-y-2">
-              {filtered.appointments
-                .filter((a) => isSameDay(parseISO(a.date_time), day))
-                .sort((a, b) => compareAsc(parseISO(a.date_time), parseISO(b.date_time)))
-                .map((a) => (
-                  <button key={a.id} onClick={() => onEdit(a)} className="w-full text-left text-xs rounded-md border p-2 hover:bg-muted transition">
-                    <div className="flex items-center gap-2">
-                      {a.category && <span className={cn("h-1.5 w-1.5 rounded-full", categoryToToken[a.category as Category]?.dotClass)} />}
-                      <span className="font-medium">{format(parseISO(a.date_time), "h:mm a")}</span>
-                      <span className="truncate">{a.description}</span>
-                    </div>
-                    {a.location && <div className="text-muted-foreground truncate">{a.location}</div>}
-                  </button>
-                ))}
-            </div>
+  const WeekView = () => {
+    const weekItems = useMemo(() => {
+      const itemsByDate: Record<string, CalendarItem[]> = {};
+      
+      // Add appointments for the week
+      filtered.appointments.forEach((apt) => {
+        const aptDate = parseISO(apt.date_time);
+        if (isSameWeek(aptDate, viewDate, { weekStartsOn: 0 })) {
+          const dateKey = format(aptDate, "yyyy-MM-dd");
+          if (!itemsByDate[dateKey]) itemsByDate[dateKey] = [];
+          itemsByDate[dateKey].push({
+            id: apt.id,
+            type: "appointment",
+            title: apt.description || "Appointment",
+            date: apt.date_time,
+            category: apt.category,
+            time: format(aptDate, "h:mm a"),
+            location: apt.location,
+            created_by_email: apt.created_by_email,
+          });
+        }
+      });
+
+      // Add tasks for the week
+      filtered.tasks.forEach((task) => {
+        if (task.due_date) {
+          const taskDate = new Date(task.due_date);
+          if (isSameWeek(taskDate, viewDate, { weekStartsOn: 0 })) {
+            const dateKey = task.due_date;
+            if (!itemsByDate[dateKey]) itemsByDate[dateKey] = [];
+            itemsByDate[dateKey].push({
+              id: task.id,
+              type: "task",
+              title: task.title,
+              date: task.due_date,
+              category: task.category,
+              status: task.status,
+              created_by_email: task.created_by_email,
+              completed_at: task.completed_at,
+            });
+          }
+        }
+      });
+
+      return itemsByDate;
+    }, [filtered, viewDate]);
+
+    const getCategoryColor = (category: string | null, type: "appointment" | "task", status?: string, completed_at?: string | null) => {
+      const isCompleted = status === "closed" || completed_at;
+      const opacity = isCompleted ? "opacity-50" : "";
+      
+      if (type === "task") {
+        const isOverdue = status === "open" && new Date() > new Date(viewDate);
+        const taskClass = isOverdue ? "bg-red-100 text-red-800 border-red-300" : "bg-blue-100 text-blue-800 border-blue-200";
+        return `${taskClass} ${opacity}`;
+      }
+      
+      switch (category) {
+        case "Medical": return `bg-red-100 text-red-800 border-red-200 ${opacity}`;
+        case "Financial/Legal": return `bg-green-100 text-green-800 border-green-200 ${opacity}`;
+        case "Personal/Social": return `bg-purple-100 text-purple-800 border-purple-200 ${opacity}`;
+        default: return `bg-gray-100 text-gray-800 border-gray-200 ${opacity}`;
+      }
+    };
+
+    const handleItemClick = (item: CalendarItem) => {
+      if (item.type === "appointment") {
+        const apt = appointments.find(a => a.id === item.id);
+        if (apt) onEdit(apt);
+      } else {
+        const task = tasks.find(t => t.id === item.id);
+        if (task) onEditTask(task);
+      }
+    };
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setViewDate(addDays(viewDate, -7))}>Previous</Button>
+            <h3 className="text-lg font-semibold">
+              Week of {format(startOfWeek(viewDate, { weekStartsOn: 0 }), "MMM d, yyyy")}
+            </h3>
+            <Button variant="outline" onClick={() => setViewDate(addDays(viewDate, 7))}>Next</Button>
           </div>
-        ))}
+          <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as any)}>
+            <SelectTrigger className="w-[200px]"><SelectValue placeholder="Filter by category" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All categories</SelectItem>
+              {CATEGORIES.map((c) => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
+          {weekDays.map((day) => {
+            const dateKey = format(day, "yyyy-MM-dd");
+            const dayItems = weekItems[dateKey] || [];
+            const appointments = dayItems.filter(item => item.type === "appointment");
+            const tasks = dayItems.filter(item => item.type === "task");
+            
+            return (
+              <div key={day.toISOString()} className="rounded-md border p-2 min-h-[200px]">
+                <div className={cn(
+                  "text-sm font-medium mb-2 pb-1 border-b",
+                  isToday(day) && "text-primary font-bold"
+                )}>
+                  {format(day, "EEE M/d")}
+                </div>
+                
+                {/* All-day tasks section */}
+                {tasks.length > 0 && (
+                  <div className="mb-3">
+                    <div className="text-xs text-muted-foreground mb-1">Tasks Due</div>
+                    <div className="space-y-1">
+                      {tasks.map((task) => {
+                        const isOverdue = task.status === "open" && isAfter(new Date(), new Date(task.date));
+                        
+                        return (
+                          <div
+                            key={task.id}
+                            className={cn(
+                              "text-xs p-1 rounded border cursor-pointer hover:scale-105 transition-transform",
+                              getCategoryColor(task.category, task.type, task.status, task.completed_at),
+                              isOverdue && "border-red-500 border-l-4"
+                            )}
+                            onClick={() => handleItemClick(task)}
+                            title={`${task.title}${task.created_by_email ? ` • Created by ${task.created_by_email}` : ''}`}
+                          >
+                            <div className="flex items-center gap-1">
+                              <CheckSquare className="h-3 w-3 flex-shrink-0" />
+                              <span className="truncate">{task.title}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Timed appointments section */}
+                <div className="space-y-1">
+                  {appointments
+                    .sort((a, b) => compareAsc(parseISO(a.date), parseISO(b.date)))
+                    .map((apt) => (
+                      <div
+                        key={apt.id}
+                        className={cn(
+                          "text-xs p-1 rounded border cursor-pointer hover:scale-105 transition-transform",
+                          getCategoryColor(apt.category, apt.type)
+                        )}
+                        onClick={() => handleItemClick(apt)}
+                        title={`${apt.title}${apt.time ? ` at ${apt.time}` : ''}${apt.location ? ` • ${apt.location}` : ''}${apt.created_by_email ? ` • Created by ${apt.created_by_email}` : ''}`}
+                      >
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-3 w-3 flex-shrink-0" />
+                          <span className="font-medium">{apt.time}</span>
+                        </div>
+                        <div className="truncate mt-1">{apt.title}</div>
+                        {apt.location && <div className="text-muted-foreground truncate text-[10px]">{apt.location}</div>}
+                      </div>
+                    ))}
+                </div>
+                
+                {dayItems.length === 0 && (
+                  <div className="text-xs text-muted-foreground text-center mt-4">No events</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const ListView = () => (
     <div className="space-y-3">
