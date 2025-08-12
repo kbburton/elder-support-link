@@ -14,7 +14,7 @@ const AppHeader = () => {
   const { groupId } = useParams();
   const currentId = groupId || "demo";
 
-  const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
+  const [groups, setGroups] = useState<{ id: string; name: string; memberCount: number; taskCount: number }[]>([]);
   const [userName, setUserName] = useState<string>("");
   const [searchValue, setSearchValue] = useState<string>("");
   const groupSelectRef = useRef<HTMLButtonElement>(null);
@@ -39,6 +39,16 @@ const AppHeader = () => {
       navigate(`/app/${currentId}/search?q=${encodeURIComponent(searchValue.trim())}`);
     }
   };
+  
+  // Load groups and persist current group selection
+  const handleGroupChange = (newGroupId: string) => {
+    // Persist to localStorage
+    localStorage.setItem('daveassist-current-group', newGroupId);
+    
+    // Navigate to calendar of the new group
+    navigate(`/app/${newGroupId}/calendar`);
+  };
+
   useEffect(() => {
     const load = async () => {
       try {
@@ -60,6 +70,7 @@ const AppHeader = () => {
           setUserName(auth.user?.email || "User");
         }
 
+        // Get user's group memberships
         const { data: memberships } = await supabase
           .from("care_group_members")
           .select("group_id")
@@ -67,33 +78,95 @@ const AppHeader = () => {
 
         const ids = (memberships || []).map((m: any) => m.group_id).filter(Boolean);
 
-        let list: { id: string; name: string }[] = [];
+        let list: { id: string; name: string; memberCount: number; taskCount: number }[] = [];
+        
         if (ids.length) {
+          // Get groups with stats
           const { data: cg } = await supabase
             .from("care_groups")
             .select("id, name")
             .in("id", ids as string[]);
-          if (cg) list = cg as any;
+          
+          if (cg) {
+            // Get member counts for each group
+            const { data: memberCounts } = await supabase
+              .from("care_group_members")
+              .select("group_id")
+              .in("group_id", ids as string[]);
+            
+            // Get task counts for each group  
+            const { data: taskCounts } = await supabase
+              .from("tasks")
+              .select("group_id")
+              .in("group_id", ids as string[])
+              .neq("status", "Completed");
+
+            list = cg.map(group => ({
+              id: group.id,
+              name: group.name,
+              memberCount: memberCounts?.filter(m => m.group_id === group.id).length || 0,
+              taskCount: taskCounts?.filter(t => t.group_id === group.id).length || 0
+            }));
+          }
         }
 
+        // Add current group if not in user's memberships and not demo
         if (currentId && !list.find((g) => g.id === currentId) && currentId !== "demo") {
           const { data: cur } = await supabase
             .from("care_groups")
             .select("id, name")
             .eq("id", currentId)
             .maybeSingle();
-          if (cur) list = [{ id: cur.id, name: cur.name }, ...list];
-          else list = [{ id: currentId, name: "Current Group" }, ...list];
+          if (cur) {
+            // Get stats for current group
+            const { data: memberCount } = await supabase
+              .from("care_group_members")
+              .select("group_id")
+              .eq("group_id", currentId);
+            
+            const { data: taskCount } = await supabase
+              .from("tasks")
+              .select("group_id")
+              .eq("group_id", currentId)
+              .neq("status", "Completed");
+
+            list = [{ 
+              id: cur.id, 
+              name: cur.name,
+              memberCount: memberCount?.length || 0,
+              taskCount: taskCount?.length || 0
+            }, ...list];
+          } else {
+            list = [{ 
+              id: currentId, 
+              name: "Current Group",
+              memberCount: 0,
+              taskCount: 0
+            }, ...list];
+          }
         }
 
-        const withDemo = [{ id: "demo", name: "Demo Family" }, ...list.filter((g) => g.id !== "demo")];
+        // Add demo group with placeholder stats
+        const withDemo = [{ 
+          id: "demo", 
+          name: "Demo Family",
+          memberCount: 1,
+          taskCount: 2
+        }, ...list.filter((g) => g.id !== "demo")];
+        
         setGroups(withDemo);
+
+        // Check localStorage for persisted group if not already set
+        const savedGroup = localStorage.getItem('daveassist-current-group');
+        if (savedGroup && savedGroup !== currentId && withDemo.find(g => g.id === savedGroup)) {
+          navigate(`/app/${savedGroup}/calendar`, { replace: true });
+        }
       } catch (e) {
         // ignore
       }
     };
     load();
-  }, [currentId]);
+  }, [currentId, navigate]);
 
   return (
     <header className="h-14 flex items-center border-b px-4 gap-3">
@@ -119,14 +192,49 @@ const AppHeader = () => {
       </div>
 
       <div className="ml-auto flex items-center gap-3">
-        <Select value={currentId} onValueChange={(val) => navigate(`/app/${val}/calendar`)}>
-          <SelectTrigger ref={groupSelectRef} className="w-[200px]">
+        <Select value={currentId} onValueChange={handleGroupChange}>
+          <SelectTrigger ref={groupSelectRef} className="w-[240px]">
             <SelectValue placeholder="Select group" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="w-[240px]">
             {groups.map((g) => (
-              <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+              <SelectItem key={g.id} value={g.id} className="px-3 py-2">
+                <div className="flex items-center justify-between w-full">
+                  <span className="font-medium">{g.name}</span>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>{g.memberCount} member{g.memberCount !== 1 ? 's' : ''}</span>
+                    <span>•</span>
+                    <span>{g.taskCount} task{g.taskCount !== 1 ? 's' : ''}</span>
+                  </div>
+                </div>
+              </SelectItem>
             ))}
+            
+            <div className="border-t my-1" />
+            
+            <div 
+              className="px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
+              onClick={() => {
+                navigate("/app/groups/new");
+              }}
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">+</span>
+                <span>Create new care group</span>
+              </div>
+            </div>
+            
+            <div 
+              className="px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
+              onClick={() => {
+                navigate(`/app/${currentId}/settings`);
+              }}
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">⚙</span>
+                <span>Manage current group</span>
+              </div>
+            </div>
           </SelectContent>
         </Select>
         
