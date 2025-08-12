@@ -814,6 +814,109 @@ export type Database = {
           },
         ]
       }
+      feedback_comments: {
+        Row: {
+          body: string
+          created_at: string
+          created_by_email: string
+          created_by_user_id: string
+          feedback_id: string
+          id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          created_by_email: string
+          created_by_user_id: string
+          feedback_id: string
+          id?: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          created_by_email?: string
+          created_by_user_id?: string
+          feedback_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_comments_feedback_id_fkey"
+            columns: ["feedback_id"]
+            isOneToOne: false
+            referencedRelation: "feedback_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feedback_items: {
+        Row: {
+          actual_result: string | null
+          assigned_to_user_id: string | null
+          attachments: Json | null
+          care_group_id: string | null
+          created_at: string
+          created_by_email: string
+          created_by_user_id: string
+          description: string
+          expected_result: string | null
+          id: string
+          severity: Database["public"]["Enums"]["feedback_severity_enum"]
+          status: Database["public"]["Enums"]["feedback_status_enum"]
+          steps_to_reproduce: string | null
+          title: string
+          type: Database["public"]["Enums"]["feedback_type_enum"]
+          updated_at: string
+          votes: number
+        }
+        Insert: {
+          actual_result?: string | null
+          assigned_to_user_id?: string | null
+          attachments?: Json | null
+          care_group_id?: string | null
+          created_at?: string
+          created_by_email: string
+          created_by_user_id: string
+          description: string
+          expected_result?: string | null
+          id?: string
+          severity?: Database["public"]["Enums"]["feedback_severity_enum"]
+          status?: Database["public"]["Enums"]["feedback_status_enum"]
+          steps_to_reproduce?: string | null
+          title: string
+          type: Database["public"]["Enums"]["feedback_type_enum"]
+          updated_at?: string
+          votes?: number
+        }
+        Update: {
+          actual_result?: string | null
+          assigned_to_user_id?: string | null
+          attachments?: Json | null
+          care_group_id?: string | null
+          created_at?: string
+          created_by_email?: string
+          created_by_user_id?: string
+          description?: string
+          expected_result?: string | null
+          id?: string
+          severity?: Database["public"]["Enums"]["feedback_severity_enum"]
+          status?: Database["public"]["Enums"]["feedback_status_enum"]
+          steps_to_reproduce?: string | null
+          title?: string
+          type?: Database["public"]["Enums"]["feedback_type_enum"]
+          updated_at?: string
+          votes?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_items_care_group_id_fkey"
+            columns: ["care_group_id"]
+            isOneToOne: false
+            referencedRelation: "care_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notification_preferences: {
         Row: {
           created_at: string
@@ -1306,6 +1409,15 @@ export type Database = {
         | "religious"
         | "family"
         | "general"
+      feedback_severity_enum: "low" | "medium" | "high" | "critical"
+      feedback_status_enum:
+        | "open"
+        | "in_progress"
+        | "resolved"
+        | "closed"
+        | "duplicate"
+        | "wontfix"
+      feedback_type_enum: "defect" | "feature"
       gender_enum: "female" | "male" | "x_or_other" | "prefer_not_to_say"
       task_priority: "High" | "Medium" | "Low"
       task_status: "Open" | "InProgress" | "Completed"
@@ -1444,6 +1556,16 @@ export const Constants = {
         "family",
         "general",
       ],
+      feedback_severity_enum: ["low", "medium", "high", "critical"],
+      feedback_status_enum: [
+        "open",
+        "in_progress",
+        "resolved",
+        "closed",
+        "duplicate",
+        "wontfix",
+      ],
+      feedback_type_enum: ["defect", "feature"],
       gender_enum: ["female", "male", "x_or_other", "prefer_not_to_say"],
       task_priority: ["High", "Medium", "Low"],
       task_status: ["Open", "InProgress", "Completed"],
