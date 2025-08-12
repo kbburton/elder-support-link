@@ -15,6 +15,7 @@ import TasksPage from "./pages/app/TasksPage";
 import DocumentsPage from "./pages/app/DocumentsPage";
 import ActivityLogPage from "./pages/app/ActivityLogPage";
 import AdminConsolePage from "./pages/app/AdminConsolePage";
+import GroupInvitePage from "./pages/app/GroupInvitePage";
 import SearchPage from "./pages/app/SearchPage";
 import ProfilePage from "./pages/app/ProfilePage";
 import GroupSettingsPage from "./pages/app/GroupSettingsPage";
@@ -48,6 +49,7 @@ const App = () => (
               <Route path="search" element={<SearchPage />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="settings" element={<GroupSettingsPage />} />
+              <Route path="invite" element={<GroupInvitePage />} />
               <Route path="admin" element={<AdminConsolePage />} />
               <Route path="admin/users" element={<UsersCrud />} />
               <Route path="admin/care-groups" element={<CareGroupsCrud />} />
