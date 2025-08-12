@@ -418,6 +418,263 @@ export type Database = {
         }
         Relationships: []
       }
+      contact_activities: {
+        Row: {
+          activity_log_id: string
+          contact_id: string
+          created_at: string | null
+          id: string
+        }
+        Insert: {
+          activity_log_id: string
+          contact_id: string
+          created_at?: string | null
+          id?: string
+        }
+        Update: {
+          activity_log_id?: string
+          contact_id?: string
+          created_at?: string | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_activities_activity_log_id_fkey"
+            columns: ["activity_log_id"]
+            isOneToOne: false
+            referencedRelation: "activity_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_activities_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contact_appointments: {
+        Row: {
+          appointment_id: string
+          contact_id: string
+          created_at: string | null
+          id: string
+        }
+        Insert: {
+          appointment_id: string
+          contact_id: string
+          created_at?: string | null
+          id?: string
+        }
+        Update: {
+          appointment_id?: string
+          contact_id?: string
+          created_at?: string | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_appointments_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_appointments_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contact_documents: {
+        Row: {
+          contact_id: string
+          created_at: string | null
+          document_id: string
+          id: string
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string | null
+          document_id: string
+          id?: string
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string | null
+          document_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_documents_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_documents_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contact_tasks: {
+        Row: {
+          contact_id: string
+          created_at: string | null
+          id: string
+          task_id: string
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string | null
+          id?: string
+          task_id: string
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string | null
+          id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_tasks_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_tasks_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contacts: {
+        Row: {
+          address_line1: string | null
+          address_line2: string | null
+          care_group_id: string
+          city: string | null
+          contact_type: Database["public"]["Enums"]["contact_type_enum"]
+          created_at: string | null
+          created_by_user_id: string
+          email_personal: string | null
+          email_work: string | null
+          emergency_notes: string | null
+          emergency_type:
+            | Database["public"]["Enums"]["emergency_type_enum"]
+            | null
+          first_name: string | null
+          gender: Database["public"]["Enums"]["gender_enum"] | null
+          id: string
+          is_emergency_contact: boolean | null
+          last_name: string | null
+          notes: string | null
+          organization_name: string | null
+          phone_primary: string | null
+          phone_secondary: string | null
+          photo_url: string | null
+          postal_code: string | null
+          preferred_contact_end_local: string | null
+          preferred_contact_end_weekend_local: string | null
+          preferred_contact_method: string | null
+          preferred_contact_start_local: string | null
+          preferred_contact_start_weekend_local: string | null
+          preferred_contact_timezone: string | null
+          state: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          address_line1?: string | null
+          address_line2?: string | null
+          care_group_id: string
+          city?: string | null
+          contact_type: Database["public"]["Enums"]["contact_type_enum"]
+          created_at?: string | null
+          created_by_user_id: string
+          email_personal?: string | null
+          email_work?: string | null
+          emergency_notes?: string | null
+          emergency_type?:
+            | Database["public"]["Enums"]["emergency_type_enum"]
+            | null
+          first_name?: string | null
+          gender?: Database["public"]["Enums"]["gender_enum"] | null
+          id?: string
+          is_emergency_contact?: boolean | null
+          last_name?: string | null
+          notes?: string | null
+          organization_name?: string | null
+          phone_primary?: string | null
+          phone_secondary?: string | null
+          photo_url?: string | null
+          postal_code?: string | null
+          preferred_contact_end_local?: string | null
+          preferred_contact_end_weekend_local?: string | null
+          preferred_contact_method?: string | null
+          preferred_contact_start_local?: string | null
+          preferred_contact_start_weekend_local?: string | null
+          preferred_contact_timezone?: string | null
+          state?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          address_line1?: string | null
+          address_line2?: string | null
+          care_group_id?: string
+          city?: string | null
+          contact_type?: Database["public"]["Enums"]["contact_type_enum"]
+          created_at?: string | null
+          created_by_user_id?: string
+          email_personal?: string | null
+          email_work?: string | null
+          emergency_notes?: string | null
+          emergency_type?:
+            | Database["public"]["Enums"]["emergency_type_enum"]
+            | null
+          first_name?: string | null
+          gender?: Database["public"]["Enums"]["gender_enum"] | null
+          id?: string
+          is_emergency_contact?: boolean | null
+          last_name?: string | null
+          notes?: string | null
+          organization_name?: string | null
+          phone_primary?: string | null
+          phone_secondary?: string | null
+          photo_url?: string | null
+          postal_code?: string | null
+          preferred_contact_end_local?: string | null
+          preferred_contact_end_weekend_local?: string | null
+          preferred_contact_method?: string | null
+          preferred_contact_start_local?: string | null
+          preferred_contact_start_weekend_local?: string | null
+          preferred_contact_timezone?: string | null
+          state?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contacts_care_group_id_fkey"
+            columns: ["care_group_id"]
+            isOneToOne: false
+            referencedRelation: "care_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_access_logs: {
         Row: {
           action: string
@@ -833,7 +1090,14 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      contact_type_enum: "medical" | "legal" | "family" | "friend" | "other"
+      emergency_type_enum:
+        | "medical"
+        | "legal"
+        | "religious"
+        | "family"
+        | "general"
+      gender_enum: "female" | "male" | "x_or_other" | "prefer_not_to_say"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -960,6 +1224,16 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      contact_type_enum: ["medical", "legal", "family", "friend", "other"],
+      emergency_type_enum: [
+        "medical",
+        "legal",
+        "religious",
+        "family",
+        "general",
+      ],
+      gender_enum: ["female", "male", "x_or_other", "prefer_not_to_say"],
+    },
   },
 } as const

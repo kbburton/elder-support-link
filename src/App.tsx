@@ -27,6 +27,9 @@ import AppointmentsCrud from "./pages/crud/AppointmentsCrud";
 import TasksCrud from "./pages/crud/TasksCrud";
 import DocumentsCrud from "./pages/crud/DocumentsCrud";
 import ActivityLogsCrud from "./pages/crud/ActivityLogsCrud";
+import ContactsPage from "./pages/app/ContactsPage";
+import ContactDetailPage from "./pages/app/ContactDetailPage";
+import ContactFormPage from "./pages/app/ContactFormPage";
 const queryClient = new QueryClient();
 const App = () => (
   <HelmetProvider>
@@ -48,6 +51,10 @@ const App = () => (
               <Route path="tasks" element={<TasksPage />} />
               <Route path="documents" element={<DocumentsPage />} />
               <Route path="activity" element={<ActivityLogPage />} />
+              <Route path="contacts" element={<ContactsPage />} />
+              <Route path="contacts/new" element={<ContactFormPage />} />
+              <Route path="contacts/:contactId" element={<ContactDetailPage />} />
+              <Route path="contacts/:contactId/edit" element={<ContactFormPage />} />
               <Route path="search" element={<SearchPage />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="settings" element={<GroupSettingsPage />} />
