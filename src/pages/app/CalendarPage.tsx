@@ -12,9 +12,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as DatePicker } from "@/components/ui/calendar";
-import { Calendar as CalendarIcon, Plus, Upload, List, Calendar, CalendarClock } from "lucide-react";
+import { Calendar as CalendarIcon, Plus, Upload, List, Calendar, CalendarClock, Clock, CheckSquare, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format, isSameDay, isSameWeek, isBefore, addWeeks, startOfWeek, addDays, parseISO, compareAsc } from "date-fns";
+import { format, isSameDay, isSameWeek, isBefore, addWeeks, startOfWeek, addDays, parseISO, compareAsc, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, subMonths, addMonths, isToday, isAfter } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import MonthlyOverview from "@/components/calendar/MonthlyOverview";
@@ -34,6 +34,32 @@ type Appointment = {
   created_by_email: string | null;
 };
 
+type Task = {
+  id: string;
+  title: string;
+  description: string | null;
+  due_date: string | null; // ISO date
+  category: string | null;
+  status: string;
+  created_by_user_id: string | null;
+  created_by_email: string | null;
+  group_id: string | null;
+  completed_at: string | null;
+};
+
+type CalendarItem = {
+  id: string;
+  type: "appointment" | "task";
+  title: string;
+  date: string; // ISO date
+  category: string | null;
+  status?: string; // for tasks
+  time?: string; // for appointments
+  location?: string | null;
+  created_by_email?: string | null;
+  completed_at?: string | null;
+};
+
 const CATEGORIES = ["Medical", "Financial/Legal", "Personal/Social", "Other"] as const;
 
 type Category = typeof CATEGORIES[number];
@@ -51,10 +77,21 @@ const CalendarPage = () => {
   const { groupId = "demo" } = useParams();
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
   const [viewDate, setViewDate] = useState<Date>(new Date());
   const [activeView, setActiveView] = useState<"month" | "week" | "day" | "list">("month");
   const [categoryFilter, setCategoryFilter] = useState<"all" | Category>("all");
+  const [focusedDate, setFocusedDate] = useState<Date>(new Date());
+
+  // Task dialog
+  const [openTaskDialog, setOpenTaskDialog] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [taskFormTitle, setTaskFormTitle] = useState("");
+  const [taskFormDescription, setTaskFormDescription] = useState("");
+  const [taskFormCategory, setTaskFormCategory] = useState<Category | undefined>(undefined);
+  const [taskFormDueDate, setTaskFormDueDate] = useState<Date | undefined>(undefined);
+  const [taskFormStatus, setTaskFormStatus] = useState<"open" | "closed">("open");
 
   // New/Edit dialog
   const [openDialog, setOpenDialog] = useState(false);
@@ -104,21 +141,61 @@ const CalendarPage = () => {
         },
       ];
       setAppointments(demo);
+      
+      // Demo tasks
+      const demoTasks: Task[] = [
+        {
+          id: "t1",
+          title: "Review insurance documents",
+          description: "Check coverage details",
+          due_date: format(addDays(now, 1), "yyyy-MM-dd"),
+          category: "Financial/Legal",
+          status: "open",
+          created_by_user_id: null,
+          created_by_email: "demo@example.com",
+          group_id: groupId,
+          completed_at: null,
+        },
+        {
+          id: "t2",
+          title: "Schedule follow-up",
+          description: "Call doctor's office",
+          due_date: format(addDays(now, -2), "yyyy-MM-dd"),
+          category: "Medical",
+          status: "closed",
+          created_by_user_id: null,
+          created_by_email: "demo@example.com",
+          group_id: groupId,
+          completed_at: addDays(now, -1).toISOString(),
+        },
+      ];
+      setTasks(demoTasks);
       return;
     }
 
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("appointments")
-        .select("id, date_time, location, category, description, attending_user_id, group_id, outcome_notes, reminder_days_before, created_by_user_id, created_by_email")
-        .eq("group_id", groupId)
-        .order("date_time", { ascending: true });
-      if (error) throw error;
-      setAppointments((data as Appointment[]) || []);
+      const [appointmentsResult, tasksResult] = await Promise.all([
+        supabase
+          .from("appointments")
+          .select("id, date_time, location, category, description, attending_user_id, group_id, outcome_notes, reminder_days_before, created_by_user_id, created_by_email")
+          .eq("group_id", groupId)
+          .order("date_time", { ascending: true }),
+        supabase
+          .from("tasks")
+          .select("id, title, description, due_date, category, status, created_by_user_id, created_by_email, group_id, completed_at")
+          .eq("group_id", groupId)
+          .order("created_at", { ascending: false })
+      ]);
+
+      if (appointmentsResult.error) throw appointmentsResult.error;
+      if (tasksResult.error) throw tasksResult.error;
+
+      setAppointments((appointmentsResult.data as Appointment[]) || []);
+      setTasks((tasksResult.data as Task[]) || []);
     } catch (err: any) {
-      console.error("Failed to load appointments", err);
-      toast({ title: "Error", description: "Could not load appointments." });
+      console.error("Failed to load data", err);
+      toast({ title: "Error", description: "Could not load calendar data." });
     } finally {
       setLoading(false);
     }
@@ -130,8 +207,10 @@ const CalendarPage = () => {
   }, [groupId]);
 
   const filtered = useMemo(() => {
-    return appointments.filter((a) => (categoryFilter === "all" ? true : (a.category || "Other") === categoryFilter));
-  }, [appointments, categoryFilter]);
+    const filteredAppointments = appointments.filter((a) => (categoryFilter === "all" ? true : (a.category || "Other") === categoryFilter));
+    const filteredTasks = tasks.filter((t) => (categoryFilter === "all" ? true : (t.category || "Other") === categoryFilter));
+    return { appointments: filteredAppointments, tasks: filteredTasks };
+  }, [appointments, tasks, categoryFilter]);
 
   const weekDays = useMemo(() => {
     const start = startOfWeek(viewDate, { weekStartsOn: 0 });
@@ -164,6 +243,70 @@ const CalendarPage = () => {
     setFormReminderDays(String(appt.reminder_days_before ?? ""));
     setFormOutcome(appt.outcome_notes || "");
     setOpenDialog(true);
+  };
+
+  const onEditTask = (task: Task) => {
+    setEditingTask(task);
+    setTaskFormTitle(task.title);
+    setTaskFormDescription(task.description || "");
+    setTaskFormCategory(((task.category as Category) || undefined));
+    setTaskFormDueDate(task.due_date ? new Date(task.due_date) : undefined);
+    setTaskFormStatus(task.status as "open" | "closed");
+    setOpenTaskDialog(true);
+  };
+
+  const upsertTask = async () => {
+    if (isDemo) {
+      toast({ title: "Demo mode", description: "Create a real care group to add tasks." });
+      setOpenTaskDialog(false);
+      return;
+    }
+    if (!taskFormTitle) {
+      toast({ title: "Missing info", description: "Please add a title." });
+      return;
+    }
+    try {
+      const userId = (await supabase.auth.getUser()).data.user?.id;
+      const userEmail = (await supabase.auth.getUser()).data.user?.email;
+      const payload: any = {
+        ...(editingTask?.id ? { id: editingTask.id } : {}),
+        group_id: groupId,
+        title: taskFormTitle,
+        description: taskFormDescription || null,
+        category: taskFormCategory || "Other",
+        due_date: taskFormDueDate ? format(taskFormDueDate, "yyyy-MM-dd") : null,
+        status: taskFormStatus,
+      };
+      if (!editingTask?.id && userId) payload.created_by_user_id = userId;
+      if (!editingTask?.id && userEmail) payload.created_by_email = userEmail;
+
+      const { error } = await supabase.from("tasks").upsert(payload as any, { onConflict: "id" });
+      if (error) throw error;
+      
+      setEditingTask(null);
+      toast({ title: editingTask ? "Task updated" : "Task created" });
+      setOpenTaskDialog(false);
+      await loadAppointments();
+    } catch (err: any) {
+      console.error("Failed to save task", err);
+      toast({ title: "Error", description: "Could not save task." });
+    }
+  };
+
+  const deleteTask = async (id: string) => {
+    if (isDemo) {
+      toast({ title: "Demo mode", description: "Create a real care group to delete tasks." });
+      return;
+    }
+    try {
+      const { error } = await supabase.from("tasks").delete().eq("id", id);
+      if (error) throw error;
+      toast({ title: "Task deleted" });
+      await loadAppointments();
+    } catch (err: any) {
+      console.error("Failed to delete", err);
+      toast({ title: "Error", description: "Could not delete task." });
+    }
   };
 
   const composeISO = (date?: Date, time?: string) => {
@@ -290,9 +433,243 @@ const CalendarPage = () => {
     URL.revokeObjectURL(url);
   };
 
-  const MonthView = () => (
-    <MonthlyOverview />
-  );
+  const MonthView = () => {
+    const monthStart = startOfMonth(viewDate);
+    const monthEnd = endOfMonth(viewDate);
+    const calendarDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+
+    const itemsByDate = useMemo(() => {
+      const grouped: Record<string, CalendarItem[]> = {};
+      
+      // Add appointments
+      filtered.appointments.forEach((apt) => {
+        const dateKey = format(parseISO(apt.date_time), "yyyy-MM-dd");
+        if (!grouped[dateKey]) grouped[dateKey] = [];
+        grouped[dateKey].push({
+          id: apt.id,
+          type: "appointment",
+          title: apt.description || "Appointment",
+          date: apt.date_time,
+          category: apt.category,
+          time: format(parseISO(apt.date_time), "h:mm a"),
+          location: apt.location,
+          created_by_email: apt.created_by_email,
+        });
+      });
+
+      // Add tasks
+      filtered.tasks.forEach((task) => {
+        if (task.due_date) {
+          const dateKey = task.due_date;
+          if (!grouped[dateKey]) grouped[dateKey] = [];
+          grouped[dateKey].push({
+            id: task.id,
+            type: "task",
+            title: task.title,
+            date: task.due_date,
+            category: task.category,
+            status: task.status,
+            created_by_email: task.created_by_email,
+            completed_at: task.completed_at,
+          });
+        }
+      });
+
+      return grouped;
+    }, [filtered]);
+
+    const getCategoryColor = (category: string | null, type: "appointment" | "task", status?: string, completed_at?: string | null) => {
+      const isCompleted = status === "closed" || completed_at;
+      const opacity = isCompleted ? "opacity-50" : "";
+      
+      if (type === "task") {
+        const isOverdue = status === "open" && new Date() > new Date(viewDate);
+        const taskClass = isOverdue ? "bg-red-100 text-red-800 border-red-300" : "bg-blue-100 text-blue-800 border-blue-200";
+        return `${taskClass} ${opacity}`;
+      }
+      
+      switch (category) {
+        case "Medical": return `bg-red-100 text-red-800 border-red-200 ${opacity}`;
+        case "Financial/Legal": return `bg-green-100 text-green-800 border-green-200 ${opacity}`;
+        case "Personal/Social": return `bg-purple-100 text-purple-800 border-purple-200 ${opacity}`;
+        default: return `bg-gray-100 text-gray-800 border-gray-200 ${opacity}`;
+      }
+    };
+
+    const handleItemClick = (item: CalendarItem) => {
+      if (item.type === "appointment") {
+        const apt = appointments.find(a => a.id === item.id);
+        if (apt) onEdit(apt);
+      } else {
+        const task = tasks.find(t => t.id === item.id);
+        if (task) onEditTask(task);
+      }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent, day: Date) => {
+      const dateKey = format(day, "yyyy-MM-dd");
+      const dayItems = itemsByDate[dateKey] || [];
+      
+      if (e.key === "Enter" && dayItems.length > 0) {
+        handleItemClick(dayItems[0]);
+      }
+    };
+
+    const navigateMonth = (direction: "prev" | "next") => {
+      setViewDate(prev => direction === "prev" ? subMonths(prev, 1) : addMonths(prev, 1));
+    };
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigateMonth("prev")}>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <h3 className="text-lg font-semibold min-w-[140px] text-center">
+              {format(viewDate, "MMMM yyyy")}
+            </h3>
+            <Button variant="outline" size="sm" onClick={() => navigateMonth("next")}>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+          <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as any)}>
+            <SelectTrigger className="w-[200px]"><SelectValue placeholder="Filter by category" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All categories</SelectItem>
+              {CATEGORIES.map((c) => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="grid grid-cols-7 gap-1 border rounded-lg p-2">
+          {/* Day headers */}
+          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+            <div key={day} className="text-center text-sm font-medium text-muted-foreground p-2">
+              {day}
+            </div>
+          ))}
+          
+          {/* Calendar days */}
+          {calendarDays.map((day) => {
+            const dateKey = format(day, "yyyy-MM-dd");
+            const dayItems = itemsByDate[dateKey] || [];
+            const isCurrentMonth = isSameMonth(day, viewDate);
+            
+            return (
+              <div
+                key={day.toISOString()}
+                className={cn(
+                  "min-h-[120px] p-1 border rounded-md cursor-pointer focus-within:ring-2 focus-within:ring-primary",
+                  isCurrentMonth ? "bg-background" : "bg-muted/30",
+                  isToday(day) && "ring-2 ring-primary bg-primary/5"
+                )}
+                tabIndex={0}
+                onKeyDown={(e) => handleKeyDown(e, day)}
+                onClick={() => setFocusedDate(day)}
+              >
+                <div className={cn(
+                  "text-sm font-medium mb-1",
+                  isCurrentMonth ? "text-foreground" : "text-muted-foreground",
+                  isToday(day) && "text-primary font-bold"
+                )}>
+                  {format(day, "d")}
+                </div>
+                
+                <div className="space-y-1">
+                  {dayItems.slice(0, 4).map((item) => {
+                    const isOverdue = item.type === "task" && item.status === "open" && 
+                      isAfter(new Date(), new Date(item.date));
+                    
+                    return (
+                      <div
+                        key={`${item.type}-${item.id}`}
+                        className={cn(
+                          "text-xs p-1 rounded border cursor-pointer hover:scale-105 transition-transform",
+                          getCategoryColor(item.category, item.type, item.status, item.completed_at),
+                          isOverdue && "border-red-500 border-l-4"
+                        )}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleItemClick(item);
+                        }}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          handleItemClick(item);
+                        }}
+                        title={`${item.title}${item.time ? ` at ${item.time}` : ''}${item.location ? ` • ${item.location}` : ''}${item.created_by_email ? ` • Created by ${item.created_by_email}` : ''}`}
+                      >
+                        <div className="flex items-center gap-1">
+                          {item.type === "appointment" ? (
+                            <Clock className="h-3 w-3 flex-shrink-0" />
+                          ) : (
+                            <CheckSquare className="h-3 w-3 flex-shrink-0" />
+                          )}
+                          <span className="truncate flex-1">{item.title}</span>
+                        </div>
+                        {item.time && (
+                          <div className="text-[10px] opacity-75 ml-4">{item.time}</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {dayItems.length > 4 && (
+                    <div className="text-xs text-muted-foreground text-center cursor-pointer hover:underline">
+                      +{dayItems.length - 4} more
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Legend */}
+        <div className="flex flex-wrap gap-6 text-xs border-t pt-4">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              <span>Appointments:</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 bg-red-100 border border-red-200 rounded"></div>
+              <span>Medical</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 bg-green-100 border border-green-200 rounded"></div>
+              <span>Financial/Legal</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 bg-purple-100 border border-purple-200 rounded"></div>
+              <span>Personal/Social</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 bg-gray-100 border border-gray-200 rounded"></div>
+              <span>Other</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1">
+              <CheckSquare className="h-3 w-3" />
+              <span>Tasks:</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 bg-blue-100 border border-blue-200 rounded"></div>
+              <span>Normal</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 bg-red-100 border border-red-300 rounded"></div>
+              <span>Overdue</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 bg-blue-100 border border-blue-200 rounded opacity-50"></div>
+              <span>Completed</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const DayView = () => (
     <div className="grid md:grid-cols-2 gap-4">
@@ -318,7 +695,7 @@ const CalendarPage = () => {
       </div>
 
       <div className="md:col-span-2 grid gap-4">
-        {filtered
+        {filtered.appointments
           .filter((a) => isSameDay(parseISO(a.date_time), viewDate))
           .sort((a, b) => compareAsc(parseISO(a.date_time), parseISO(b.date_time)))
           .map((a) => (
@@ -360,7 +737,7 @@ const CalendarPage = () => {
               </CardContent>
             </Card>
           ))}
-        {filtered.filter((a) => isSameDay(parseISO(a.date_time), viewDate)).length === 0 && (
+        {filtered.appointments.filter((a) => isSameDay(parseISO(a.date_time), viewDate)).length === 0 && (
           <p className="text-sm text-muted-foreground">No events for this date.</p>
         )}
       </div>
@@ -387,7 +764,7 @@ const CalendarPage = () => {
           <div key={day.toISOString()} className="rounded-md border p-2">
             <div className="text-sm font-medium">{format(day, "EEE d")}</div>
             <div className="mt-2 space-y-2">
-              {filtered
+              {filtered.appointments
                 .filter((a) => isSameDay(parseISO(a.date_time), day))
                 .sort((a, b) => compareAsc(parseISO(a.date_time), parseISO(b.date_time)))
                 .map((a) => (
@@ -409,7 +786,7 @@ const CalendarPage = () => {
 
   const ListView = () => (
     <div className="space-y-3">
-      {filtered
+      {filtered.appointments
         .sort((a, b) => compareAsc(parseISO(a.date_time), parseISO(b.date_time)))
         .map((a) => (
           <Card key={a.id} className="border-l-4">
@@ -447,7 +824,7 @@ const CalendarPage = () => {
             </CardContent>
           </Card>
         ))}
-      {filtered.length === 0 && (
+      {filtered.appointments.length === 0 && (
         <p className="text-sm text-muted-foreground">No appointments yet.</p>
       )}
     </div>
@@ -573,6 +950,67 @@ const CalendarPage = () => {
         <TabsContent value="day"><DayView /></TabsContent>
         <TabsContent value="list"><ListView /></TabsContent>
       </Tabs>
+
+      {/* Task Dialog */}
+      <Dialog open={openTaskDialog} onOpenChange={setOpenTaskDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editingTask ? "Edit task" : "New task"}</DialogTitle>
+          </DialogHeader>
+          {isDemo && (
+            <div className="text-sm text-muted-foreground">You are viewing the demo group. Create or switch to a real group to save tasks.</div>
+          )}
+          <div className="grid gap-4 py-2">
+            <div className="grid gap-2">
+              <Label htmlFor="task-title">Title</Label>
+              <Input id="task-title" placeholder="e.g. Call insurance company" value={taskFormTitle} onChange={(e) => setTaskFormTitle(e.target.value)} />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="task-description">Description</Label>
+              <Textarea id="task-description" placeholder="Optional details" value={taskFormDescription} onChange={(e) => setTaskFormDescription(e.target.value)} />
+            </div>
+            <div className="grid gap-2 md:grid-cols-2">
+              <div className="grid gap-2">
+                <Label>Category</Label>
+                <Select value={taskFormCategory} onValueChange={(v) => setTaskFormCategory(v as Category)}>
+                  <SelectTrigger><SelectValue placeholder="Select a category" /></SelectTrigger>
+                  <SelectContent>
+                    {CATEGORIES.map((c) => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>Due Date</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("justify-start font-normal", !taskFormDueDate && "text-muted-foreground")}> <CalendarIcon className="mr-2 h-4 w-4" /> {taskFormDueDate ? format(taskFormDueDate, "PPP") : <span>Pick a date</span>} </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <DatePicker mode="single" selected={taskFormDueDate} onSelect={setTaskFormDueDate} initialFocus className={cn("p-3 pointer-events-auto")} />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label>Status</Label>
+              <Select value={taskFormStatus} onValueChange={(v) => setTaskFormStatus(v as "open" | "closed")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="open">Open</SelectItem>
+                  <SelectItem value="closed">Completed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setOpenTaskDialog(false)}>Cancel</Button>
+            <Button onClick={upsertTask}>{editingTask ? "Save changes" : "Create"}</Button>
+            {editingTask && (
+              <Button variant="destructive" onClick={() => deleteTask(editingTask.id)}>Delete</Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
