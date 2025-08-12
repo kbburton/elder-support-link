@@ -360,6 +360,7 @@ export type Database = {
           date_of_birth: string | null
           hearing: string | null
           id: string
+          living_situation: string | null
           memory: string | null
           mental_health: string | null
           mobility: string | null
@@ -368,6 +369,8 @@ export type Database = {
           profile_description: string | null
           recipient_address: string | null
           recipient_city: string | null
+          recipient_first_name: string | null
+          recipient_last_name: string | null
           recipient_phone: string | null
           recipient_state: string | null
           recipient_zip: string | null
@@ -381,6 +384,7 @@ export type Database = {
           date_of_birth?: string | null
           hearing?: string | null
           id?: string
+          living_situation?: string | null
           memory?: string | null
           mental_health?: string | null
           mobility?: string | null
@@ -389,6 +393,8 @@ export type Database = {
           profile_description?: string | null
           recipient_address?: string | null
           recipient_city?: string | null
+          recipient_first_name?: string | null
+          recipient_last_name?: string | null
           recipient_phone?: string | null
           recipient_state?: string | null
           recipient_zip?: string | null
@@ -402,6 +408,7 @@ export type Database = {
           date_of_birth?: string | null
           hearing?: string | null
           id?: string
+          living_situation?: string | null
           memory?: string | null
           mental_health?: string | null
           mobility?: string | null
@@ -410,6 +417,8 @@ export type Database = {
           profile_description?: string | null
           recipient_address?: string | null
           recipient_city?: string | null
+          recipient_first_name?: string | null
+          recipient_last_name?: string | null
           recipient_phone?: string | null
           recipient_state?: string | null
           recipient_zip?: string | null

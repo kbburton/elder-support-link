@@ -38,7 +38,7 @@ const Index = () => {
             <h1 className="text-4xl md:text-5xl font-bold leading-tight">Coordinate care for your loved ones together</h1>
             <p className="mt-4 text-lg text-muted-foreground">Create secure care groups, share calendars and tasks, manage documents, and keep everyone in sync.</p>
             <div className="mt-8 flex gap-3">
-              <Button variant="hero" className="transition-smooth" onClick={() => navigate("/onboarding")}>Create a care group</Button>
+              <Button variant="hero" className="transition-smooth" onClick={() => navigate("/register")}>Create a care group</Button>
               <Button variant="outline" onClick={() => navigate("/app/demo/calendar")}>Try demo</Button>
             </div>
           </div>
