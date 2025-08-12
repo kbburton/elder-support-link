@@ -282,7 +282,7 @@ export const DocumentList = ({ documents, onRefresh, userProfiles }: DocumentLis
               {/* Document Info */}
               <div className="text-xs text-muted-foreground space-y-1">
                 <div>File: {getFileName(doc.file_url, doc.original_filename)}</div>
-                <div>Uploaded: {format(new Date(doc.upload_date), 'MMM d, yyyy')}</div>
+                <div>Uploaded: {doc.upload_date ? format(new Date(doc.upload_date), 'MMM d, yyyy') : 'Unknown'}</div>
                 <div>By: {getUploaderEmail(doc.uploaded_by_user_id)}</div>
                 <div>Size: {formatFileSize(doc.file_size || 0)}</div>
                 <div>Type: {doc.file_type}</div>
