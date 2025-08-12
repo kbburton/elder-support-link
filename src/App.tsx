@@ -32,6 +32,7 @@ import ContactDetailPage from "./pages/app/ContactDetailPage";
 import ContactFormPage from "./pages/app/ContactFormPage";
 import ContactsImportPage from "./pages/app/ContactsImportPage";
 import SearchJobsPage from "./pages/app/SearchJobsPage";
+import CreateGroupPage from "./pages/app/CreateGroupPage";
 const queryClient = new QueryClient();
 const App = () => (
   <HelmetProvider>
@@ -46,6 +47,7 @@ const App = () => (
             <Route path="/register" element={<Register />} />
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/invite/accept" element={<InviteAccept />} />
+            <Route path="/app/groups/new" element={<CreateGroupPage />} />
 
             <Route path="/app/:groupId" element={<AppLayout />}>
               <Route index element={<CalendarPage />} />
