@@ -880,6 +880,45 @@ export type Database = {
         }
         Relationships: []
       }
+      search_index: {
+        Row: {
+          care_group_id: string
+          created_at: string | null
+          entity_id: string
+          entity_type: string
+          fts: unknown | null
+          id: string
+          snippet: string | null
+          title: string
+          updated_at: string | null
+          url_path: string
+        }
+        Insert: {
+          care_group_id: string
+          created_at?: string | null
+          entity_id: string
+          entity_type: string
+          fts?: unknown | null
+          id?: string
+          snippet?: string | null
+          title: string
+          updated_at?: string | null
+          url_path: string
+        }
+        Update: {
+          care_group_id?: string
+          created_at?: string | null
+          entity_id?: string
+          entity_type?: string
+          fts?: unknown | null
+          id?: string
+          snippet?: string | null
+          title?: string
+          updated_at?: string | null
+          url_path?: string
+        }
+        Relationships: []
+      }
       task_documents: {
         Row: {
           created_at: string
@@ -1066,6 +1105,10 @@ export type Database = {
         Args: { invitation_id: string; user_id: string }
         Returns: undefined
       }
+      build_weighted_tsv: {
+        Args: { title_text?: string; snippet_text?: string; body_text?: string }
+        Returns: unknown
+      }
       get_invitation_by_token: {
         Args: { invitation_token: string }
         Returns: {
@@ -1075,6 +1118,26 @@ export type Database = {
           invited_by_email: string
           message: string
         }[]
+      }
+      gtrgm_compress: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      gtrgm_decompress: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      gtrgm_in: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      gtrgm_options: {
+        Args: { "": unknown }
+        Returns: undefined
+      }
+      gtrgm_out: {
+        Args: { "": unknown }
+        Returns: unknown
       }
       is_system_admin: {
         Args: { user_uuid?: string }
@@ -1087,6 +1150,26 @@ export type Database = {
       is_user_member_of_group: {
         Args: { group_uuid: string }
         Returns: boolean
+      }
+      set_limit: {
+        Args: { "": number }
+        Returns: number
+      }
+      show_limit: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      show_trgm: {
+        Args: { "": string }
+        Returns: string[]
+      }
+      unaccent: {
+        Args: { "": string }
+        Returns: string
+      }
+      unaccent_init: {
+        Args: { "": unknown }
+        Returns: unknown
       }
     }
     Enums: {
