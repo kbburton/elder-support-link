@@ -331,8 +331,8 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
     const submitData = {
       ...formData,
       due_date: dueDate ? dueDate.toISOString().split("T")[0] : null,
-      primary_owner_id: formData.primary_owner_id || null,
-      secondary_owner_id: formData.secondary_owner_id || null,
+      primary_owner_id: formData.primary_owner_id && formData.primary_owner_id.trim() !== '' ? formData.primary_owner_id : null,
+      secondary_owner_id: formData.secondary_owner_id && formData.secondary_owner_id.trim() !== '' ? formData.secondary_owner_id : null,
       completed_at: completedAt ? completedAt.toISOString() : null,
     };
 
