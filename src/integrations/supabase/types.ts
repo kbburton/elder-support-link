@@ -1155,6 +1155,17 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      search_all: {
+        Args: { q: string; group_id: string; lim?: number }
+        Returns: {
+          entity_type: string
+          entity_id: string
+          title: string
+          snippet_html: string
+          url_path: string
+          rank: number
+        }[]
+      }
       set_limit: {
         Args: { "": number }
         Returns: number
