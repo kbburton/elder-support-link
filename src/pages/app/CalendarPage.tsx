@@ -1319,21 +1319,52 @@ const CalendarPage = () => {
 
       <Tabs value={activeView} onValueChange={(v) => setActiveView(v as any)} className="space-y-4">
         <div className="flex items-center justify-between">
-          <TabsList>
-            <TabsTrigger value="month">Month</TabsTrigger>
-            <TabsTrigger value="week">Week</TabsTrigger>
-            <TabsTrigger value="day">Day</TabsTrigger>
-            <TabsTrigger value="list">Full List</TabsTrigger>
-          </TabsList>
-          <Button 
-            variant="outline" 
-            onClick={() => {
-              setViewDate(new Date());
-              setActiveView("day");
-            }}
-          >
-            Today
-          </Button>
+          <div className="flex items-center gap-4">
+            <TabsList>
+              <TabsTrigger value="month">Month</TabsTrigger>
+              <TabsTrigger value="week">Week</TabsTrigger>
+              <TabsTrigger value="day">Day</TabsTrigger>
+              <TabsTrigger value="list">Full List</TabsTrigger>
+            </TabsList>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                setViewDate(new Date());
+                setActiveView("day");
+                // Scroll to top of the page to show the first item
+                setTimeout(() => {
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }, 100);
+              }}
+            >
+              Today
+            </Button>
+          </div>
+          
+          {/* Big date picker */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="justify-start">
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {format(viewDate, "MMMM yyyy")}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <DatePicker 
+                mode="single" 
+                selected={viewDate} 
+                onSelect={(d) => {
+                  if (d) {
+                    setViewDate(d);
+                    // Refresh current view with new date
+                  }
+                }} 
+                initialFocus 
+                className={cn("p-3 pointer-events-auto")} 
+              />
+            </PopoverContent>
+          </Popover>
         </div>
 
         <TabsContent value="month"><MonthView /></TabsContent>
