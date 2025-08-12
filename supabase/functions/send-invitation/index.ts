@@ -16,6 +16,8 @@ serve(async (req) => {
   }
 
   try {
+    console.log("Send invitation function called");
+    
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -26,6 +28,8 @@ serve(async (req) => {
         }
       }
     );
+    
+    console.log("Supabase client created");
 
     // Get the authorization header
     const authHeader = req.headers.get("authorization");
@@ -38,18 +42,22 @@ serve(async (req) => {
 
     // Extract JWT token
     const jwt = authHeader.replace("Bearer ", "");
+    console.log("JWT extracted, length:", jwt.length);
     
     // Verify JWT and get user
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser(jwt);
     if (userError || !user) {
       console.error("User error:", userError);
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      return new Response(JSON.stringify({ error: "Unauthorized", details: userError?.message }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    
+    console.log("User verified:", user.id);
 
     const { email, groupId, resendId } = await req.json();
+    console.log("Request data:", { email, groupId, resendId });
 
     // Get user profile using service role (bypassing RLS)
     const { data: profile } = await supabaseClient
@@ -64,12 +72,21 @@ serve(async (req) => {
       : senderEmail;
 
     // Check if user is admin of the group using service role
+    console.log("Checking if user is admin of group:", groupId);
     const { data: isAdmin, error: adminError } = await supabaseClient
       .rpc('is_user_admin_of_group', { group_uuid: groupId });
 
+    console.log("Admin check result:", { isAdmin, adminError });
+    
     if (adminError || !isAdmin) {
       console.error("Admin check error:", adminError);
-      return new Response(JSON.stringify({ error: "Not authorized to send invitations" }), {
+      return new Response(JSON.stringify({ 
+        error: "Not authorized to send invitations", 
+        details: adminError?.message,
+        isAdmin,
+        userId: user.id,
+        groupId 
+      }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
