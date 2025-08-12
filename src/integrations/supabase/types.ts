@@ -953,6 +953,18 @@ export type Database = {
         }
         Relationships: []
       }
+      platform_admins: {
+        Row: {
+          user_id: string
+        }
+        Insert: {
+          user_id: string
+        }
+        Update: {
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           address: string | null
@@ -1340,6 +1352,10 @@ export type Database = {
       gtrgm_out: {
         Args: { "": unknown }
         Returns: unknown
+      }
+      is_platform_admin: {
+        Args: { user_uuid?: string }
+        Returns: boolean
       }
       is_system_admin: {
         Args: { user_uuid?: string }
