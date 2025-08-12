@@ -11,11 +11,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "@/hooks/use-toast";
 import SEO from "@/components/layout/SEO";
 import { TaskAppointmentDocumentLinker } from "@/components/documents/TaskAppointmentDocumentLinker";
+import ContactMultiSelect from "@/components/contacts/ContactMultiSelect";
 const sb = supabase as any;
 export type CrudField = {
   name: string;
   label?: string;
-  type?: "text" | "textarea" | "number" | "date" | "datetime" | "select" | "user_select";
+  type?: "text" | "textarea" | "number" | "date" | "datetime" | "select" | "user_select" | "contact_multiselect";
   placeholder?: string;
   required?: boolean;
   readOnly?: boolean;
@@ -73,6 +74,7 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
   const [groupMembers, setGroupMembers] = useState<Array<{ id: string; email: string; name: string }>>([]);
+  const [relatedContacts, setRelatedContacts] = useState<string[]>([]);
 
   const queryKey = useMemo(() => ["crud", config.table, groupId], [config.table, groupId]);
 
@@ -275,6 +277,32 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
       toast({ title: `Record ${action}`, description: `Successfully ${action} a record.` });
       qc.invalidateQueries({ queryKey });
       
+      // Handle contact linking for newly created items
+      if (action === "created" && row?.[idField] && relatedContacts.length > 0) {
+        try {
+          if (config.table === 'tasks') {
+            const linkPromises = relatedContacts.map((contactId) => 
+              supabase.from('contact_tasks').insert({
+                contact_id: contactId,
+                task_id: row[idField],
+              })
+            );
+            await Promise.all(linkPromises);
+          } else if (config.table === 'appointments') {
+            const linkPromises = relatedContacts.map((contactId) => 
+              supabase.from('contact_appointments').insert({
+                contact_id: contactId,
+                appointment_id: row[idField],
+              })
+            );
+            await Promise.all(linkPromises);
+          }
+          toast({ title: "Contacts linked", description: `${relatedContacts.length} contact(s) linked to the new ${config.table.slice(0, -1)}.` });
+        } catch (e) {
+          console.warn("Contact linking failed", e);
+        }
+      }
+      
       // Handle document linking for newly created items
       if (action === "created" && row?.[idField] && form.documentLinks && form.documentLinks.length > 0) {
         try {
@@ -306,6 +334,7 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
       }
       
       setEditing(null);
+      setRelatedContacts([]);
 
       // Immediate notifications on create
       if (action === "created" && config.notifyOnCreateEntity && groupId && row?.[idField]) {
@@ -483,6 +512,12 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
                       ))}
                     </SelectContent>
                   </Select>
+                ) : f.type === "contact_multiselect" ? (
+                  <ContactMultiSelect
+                    selectedContactIds={relatedContacts}
+                    onSelectionChange={setRelatedContacts}
+                    placeholder="Select related contacts..."
+                  />
                 ) : (
                   <Input
                     type={f.type === "number" ? "number" : f.type === "date" ? "date" : f.type === "datetime" ? "datetime-local" : "text"}

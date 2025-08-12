@@ -35,6 +35,7 @@ const config: CrudConfig = {
     { name: "completed_at", label: "Completed At", type: "datetime" },
     { name: "completed_by_email", label: "Completed By", type: "user_select" },
     { name: "created_by_email", label: "Created By", readOnly: true },
+    { name: "related_contacts", label: "Related Contacts", type: "contact_multiselect" },
   ],
   creatorFieldName: "created_by_user_id",
   notifyOnCreateEntity: "tasks",

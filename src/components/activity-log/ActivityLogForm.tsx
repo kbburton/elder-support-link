@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { TaskAppointmentDocumentLinker } from "@/components/documents/TaskAppointmentDocumentLinker";
+import ContactMultiSelect from "@/components/contacts/ContactMultiSelect";
 
 interface ActivityLogFormProps {
   editingEntry?: any | null;
@@ -34,6 +35,7 @@ const ActivityLogForm = ({ editingEntry, onSave, onCancel }: ActivityLogFormProp
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [currentUserEmail, setCurrentUserEmail] = useState<string>("");
   const [documentLinks, setDocumentLinks] = useState<string[]>([]);
+  const [relatedContacts, setRelatedContacts] = useState<string[]>([]);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
   const [saveAction, setSaveAction] = useState<"save" | "save_task" | "save_appointment">("save");
@@ -73,6 +75,7 @@ const ActivityLogForm = ({ editingEntry, onSave, onCancel }: ActivityLogFormProp
         linked_appointment_id: "",
       });
       setDocumentLinks([]);
+      setRelatedContacts([]);
     }
   }, [editingEntry]);
 
@@ -160,6 +163,21 @@ const ActivityLogForm = ({ editingEntry, onSave, onCancel }: ActivityLogFormProp
           await Promise.all(linkPromises);
         } catch (error) {
           console.warn("Document linking failed:", error);
+        }
+      }
+
+      // Handle contact linking
+      if (relatedContacts.length > 0) {
+        try {
+          const contactLinkPromises = relatedContacts.map((contactId) =>
+            supabase.from("contact_activities").insert({
+              contact_id: contactId,
+              activity_log_id: data.id,
+            })
+          );
+          await Promise.all(contactLinkPromises);
+        } catch (error) {
+          console.warn("Contact linking failed:", error);
         }
       }
 
@@ -341,6 +359,15 @@ const ActivityLogForm = ({ editingEntry, onSave, onCancel }: ActivityLogFormProp
               />
             </div>
           )}
+
+          <div className="space-y-2">
+            <Label>Related Contacts (optional)</Label>
+            <ContactMultiSelect
+              selectedContactIds={relatedContacts}
+              onSelectionChange={setRelatedContacts}
+              placeholder="Select related contacts..."
+            />
+          </div>
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">

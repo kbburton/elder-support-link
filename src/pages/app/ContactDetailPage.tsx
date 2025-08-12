@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, Edit, Phone, Mail, MapPin, Clock, AlertTriangle, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import ReverseLinkedItems from "@/components/contacts/ReverseLinkedItems";
 
 interface Contact {
   id: string;
@@ -372,35 +373,19 @@ export default function ContactDetailPage() {
         </TabsContent>
 
         <TabsContent value="activities">
-          <Card>
-            <CardContent className="p-6">
-              <p className="text-center text-muted-foreground">Activity linking functionality coming soon.</p>
-            </CardContent>
-          </Card>
+          <ReverseLinkedItems contactId={contact.id} itemType="activity_logs" />
         </TabsContent>
 
         <TabsContent value="appointments">
-          <Card>
-            <CardContent className="p-6">
-              <p className="text-center text-muted-foreground">Appointment linking functionality coming soon.</p>
-            </CardContent>
-          </Card>
+          <ReverseLinkedItems contactId={contact.id} itemType="appointments" />
         </TabsContent>
 
         <TabsContent value="tasks">
-          <Card>
-            <CardContent className="p-6">
-              <p className="text-center text-muted-foreground">Task linking functionality coming soon.</p>
-            </CardContent>
-          </Card>
+          <ReverseLinkedItems contactId={contact.id} itemType="tasks" />
         </TabsContent>
 
         <TabsContent value="documents">
-          <Card>
-            <CardContent className="p-6">
-              <p className="text-center text-muted-foreground">Document linking functionality coming soon.</p>
-            </CardContent>
-          </Card>
+          <ReverseLinkedItems contactId={contact.id} itemType="documents" />
         </TabsContent>
       </Tabs>
     </div>

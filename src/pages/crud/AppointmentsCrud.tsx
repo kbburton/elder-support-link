@@ -59,6 +59,7 @@ export default function AppointmentsCrud() {
       { name: "attending_user_id", label: "Attending User ID" },
       { name: "reminder_days_before", label: "Reminder Days Before", type: "number" },
       { name: "outcome_notes", label: "Outcome Notes", type: "textarea" },
+      { name: "related_contacts", label: "Related Contacts", type: "contact_multiselect" },
     ],
     creatorFieldName: "created_by_user_id",
     notifyOnCreateEntity: "appointments",
