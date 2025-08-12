@@ -1151,6 +1151,10 @@ export type Database = {
         Args: { group_uuid: string }
         Returns: boolean
       }
+      rebuild_search_index: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       set_limit: {
         Args: { "": number }
         Returns: number
