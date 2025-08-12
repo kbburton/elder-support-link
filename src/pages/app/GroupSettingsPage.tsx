@@ -6,6 +6,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
+import { LogOut } from "lucide-react";
 import SEO from "@/components/layout/SEO";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -169,6 +170,29 @@ const savePrefs = async () => {
     if (error) return toast({ title: "Save failed", description: error.message });
   }
   toast({ title: "Preferences saved", description: "Notification preferences updated." });
+};
+
+const handleSignOut = async () => {
+  try {
+    await supabase.auth.signOut();
+    
+    // Clear any localStorage auth tokens
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('sb-') && key.includes('-auth-token')) {
+        localStorage.removeItem(key);
+      }
+    });
+    
+    toast({ title: "Signed out", description: "You have been signed out successfully." });
+    navigate("/login");
+  } catch (error) {
+    console.error("Sign out error:", error);
+    toast({ 
+      title: "Sign out failed", 
+      description: "Please try again.",
+      variant: "destructive" 
+    });
+  }
 };
 
   return (
@@ -394,6 +418,27 @@ const savePrefs = async () => {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="mt-8">
+        <Card>
+          <CardHeader>
+            <CardTitle>Account</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-3">
+              Sign out of your account
+            </p>
+            <Button 
+              variant="outline" 
+              onClick={handleSignOut}
+              className="gap-2"
+            >
+              <LogOut className="h-4 w-4" />
+              Sign out
+            </Button>
           </CardContent>
         </Card>
       </section>

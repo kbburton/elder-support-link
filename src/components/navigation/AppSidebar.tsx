@@ -12,7 +12,9 @@ import {
   SidebarProvider,
   SidebarTrigger,
   useSidebar,
+  SidebarFooter,
 } from "@/components/ui/sidebar";
+import { UserMenu } from "@/components/navigation/UserMenu";
 
 const mainItems = [
   { title: "Calendar", url: "calendar", icon: Calendar },
@@ -74,6 +76,10 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      
+      <SidebarFooter>
+        <UserMenu variant="mobile" className="border-t" />
+      </SidebarFooter>
     </Sidebar>
   );
 }

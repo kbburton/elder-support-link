@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Search } from "lucide-react";
 import { debounce } from "@/utils/debounce";
+import { UserMenu } from "@/components/navigation/UserMenu";
 
 const AppHeader = () => {
   const navigate = useNavigate();
@@ -16,6 +17,7 @@ const AppHeader = () => {
   const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
   const [userName, setUserName] = useState<string>("");
   const [searchValue, setSearchValue] = useState<string>("");
+  const groupSelectRef = useRef<HTMLButtonElement>(null);
 
   // Debounced search navigation
   const debouncedSearch = useCallback(
@@ -118,7 +120,7 @@ const AppHeader = () => {
 
       <div className="ml-auto flex items-center gap-3">
         <Select value={currentId} onValueChange={(val) => navigate(`/app/${val}/calendar`)}>
-          <SelectTrigger className="w-[200px]">
+          <SelectTrigger ref={groupSelectRef} className="w-[200px]">
             <SelectValue placeholder="Select group" />
           </SelectTrigger>
           <SelectContent>
@@ -127,6 +129,11 @@ const AppHeader = () => {
             ))}
           </SelectContent>
         </Select>
+        
+        <UserMenu 
+          onSwitchGroup={() => groupSelectRef.current?.click()} 
+          variant="desktop" 
+        />
       </div>
     </header>
   );
