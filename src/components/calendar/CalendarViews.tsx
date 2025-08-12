@@ -18,6 +18,7 @@ interface CalendarEvent {
   location?: string;
   description?: string;
   createdBy?: string;
+  isRecurring?: boolean;
 }
 
 interface CalendarViewsProps {
@@ -26,9 +27,10 @@ interface CalendarViewsProps {
   events: CalendarEvent[];
   onDateChange: (date: Date) => void;
   groupId: string;
+  onTaskClick?: (taskId: string) => void;
 }
 
-export function CalendarViews({ view, selectedDate, events, onDateChange, groupId }: CalendarViewsProps) {
+export function CalendarViews({ view, selectedDate, events, onDateChange, groupId, onTaskClick }: CalendarViewsProps) {
   const navigatePrevious = () => {
     switch (view) {
       case 'month':
@@ -58,26 +60,27 @@ export function CalendarViews({ view, selectedDate, events, onDateChange, groupI
   };
 
   if (view === 'month') {
-    return <MonthView selectedDate={selectedDate} events={events} onNavigatePrevious={navigatePrevious} onNavigateNext={navigateNext} groupId={groupId} />;
+    return <MonthView selectedDate={selectedDate} events={events} onNavigatePrevious={navigatePrevious} onNavigateNext={navigateNext} groupId={groupId} onTaskClick={onTaskClick} />;
   }
 
   if (view === 'week') {
-    return <WeekView selectedDate={selectedDate} events={events} onNavigatePrevious={navigatePrevious} onNavigateNext={navigateNext} groupId={groupId} />;
+    return <WeekView selectedDate={selectedDate} events={events} onNavigatePrevious={navigatePrevious} onNavigateNext={navigateNext} groupId={groupId} onTaskClick={onTaskClick} />;
   }
 
   if (view === 'day') {
-    return <DayView selectedDate={selectedDate} events={events} onNavigatePrevious={navigatePrevious} onNavigateNext={navigateNext} groupId={groupId} />;
+    return <DayView selectedDate={selectedDate} events={events} onNavigatePrevious={navigatePrevious} onNavigateNext={navigateNext} groupId={groupId} onTaskClick={onTaskClick} />;
   }
 
-  return <ListView events={events} groupId={groupId} />;
+  return <ListView events={events} groupId={groupId} onTaskClick={onTaskClick} />;
 }
 
-function MonthView({ selectedDate, events, onNavigatePrevious, onNavigateNext, groupId }: {
+function MonthView({ selectedDate, events, onNavigatePrevious, onNavigateNext, groupId, onTaskClick }: {
   selectedDate: Date;
   events: CalendarEvent[];
   onNavigatePrevious: () => void;
   onNavigateNext: () => void;
   groupId: string;
+  onTaskClick?: (taskId: string) => void;
 }) {
   const monthStart = startOfMonth(selectedDate);
   const monthEnd = endOfMonth(selectedDate);
@@ -135,7 +138,12 @@ function MonthView({ selectedDate, events, onNavigatePrevious, onNavigateNext, g
                       category={event.category}
                       isCompleted={event.isCompleted}
                       isOverdue={event.isOverdue}
-                      onClick={() => {}}
+                      isRecurring={event.isRecurring}
+                      onClick={() => {
+                        if (event.entityType === 'task' && onTaskClick) {
+                          onTaskClick(event.id);
+                        }
+                      }}
                       size="small"
                     />
                   ))}
@@ -153,12 +161,13 @@ function MonthView({ selectedDate, events, onNavigatePrevious, onNavigateNext, g
   );
 }
 
-function WeekView({ selectedDate, events, onNavigatePrevious, onNavigateNext, groupId }: {
+function WeekView({ selectedDate, events, onNavigatePrevious, onNavigateNext, groupId, onTaskClick }: {
   selectedDate: Date;
   events: CalendarEvent[];
   onNavigatePrevious: () => void;
   onNavigateNext: () => void;
   groupId: string;
+  onTaskClick?: (taskId: string) => void;
 }) {
   const weekStart = startOfWeek(selectedDate);
   const weekEnd = endOfWeek(selectedDate);
@@ -205,7 +214,12 @@ function WeekView({ selectedDate, events, onNavigatePrevious, onNavigateNext, gr
                         category={event.category}
                         isCompleted={event.isCompleted}
                         isOverdue={event.isOverdue}
-                        onClick={() => {}}
+                        isRecurring={event.isRecurring}
+                        onClick={() => {
+                          if (event.entityType === 'task' && onTaskClick) {
+                            onTaskClick(event.id);
+                          }
+                        }}
                         size="medium"
                       />
                     ))}
@@ -219,12 +233,13 @@ function WeekView({ selectedDate, events, onNavigatePrevious, onNavigateNext, gr
   );
 }
 
-function DayView({ selectedDate, events, onNavigatePrevious, onNavigateNext, groupId }: {
+function DayView({ selectedDate, events, onNavigatePrevious, onNavigateNext, groupId, onTaskClick }: {
   selectedDate: Date;
   events: CalendarEvent[];
   onNavigatePrevious: () => void;
   onNavigateNext: () => void;
   groupId: string;
+  onTaskClick?: (taskId: string) => void;
 }) {
   const dayEvents = events.filter(event => {
     const eventDate = event.startTime || event.dueDate;
@@ -264,7 +279,12 @@ function DayView({ selectedDate, events, onNavigatePrevious, onNavigateNext, gro
                   category={event.category}
                   isCompleted={event.isCompleted}
                   isOverdue={event.isOverdue}
-                  onClick={() => {}}
+                  isRecurring={event.isRecurring}
+                  onClick={() => {
+                    if (event.entityType === 'task' && onTaskClick) {
+                      onTaskClick(event.id);
+                    }
+                  }}
                   size="large"
                   showDetails={true}
                   location={event.location}
@@ -279,7 +299,7 @@ function DayView({ selectedDate, events, onNavigatePrevious, onNavigateNext, gro
   );
 }
 
-function ListView({ events, groupId }: { events: CalendarEvent[]; groupId: string; }) {
+function ListView({ events, groupId, onTaskClick }: { events: CalendarEvent[]; groupId: string; onTaskClick?: (taskId: string) => void; }) {
   // Sort events by date
   const sortedEvents = [...events].sort((a, b) => {
     const dateA = a.startTime || a.dueDate || new Date(0);
@@ -310,7 +330,12 @@ function ListView({ events, groupId }: { events: CalendarEvent[]; groupId: strin
                   category={event.category}
                   isCompleted={event.isCompleted}
                   isOverdue={event.isOverdue}
-                  onClick={() => {}}
+                  isRecurring={event.isRecurring}
+                  onClick={() => {
+                    if (event.entityType === 'task' && onTaskClick) {
+                      onTaskClick(event.id);
+                    }
+                  }}
                   size="large"
                   showDetails={true}
                   location={event.location}

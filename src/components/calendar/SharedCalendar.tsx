@@ -7,10 +7,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarItem } from "./CalendarItem";
 import { CalendarLegend } from "./CalendarLegend";
 import { CalendarViews } from "./CalendarViews";
+import { TaskModal } from "@/components/tasks/TaskModal";
 
 export interface SharedCalendarProps {
   view: 'month' | 'week' | 'day' | 'list';
@@ -41,6 +42,7 @@ interface CalendarEvent {
   location?: string;
   description?: string;
   createdBy?: string;
+  isRecurring?: boolean;
 }
 
 export default function SharedCalendar({
@@ -53,6 +55,9 @@ export default function SharedCalendar({
   groupId
 }: SharedCalendarProps) {
   const [activeView, setActiveView] = useState(view);
+  const [selectedTask, setSelectedTask] = useState<any>(null);
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     setActiveView(view);
@@ -73,13 +78,19 @@ export default function SharedCalendar({
     }
   });
 
-  // Fetch tasks
+  // Fetch tasks with recurrence rules
   const { data: tasks = [] } = useQuery({
     queryKey: ['tasks', groupId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('tasks')
-        .select('*')
+        .select(`
+          *,
+          task_recurrence_rules (
+            id,
+            pattern_type
+          )
+        `)
         .eq('group_id', groupId)
         .order('created_at', { ascending: false });
       
@@ -112,7 +123,8 @@ export default function SharedCalendar({
       isCompleted: task.status === 'Completed',
       isOverdue: task.due_date && task.status !== 'Completed' ? isBefore(new Date(task.due_date), new Date()) : false,
       description: task.description,
-      createdBy: task.created_by_email
+      createdBy: task.created_by_email,
+      isRecurring: task.task_recurrence_rules && task.task_recurrence_rules.length > 0
     }))
   ];
 
@@ -134,6 +146,21 @@ export default function SharedCalendar({
     if (date) {
       onSelectedDateChange(date);
     }
+  };
+
+  const handleTaskClick = (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (task) {
+      setSelectedTask(task);
+      setIsTaskModalOpen(true);
+    }
+  };
+
+  const handleTaskModalClose = () => {
+    setIsTaskModalOpen(false);
+    setSelectedTask(null);
+    // Invalidate queries to refresh the calendar
+    queryClient.invalidateQueries({ queryKey: ['tasks', groupId] });
   };
 
   return (
@@ -175,6 +202,7 @@ export default function SharedCalendar({
         events={filteredEvents}
         onDateChange={onSelectedDateChange}
         groupId={groupId}
+        onTaskClick={handleTaskClick}
       />
 
       {showLegend && (
@@ -182,6 +210,14 @@ export default function SharedCalendar({
           layout={activeView === 'month' ? 'horizontal' : 'compact'}
         />
       )}
+
+      {/* Task Modal */}
+      <TaskModal
+        task={selectedTask}
+        isOpen={isTaskModalOpen}
+        onClose={handleTaskModalClose}
+        groupId={groupId}
+      />
     </div>
   );
 }

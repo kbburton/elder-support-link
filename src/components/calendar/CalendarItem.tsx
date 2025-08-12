@@ -12,6 +12,7 @@ export type CalendarItemProps = {
   category: string | null;
   isCompleted?: boolean;
   isOverdue?: boolean;
+  isRecurring?: boolean;
   location?: string | null;
   created_by_email?: string | null;
   onClick: () => void;
@@ -39,6 +40,7 @@ export function CalendarItem({
   category,
   isCompleted = false,
   isOverdue = false,
+  isRecurring = false,
   location,
   created_by_email,
   onClick,
@@ -135,6 +137,11 @@ export function CalendarItem({
         {isOverdue && (
           <Badge variant="destructive" className="text-xs">
             Overdue
+          </Badge>
+        )}
+        {isRecurring && entityType === "task" && (
+          <Badge variant="outline" className="text-xs">
+            Recurring
           </Badge>
         )}
       </div>
