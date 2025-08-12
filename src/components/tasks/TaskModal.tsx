@@ -218,6 +218,10 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
+      console.log('Creating task with data:', data);
+      console.log('Group ID:', groupId);
+      console.log('User ID:', user.id);
+
       const { data: newTask, error } = await supabase
         .from("tasks")
         .insert({
@@ -228,7 +232,10 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Task creation error:', error);
+        throw error;
+      }
       return newTask;
     },
     onSuccess: async (newTask) => {
