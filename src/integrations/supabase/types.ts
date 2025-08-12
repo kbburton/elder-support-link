@@ -781,6 +781,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_invitation: {
+        Args: { invitation_id: string; user_id: string }
+        Returns: undefined
+      }
+      get_invitation_by_token: {
+        Args: { invitation_token: string }
+        Returns: {
+          id: string
+          group_id: string
+          group_name: string
+          invited_by_email: string
+          message: string
+        }[]
+      }
       is_user_admin_of_group: {
         Args: { group_uuid: string }
         Returns: boolean
