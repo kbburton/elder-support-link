@@ -98,6 +98,7 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
 
   useEffect(() => {
     if (appointment) {
+      console.log('Setting appointment form data:', appointment.date_time);
       setFormData({
         date_time: appointment.date_time ? format(parseISO(appointment.date_time), "yyyy-MM-dd'T'HH:mm") : "",
         location: appointment.location || "",
@@ -107,11 +108,6 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
         reminder_days_before: appointment.reminder_days_before || 1,
         outcome_notes: appointment.outcome_notes || "",
       });
-      
-      // Set linked contacts
-      if (linkedContactsData) {
-        setRelatedContacts(linkedContactsData.map((contact: any) => contact.id));
-      }
     } else {
       setFormData({
         date_time: "",
@@ -122,9 +118,17 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
         reminder_days_before: 1,
         outcome_notes: "",
       });
+    }
+  }, [appointment?.id, appointment?.date_time, appointment?.location, appointment?.category, appointment?.description, appointment?.attending_user_id, appointment?.reminder_days_before, appointment?.outcome_notes]);
+
+  // Separate effect for linked contacts to avoid infinite loop
+  useEffect(() => {
+    if (appointment && linkedContactsData?.length) {
+      setRelatedContacts(linkedContactsData.map((contact: any) => contact.id));
+    } else if (!appointment) {
       setRelatedContacts([]);
     }
-  }, [appointment, linkedContactsData]);
+  }, [appointment?.id, linkedContactsData?.length]);
 
   const createAppointment = useMutation({
     mutationFn: async (data: any) => {

@@ -161,11 +161,6 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
       });
       setDueDate(task.due_date ? new Date(task.due_date) : undefined);
       setCompletedAt(task.completed_at ? new Date(task.completed_at) : undefined);
-      
-      // Set linked contacts
-      if (linkedContactsData?.length) {
-        setRelatedContacts(linkedContactsData.map((contact: any) => contact.id));
-      }
     } else {
       setFormData({
         title: "",
@@ -183,7 +178,16 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
       setCompletedAt(undefined);
       setRelatedContacts([]);
     }
-  }, [task, linkedContactsData]);
+  }, [task?.id, task?.title, task?.description, task?.status, task?.priority, task?.category, task?.primary_owner_id, task?.secondary_owner_id, task?.due_date, task?.completed_at, task?.completed_by_user_id, task?.completed_by_email]);
+
+  // Separate effect for linked contacts to avoid infinite loop
+  useEffect(() => {
+    if (task && linkedContactsData?.length) {
+      setRelatedContacts(linkedContactsData.map((contact: any) => contact.id));
+    } else if (!task) {
+      setRelatedContacts([]);
+    }
+  }, [task?.id, linkedContactsData?.length]);
 
   // Handle status change to auto-fill completion fields
   const handleStatusChange = (newStatus: "Open" | "InProgress" | "Completed") => {
