@@ -1108,51 +1108,215 @@ const CalendarPage = () => {
     );
   };
 
-  const ListView = () => (
-    <div className="space-y-3">
-      {filtered.appointments
-        .sort((a, b) => compareAsc(parseISO(a.date_time), parseISO(b.date_time)))
-        .map((a) => (
-          <Card key={a.id} className="border-l-4">
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-base">
-                {(a.category && categoryToToken[a.category as Category]) ? (
-                  <span className={cn("h-2 w-2 rounded-full", categoryToToken[a.category as Category].dotClass)} aria-hidden />
-                ) : null}
-                {a.description || "Appointment"}
-                {a.category && (
-                  <Badge variant={categoryToToken[a.category as Category]?.badgeVariant ?? "outline"}>{a.category}</Badge>
+  const ListView = () => {
+    // Combine appointments and tasks into a chronological list
+    const allItems = useMemo(() => {
+      const items: (CalendarItem & { originalData: Appointment | Task })[] = [];
+      
+      // Add appointments
+      filtered.appointments.forEach((apt) => {
+        items.push({
+          id: apt.id,
+          type: "appointment",
+          title: apt.description || "Appointment",
+          date: apt.date_time,
+          category: apt.category,
+          time: format(parseISO(apt.date_time), "h:mm a"),
+          location: apt.location,
+          created_by_email: apt.created_by_email,
+          originalData: apt
+        });
+      });
+
+      // Add tasks with due dates
+      filtered.tasks.forEach((task) => {
+        if (task.due_date) {
+          items.push({
+            id: task.id,
+            type: "task",
+            title: task.title,
+            date: task.due_date + "T23:59:59", // Make tasks appear at end of day
+            category: task.category,
+            status: task.status,
+            created_by_email: task.created_by_email,
+            completed_at: task.completed_at,
+            originalData: task
+          });
+        }
+      });
+
+      // Sort chronologically
+      return items.sort((a, b) => compareAsc(parseISO(a.date), parseISO(b.date)));
+    }, [filtered]);
+
+    const getCategoryColor = (category: string | null, type: "appointment" | "task", status?: string, completed_at?: string | null) => {
+      const isCompleted = status === "closed" || completed_at;
+      const opacity = isCompleted ? "opacity-50" : "";
+      
+      if (type === "task") {
+        const isOverdue = status === "open" && isAfter(new Date(), new Date());
+        const taskClass = isOverdue ? "bg-red-100 text-red-800 border-red-300" : "bg-blue-100 text-blue-800 border-blue-200";
+        return `${taskClass} ${opacity}`;
+      }
+      
+      switch (category) {
+        case "Medical": return `bg-red-100 text-red-800 border-red-200 ${opacity}`;
+        case "Financial/Legal": return `bg-green-100 text-green-800 border-green-200 ${opacity}`;
+        case "Personal/Social": return `bg-purple-100 text-purple-800 border-purple-200 ${opacity}`;
+        default: return `bg-gray-100 text-gray-800 border-gray-200 ${opacity}`;
+      }
+    };
+
+    const handleItemClick = (item: CalendarItem & { originalData: Appointment | Task }) => {
+      if (item.type === "appointment") {
+        onEdit(item.originalData as Appointment);
+      } else {
+        onEditTask(item.originalData as Task);
+      }
+    };
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-semibold">All Appointments & Tasks</h3>
+            <span className="text-sm text-muted-foreground">({allItems.length} items)</span>
+          </div>
+          <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as any)}>
+            <SelectTrigger className="w-[200px]"><SelectValue placeholder="Filter by category" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All categories</SelectItem>
+              {CATEGORIES.map((c) => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-3">
+          {allItems.map((item) => {
+            const isCompleted = item.status === "closed" || item.completed_at;
+            const isOverdue = item.type === "task" && item.status === "open" && isAfter(new Date(), new Date(item.date));
+            
+            return (
+              <Card 
+                key={`${item.type}-${item.id}`} 
+                className={cn(
+                  "border-l-4 cursor-pointer hover:shadow-md transition-shadow",
+                  isCompleted && "opacity-50",
+                  isOverdue && "border-red-500"
                 )}
-              </CardTitle>
-            </CardHeader>
-              <CardContent className="text-sm text-muted-foreground space-y-2">
-                <p>{format(parseISO(a.date_time), "PPPP h:mm a")} • {a.location || "No location"}</p>
-                <p className="text-xs">Created by: {a.created_by_email || "Unknown"}</p>
-                
-                {/* Document Links */}
-                <div className="py-2">
-                  <TaskAppointmentDocumentLinker
-                    itemId={a.id}
-                    itemType="appointment"
-                    itemTitle={a.description || 'Unnamed appointment'}
-                    onLinksChange={() => {}}
-                  />
-                </div>
-                
-                <div className="flex flex-wrap gap-2 pt-2">
-                <Button size="sm" variant="outline" onClick={() => onEdit(a)}>Edit</Button>
-                <Button size="sm" variant="ghost" onClick={() => downloadIcs(a)}>Add to my Calendar</Button>
-                <Button size="sm" variant="ghost" onClick={() => createFollowUpTask(a)}>Create follow-up task</Button>
-                <Button size="sm" variant="destructive" onClick={() => deleteAppointment(a.id)}>Delete</Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      {filtered.appointments.length === 0 && (
-        <p className="text-sm text-muted-foreground">No appointments yet.</p>
-      )}
-    </div>
-  );
+                onClick={() => handleItemClick(item)}
+              >
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    {item.type === "appointment" ? (
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <CheckSquare className={cn(
+                        "h-4 w-4",
+                        isCompleted ? "text-green-600" : "text-muted-foreground"
+                      )} />
+                    )}
+                    {item.title}
+                    {item.category && (
+                      <Badge variant={categoryToToken[item.category as Category]?.badgeVariant ?? "outline"}>
+                        {item.category}
+                      </Badge>
+                    )}
+                    {item.type === "appointment" && isCompleted && (
+                      <Badge variant="secondary">Outcome recorded</Badge>
+                    )}
+                    {item.type === "task" && isCompleted && (
+                      <Badge variant="secondary">Completed</Badge>
+                    )}
+                    {isOverdue && (
+                      <Badge variant="destructive">Overdue</Badge>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="text-sm text-muted-foreground space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">
+                      {item.type === "appointment" ? 
+                        format(parseISO(item.date), "PPPP h:mm a") : 
+                        `Due: ${format(parseISO(item.date), "PPPP")}`
+                      }
+                    </span>
+                    {item.location && (
+                      <>
+                        <span>•</span>
+                        <span>{item.location}</span>
+                      </>
+                    )}
+                  </div>
+                  <p className="text-xs">Created by: {item.created_by_email || "Unknown"}</p>
+                  
+                  {/* Document Links for appointments */}
+                  {item.type === "appointment" && (
+                    <div className="py-2">
+                      <TaskAppointmentDocumentLinker
+                        itemId={item.id}
+                        itemType="appointment"
+                        itemTitle={item.title}
+                        onLinksChange={() => {}}
+                      />
+                    </div>
+                  )}
+                  
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    <Button size="sm" variant="outline" onClick={(e) => {
+                      e.stopPropagation();
+                      handleItemClick(item);
+                    }}>
+                      Edit
+                    </Button>
+                    {item.type === "appointment" && (
+                      <>
+                        <Button size="sm" variant="ghost" onClick={(e) => {
+                          e.stopPropagation();
+                          downloadIcs(item.originalData as Appointment);
+                        }}>
+                          Add to Calendar
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={(e) => {
+                          e.stopPropagation();
+                          createFollowUpTask(item.originalData as Appointment);
+                        }}>
+                          Create follow-up
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={(e) => {
+                          e.stopPropagation();
+                          deleteAppointment(item.id);
+                        }}>
+                          Delete
+                        </Button>
+                      </>
+                    )}
+                    {item.type === "task" && (
+                      <Button size="sm" variant="destructive" onClick={(e) => {
+                        e.stopPropagation();
+                        deleteTask(item.id);
+                      }}>
+                        Delete
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+          
+          {allItems.length === 0 && (
+            <div className="text-center py-12">
+              <p className="text-lg text-muted-foreground">No appointments or tasks found</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Try adjusting your category filter or create new items using the buttons above.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
