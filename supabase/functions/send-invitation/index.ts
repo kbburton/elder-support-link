@@ -36,16 +36,11 @@ serve(async (req) => {
       });
     }
 
-    // Set the auth token for the request
-    supabaseClient.auth.setSession({
-      access_token: authHeader.replace("Bearer ", ""),
-      refresh_token: "",
-    });
-
-    const { email, groupId, resendId } = await req.json();
-
-    // Get current user info
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+    // Extract JWT token
+    const jwt = authHeader.replace("Bearer ", "");
+    
+    // Verify JWT and get user
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(jwt);
     if (userError || !user) {
       console.error("User error:", userError);
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -54,7 +49,9 @@ serve(async (req) => {
       });
     }
 
-    // Get user profile
+    const { email, groupId, resendId } = await req.json();
+
+    // Get user profile using service role (bypassing RLS)
     const { data: profile } = await supabaseClient
       .from('profiles')
       .select('email, first_name, last_name')
@@ -66,7 +63,7 @@ serve(async (req) => {
       ? `${profile.first_name} ${profile.last_name}` 
       : senderEmail;
 
-    // Check if user is admin of the group
+    // Check if user is admin of the group using service role
     const { data: isAdmin, error: adminError } = await supabaseClient
       .rpc('is_user_admin_of_group', { group_uuid: groupId });
 
