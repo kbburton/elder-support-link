@@ -541,7 +541,7 @@ const CalendarPage = () => {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-          <Button variant="outline" onClick={loadAppointments}>Refresh</Button>
+          
         </div>
       </header>
 
