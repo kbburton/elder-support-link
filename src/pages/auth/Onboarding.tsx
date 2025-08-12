@@ -27,14 +27,23 @@ const Onboarding = () => {
           .select('group_id, care_groups(id, name)')
           .eq('user_id', user.id);
         
-        if (userGroups && userGroups.length > 1) {
-          setExistingGroups(userGroups);
-          setShowGroupSelection(true);
+        if (userGroups && userGroups.length > 0) {
+          if (userGroups.length === 1) {
+            // Single group - redirect directly
+            const groupId = userGroups[0].group_id;
+            toast({ title: "Welcome back", description: "Redirecting to your care group." });
+            navigate(`/app/${groupId}`, { replace: true });
+            return;
+          } else {
+            // Multiple groups - show selection
+            setExistingGroups(userGroups);
+            setShowGroupSelection(true);
+          }
         }
       }
     };
     loadExistingGroups();
-  }, []);
+  }, [navigate, toast]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
