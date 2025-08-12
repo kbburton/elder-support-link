@@ -24,6 +24,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import ContactMultiSelect from "@/components/contacts/ContactMultiSelect";
+import { DocumentLinker } from "@/components/documents/DocumentLinker";
+import { triggerReindex } from "@/utils/reindex";
+import { useLinkedContacts } from "@/hooks/useLinkedContacts";
+import { useContactLinkOperations } from "@/hooks/useContactLinkOperations";
 
 interface Task {
   id: string;
@@ -35,6 +40,9 @@ interface Task {
   due_date?: string;
   primary_owner_id?: string;
   secondary_owner_id?: string;
+  completed_at?: string;
+  completed_by_user_id?: string;
+  completed_by_email?: string;
 }
 
 interface TaskModalProps {
@@ -51,14 +59,44 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
     status: "Open" as "Open" | "InProgress" | "Completed",
     priority: "Medium" as "High" | "Medium" | "Low",
     category: "",
-    due_date: "",
     primary_owner_id: "",
     secondary_owner_id: "",
+    completed_at: "",
+    completed_by_user_id: "",
+    completed_by_email: "",
   });
   const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
+  const [completedAt, setCompletedAt] = useState<Date | undefined>(undefined);
+  const [relatedContacts, setRelatedContacts] = useState<string[]>([]);
   const queryClient = useQueryClient();
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
-    // Get group members for assignee options
+  // Get linked contacts if editing existing task
+  const { data: linkedContactsData = [] } = useLinkedContacts("task", task?.id || "");
+  const { persistContactLinks } = useContactLinkOperations();
+
+  // Get current user
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("email, first_name, last_name")
+          .eq("user_id", user.id)
+          .single();
+        
+        setCurrentUser({
+          id: user.id,
+          email: user.email,
+          ...profile
+        });
+      }
+    };
+    getCurrentUser();
+  }, []);
+
+  // Get group members for assignee options
   const { data: groupMembers = [] } = useQuery({
     queryKey: ["groupMembers", groupId],
     queryFn: async () => {
@@ -96,11 +134,19 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
         status: task.status,
         priority: task.priority || "Medium",
         category: task.category || "",
-        due_date: task.due_date ? task.due_date.split("T")[0] : "",
         primary_owner_id: task.primary_owner_id || "",
         secondary_owner_id: task.secondary_owner_id || "",
+        completed_at: task.completed_at || "",
+        completed_by_user_id: task.completed_by_user_id || "",
+        completed_by_email: task.completed_by_email || "",
       });
       setDueDate(task.due_date ? new Date(task.due_date) : undefined);
+      setCompletedAt(task.completed_at ? new Date(task.completed_at) : undefined);
+      
+      // Set linked contacts
+      if (linkedContactsData) {
+        setRelatedContacts(linkedContactsData.map((contact: any) => contact.id));
+      }
     } else {
       setFormData({
         title: "",
@@ -108,13 +154,88 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
         status: "Open",
         priority: "Medium",
         category: "",
-        due_date: "",
         primary_owner_id: "",
         secondary_owner_id: "",
+        completed_at: "",
+        completed_by_user_id: "",
+        completed_by_email: "",
       });
       setDueDate(undefined);
+      setCompletedAt(undefined);
+      setRelatedContacts([]);
     }
-  }, [task]);
+  }, [task, linkedContactsData]);
+
+  // Handle status change to auto-fill completion fields
+  const handleStatusChange = (newStatus: "Open" | "InProgress" | "Completed") => {
+    if (newStatus === "Completed" && currentUser) {
+      const now = new Date();
+      setFormData(prev => ({
+        ...prev,
+        status: newStatus,
+        completed_at: now.toISOString(),
+        completed_by_user_id: currentUser.id,
+        completed_by_email: currentUser.email || "",
+      }));
+      setCompletedAt(now);
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        status: newStatus,
+        completed_at: "",
+        completed_by_user_id: "",
+        completed_by_email: "",
+      }));
+      setCompletedAt(undefined);
+    }
+  };
+
+  const createTask = useMutation({
+    mutationFn: async (data: any) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      const { data: newTask, error } = await supabase
+        .from("tasks")
+        .insert({
+          ...data,
+          group_id: groupId,
+          created_by_user_id: user.id,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return newTask;
+    },
+    onSuccess: async (newTask) => {
+      // Link contacts if any
+      if (relatedContacts.length > 0) {
+        await persistContactLinks("tasks", newTask.id, relatedContacts, []);
+      }
+
+      // Trigger reindex
+      try {
+        await triggerReindex('tasks', newTask.id);
+      } catch (error) {
+        console.warn('Failed to trigger reindex:', error);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      toast({
+        title: "Task created",
+        description: "Task has been created successfully.",
+      });
+      onClose();
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to create task.",
+        variant: "destructive",
+      });
+    },
+  });
 
   const updateTask = useMutation({
     mutationFn: async (data: any) => {
@@ -125,7 +246,20 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
 
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Update contact links if task exists
+      if (task) {
+        const existingContactIds = linkedContactsData.map((contact: any) => contact.id);
+        await persistContactLinks("tasks", task.id, relatedContacts, existingContactIds);
+
+        // Trigger reindex
+        try {
+          await triggerReindex('tasks', task.id);
+        } catch (error) {
+          console.warn('Failed to trigger reindex:', error);
+        }
+      }
+
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
       toast({
         title: "Task updated",
@@ -144,28 +278,33 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!task) return;
 
     const submitData = {
       ...formData,
       due_date: dueDate ? dueDate.toISOString().split("T")[0] : null,
       primary_owner_id: formData.primary_owner_id || null,
       secondary_owner_id: formData.secondary_owner_id || null,
+      completed_at: completedAt ? completedAt.toISOString() : null,
     };
 
-    updateTask.mutate(submitData);
+    if (task) {
+      updateTask.mutate(submitData);
+    } else {
+      createTask.mutate(submitData);
+    }
   };
 
   const categories = ["Medical", "Personal", "Financial", "Legal", "Other"];
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit Task</DialogTitle>
+          <DialogTitle>{task ? "Edit Task" : "Create Task"}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Title */}
           <div>
             <Label htmlFor="title">Title *</Label>
             <Input
@@ -176,6 +315,7 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
             />
           </div>
 
+          {/* Description */}
           <div>
             <Label htmlFor="description">Description</Label>
             <Textarea
@@ -186,12 +326,13 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
             />
           </div>
 
+          {/* Status & Priority */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="status">Status</Label>
               <Select
                 value={formData.status}
-                onValueChange={(value) => setFormData({ ...formData, status: value as any })}
+                onValueChange={handleStatusChange}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -222,6 +363,7 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
             </div>
           </div>
 
+          {/* Category & Due Date */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="category">Category</Label>
@@ -270,6 +412,7 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
             </div>
           </div>
 
+          {/* Assignees */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="primary_owner">Primary Owner</Label>
@@ -310,12 +453,94 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
             </div>
           </div>
 
-          <div className="flex justify-end gap-2">
+          {/* Completion fields - only show if status is Completed */}
+          {formData.status === "Completed" && (
+            <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
+              <h4 className="font-medium">Completion Details</h4>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Completed At</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !completedAt && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {completedAt ? format(completedAt, "PPP p") : <span>Pick date & time</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={completedAt}
+                        onSelect={(date) => {
+                          if (date) {
+                            const now = new Date();
+                            date.setHours(now.getHours());
+                            date.setMinutes(now.getMinutes());
+                            setCompletedAt(date);
+                            setFormData(prev => ({
+                              ...prev,
+                              completed_at: date.toISOString()
+                            }));
+                          }
+                        }}
+                        initialFocus
+                        className="p-3 pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                <div>
+                  <Label htmlFor="completed_by_email">Completed By</Label>
+                  <Input
+                    id="completed_by_email"
+                    value={formData.completed_by_email}
+                    onChange={(e) => setFormData({ ...formData, completed_by_email: e.target.value })}
+                    placeholder="Email of person who completed"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Related Contacts */}
+          <div>
+            <Label>Related Contacts</Label>
+            <ContactMultiSelect
+              value={relatedContacts}
+              onChange={setRelatedContacts}
+              entityType="tasks"
+              placeholder="Select related contacts..."
+            />
+          </div>
+
+          {/* Related Documents - only show for existing tasks */}
+          {task && (
+            <div>
+              <Label>Related Documents</Label>
+              <DocumentLinker
+                documentId={task.id}
+                documentTitle={task.title}
+                onLinksChange={() => {}}
+              />
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-4">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={updateTask.isPending}>
-              {updateTask.isPending ? "Saving..." : "Save Changes"}
+            <Button type="submit" disabled={createTask.isPending || updateTask.isPending}>
+              {createTask.isPending || updateTask.isPending 
+                ? "Saving..." 
+                : task ? "Save Changes" : "Create Task"}
             </Button>
           </div>
         </form>
