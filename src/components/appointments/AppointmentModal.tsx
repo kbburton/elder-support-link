@@ -239,7 +239,7 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
     const submitData = {
       ...formData,
       reminder_days_before: formData.reminder_days_before || null,
-      attending_user_id: formData.attending_user_id || null,
+      attending_user_id: formData.attending_user_id && formData.attending_user_id.trim() !== '' ? formData.attending_user_id : null,
     };
 
     if (appointment) {
