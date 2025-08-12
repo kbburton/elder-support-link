@@ -132,6 +132,30 @@ export type Database = {
           },
         ]
       }
+      admin_roles: {
+        Row: {
+          created_at: string
+          created_by_user_id: string | null
+          id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       appointment_documents: {
         Row: {
           appointment_id: string
@@ -794,6 +818,10 @@ export type Database = {
           invited_by_email: string
           message: string
         }[]
+      }
+      is_system_admin: {
+        Args: { user_uuid?: string }
+        Returns: boolean
       }
       is_user_admin_of_group: {
         Args: { group_uuid: string }
