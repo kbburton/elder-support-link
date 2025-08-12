@@ -987,8 +987,9 @@ export type Database = {
           group_id: string | null
           id: string
           primary_owner_id: string | null
+          priority: Database["public"]["Enums"]["task_priority"] | null
           secondary_owner_id: string | null
-          status: string
+          status: Database["public"]["Enums"]["task_status"]
           title: string
           updated_at: string | null
         }
@@ -1005,8 +1006,9 @@ export type Database = {
           group_id?: string | null
           id?: string
           primary_owner_id?: string | null
+          priority?: Database["public"]["Enums"]["task_priority"] | null
           secondary_owner_id?: string | null
-          status?: string
+          status?: Database["public"]["Enums"]["task_status"]
           title: string
           updated_at?: string | null
         }
@@ -1023,8 +1025,9 @@ export type Database = {
           group_id?: string | null
           id?: string
           primary_owner_id?: string | null
+          priority?: Database["public"]["Enums"]["task_priority"] | null
           secondary_owner_id?: string | null
-          status?: string
+          status?: Database["public"]["Enums"]["task_status"]
           title?: string
           updated_at?: string | null
         }
@@ -1221,6 +1224,8 @@ export type Database = {
         | "family"
         | "general"
       gender_enum: "female" | "male" | "x_or_other" | "prefer_not_to_say"
+      task_priority: "High" | "Medium" | "Low"
+      task_status: "Open" | "InProgress" | "Completed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1357,6 +1362,8 @@ export const Constants = {
         "general",
       ],
       gender_enum: ["female", "male", "x_or_other", "prefer_not_to_say"],
+      task_priority: ["High", "Medium", "Low"],
+      task_status: ["Open", "InProgress", "Completed"],
     },
   },
 } as const
