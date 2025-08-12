@@ -13,6 +13,7 @@ const config: CrudConfig = {
     { name: "upload_date", label: "Upload Date", type: "datetime" },
     { name: "summary", label: "AI Summary", type: "textarea" },
     { name: "full_text", label: "Full Text (OCR)", type: "textarea" },
+    { name: "related_contacts", label: "Related Contacts", type: "contact_multiselect" },
   ],
   creatorFieldName: "uploaded_by_user_id",
   notifyOnCreateEntity: "documents",

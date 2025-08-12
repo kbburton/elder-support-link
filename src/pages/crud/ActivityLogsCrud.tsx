@@ -12,6 +12,7 @@ const config: CrudConfig = {
     { name: "attachment_url", label: "Attachment URL" },
     { name: "linked_task_id", label: "Linked Task ID" },
     { name: "linked_appointment_id", label: "Linked Appointment ID" },
+    { name: "related_contacts", label: "Related Contacts", type: "contact_multiselect" },
     
   ],
   creatorFieldName: "created_by_user_id",

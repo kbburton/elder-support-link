@@ -23,6 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Search, Calendar, FileText, CheckSquare, FolderOpen } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { triggerReindex } from "@/utils/reindex";
 
 interface LinkExistingModalProps {
   open: boolean;
@@ -251,6 +252,11 @@ export default function LinkExistingModal({
         if (error && !error.message?.includes("duplicate") && !error.message?.includes("unique")) {
           throw error;
         }
+      }
+
+      // Trigger reindex for all linked items (fire and forget)
+      for (const itemId of selectedItems) {
+        triggerReindex(entityType, itemId);
       }
 
       toast({

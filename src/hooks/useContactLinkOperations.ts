@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { triggerReindex } from "@/utils/reindex";
 
 export interface ContactLinkOperations {
   persistContactLinks: (
@@ -78,6 +79,9 @@ export function useContactLinkOperations(): ContactLinkOperations {
           }
         }
       }
+
+      // Trigger reindex for the entity (fire and forget)
+      triggerReindex(entityType, entityId);
 
       if (toAdd.length > 0 || toRemove.length > 0) {
         toast({

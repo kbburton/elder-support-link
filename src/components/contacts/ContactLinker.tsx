@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Link, Unlink } from "lucide-react";
+import { triggerReindex } from "@/utils/reindex";
 
 interface ContactLinkerProps {
   entityId: string;
@@ -143,6 +144,9 @@ export default function ContactLinker({
 
       if (error) throw error;
 
+      // Trigger reindex for the entity (fire and forget)
+      triggerReindex(entityType, entityId);
+
       toast({
         title: "Success",
         description: "Contact linked successfully",
@@ -194,6 +198,9 @@ export default function ContactLinker({
       }
 
       if (error) throw error;
+
+      // Trigger reindex for the entity (fire and forget)
+      triggerReindex(entityType, entityId);
 
       toast({
         title: "Success", 

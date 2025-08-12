@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { ExternalLink, Plus, Unlink as UnlinkIcon, ChevronDown, LinkIcon } from "lucide-react";
 import LinkExistingModal from "./LinkExistingModal";
+import { triggerReindex } from "@/utils/reindex";
 
 interface ReverseLinkedItemsProps {
   contactId: string;
@@ -94,6 +95,9 @@ export default function ReverseLinkedItems({ contactId, itemType }: ReverseLinke
       }
 
       if (error) throw error;
+
+      // Trigger reindex for the unlinked item (fire and forget)
+      triggerReindex(itemType, itemId);
 
       toast({
         title: "Success",

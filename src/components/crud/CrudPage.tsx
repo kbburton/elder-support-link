@@ -13,6 +13,7 @@ import SEO from "@/components/layout/SEO";
 import { TaskAppointmentDocumentLinker } from "@/components/documents/TaskAppointmentDocumentLinker";
 import ContactMultiSelect from "@/components/contacts/ContactMultiSelect";
 import { useContactLinkOperations } from "@/hooks/useContactLinkOperations";
+import { triggerReindex } from "@/utils/reindex";
 const sb = supabase as any;
 export type CrudField = {
   name: string;
@@ -68,6 +69,7 @@ function fromInputDateTime(value: string) {
 
 export default function CrudPage({ config }: { config: CrudConfig }) {
   const { persistContactLinks } = useContactLinkOperations();
+  const [searchParams] = useSearchParams();
   const { groupId } = useParams();
   const qc = useQueryClient();
   const idField = config.idField ?? "id";
@@ -92,7 +94,15 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
     },
   });
 
-  const [searchParams] = useSearchParams();
+  // Handle URL parameters for pre-filling forms
+  useEffect(() => {
+    const contactId = searchParams.get("contactId");
+    if (contactId && !editing && config.fields.some(f => f.type === "contact_multiselect")) {
+      setRelatedContacts([contactId]);
+    }
+  }, [searchParams, editing, config.fields]);
+
+  // Load existing row data from URL
   useEffect(() => {
     const openId = searchParams.get("openId");
     if (openId && Array.isArray(data)) {

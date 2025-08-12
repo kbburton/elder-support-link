@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Search, FileText, Calendar, CheckSquare, User, Activity } from "lucide-react";
 import { debounce } from "@/utils/debounce";
 import { useToast } from "@/hooks/use-toast";
+import ContactChips from "@/components/contacts/ContactChips";
 
 interface SearchResult {
   entity_type: string;
@@ -280,6 +281,11 @@ const SearchPage = () => {
                                   }}
                                 />
                               )}
+                              <ContactChips 
+                                entityType={result.entity_type} 
+                                entityId={result.entity_id}
+                                maxVisible={3}
+                              />
                             </div>
                             <Badge variant="outline" className="ml-2 shrink-0">
                               {Math.round(result.rank * 100)}%
