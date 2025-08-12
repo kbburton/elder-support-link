@@ -380,9 +380,9 @@ export default function GroupInvitePage() {
               {invitations.map((invitation) => (
                 <div key={invitation.id} className="flex items-center justify-between p-4 border rounded-lg">
                   <div>
-                    <div className="font-medium">{invitation.email}</div>
+                    <div className="font-medium">{invitation.invited_email}</div>
                     <div className="text-sm text-muted-foreground">
-                      Invited by {invitation.invited_by_email} on {new Date(invitation.created_at).toLocaleDateString()}
+                      Invited by {invitation.invited_by_user_id} on {new Date(invitation.created_at).toLocaleDateString()}
                     </div>
                     <div className="text-sm text-muted-foreground">
                       Expires on {new Date(invitation.expires_at).toLocaleDateString()}
