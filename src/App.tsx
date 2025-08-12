@@ -19,6 +19,7 @@ import GroupInvitePage from "./pages/app/GroupInvitePage";
 import SearchPage from "./pages/app/SearchPage";
 import ProfilePage from "./pages/app/ProfilePage";
 import GroupSettingsPage from "./pages/app/GroupSettingsPage";
+import InviteAccept from "./pages/auth/InviteAccept";
 import UsersCrud from "./pages/crud/UsersCrud";
 import CareGroupsCrud from "./pages/crud/CareGroupsCrud";
 import CareGroupMembersCrud from "./pages/crud/CareGroupMembersCrud";
@@ -39,6 +40,7 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/onboarding" element={<Onboarding />} />
+            <Route path="/invite/accept" element={<InviteAccept />} />
 
             <Route path="/app/:groupId" element={<AppLayout />}>
               <Route index element={<CalendarPage />} />
