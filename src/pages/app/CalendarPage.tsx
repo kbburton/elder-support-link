@@ -53,7 +53,7 @@ const CalendarPage = () => {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(false);
   const [viewDate, setViewDate] = useState<Date>(new Date());
-  const [activeView, setActiveView] = useState<"month" | "week" | "agenda" | "overview">("month");
+  const [activeView, setActiveView] = useState<"month" | "week" | "day" | "list">("month");
   const [categoryFilter, setCategoryFilter] = useState<"all" | Category>("all");
 
   // New/Edit dialog
@@ -291,6 +291,10 @@ const CalendarPage = () => {
   };
 
   const MonthView = () => (
+    <MonthlyOverview />
+  );
+
+  const DayView = () => (
     <div className="grid md:grid-cols-2 gap-4">
       <div>
         <Popover>
@@ -334,7 +338,7 @@ const CalendarPage = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="text-sm text-muted-foreground space-y-2">
-                <p>{format(parseISO(a.date_time), "EEE, p")} • {a.location || "No location"}</p>
+                <p>{format(parseISO(a.date_time), "EEE, h:mm a")} • {a.location || "No location"}</p>
                 <p className="text-xs">Created by: {a.created_by_email || "Unknown"}</p>
                 
                 {/* Document Links */}
@@ -390,7 +394,7 @@ const CalendarPage = () => {
                   <button key={a.id} onClick={() => onEdit(a)} className="w-full text-left text-xs rounded-md border p-2 hover:bg-muted transition">
                     <div className="flex items-center gap-2">
                       {a.category && <span className={cn("h-1.5 w-1.5 rounded-full", categoryToToken[a.category as Category]?.dotClass)} />}
-                      <span className="font-medium">{format(parseISO(a.date_time), "p")}</span>
+                      <span className="font-medium">{format(parseISO(a.date_time), "h:mm a")}</span>
                       <span className="truncate">{a.description}</span>
                     </div>
                     {a.location && <div className="text-muted-foreground truncate">{a.location}</div>}
@@ -403,7 +407,7 @@ const CalendarPage = () => {
     </div>
   );
 
-  const AgendaView = () => (
+  const ListView = () => (
     <div className="space-y-3">
       {filtered
         .sort((a, b) => compareAsc(parseISO(a.date_time), parseISO(b.date_time)))
@@ -421,7 +425,7 @@ const CalendarPage = () => {
               </CardTitle>
             </CardHeader>
               <CardContent className="text-sm text-muted-foreground space-y-2">
-                <p>{format(parseISO(a.date_time), "PPPP p")} • {a.location || "No location"}</p>
+                <p>{format(parseISO(a.date_time), "PPPP h:mm a")} • {a.location || "No location"}</p>
                 <p className="text-xs">Created by: {a.created_by_email || "Unknown"}</p>
                 
                 {/* Document Links */}
@@ -546,20 +550,28 @@ const CalendarPage = () => {
       </header>
 
       <Tabs value={activeView} onValueChange={(v) => setActiveView(v as any)} className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="month">Month</TabsTrigger>
-          <TabsTrigger value="week">Week</TabsTrigger>
-          <TabsTrigger value="agenda">Agenda</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview">
-          <MonthlyOverview />
-        </TabsContent>
+        <div className="flex items-center justify-between">
+          <TabsList>
+            <TabsTrigger value="month">Month</TabsTrigger>
+            <TabsTrigger value="week">Week</TabsTrigger>
+            <TabsTrigger value="day">Day</TabsTrigger>
+            <TabsTrigger value="list">Full List</TabsTrigger>
+          </TabsList>
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              setViewDate(new Date());
+              setActiveView("day");
+            }}
+          >
+            Today
+          </Button>
+        </div>
 
         <TabsContent value="month"><MonthView /></TabsContent>
         <TabsContent value="week"><WeekView /></TabsContent>
-        <TabsContent value="agenda"><AgendaView /></TabsContent>
+        <TabsContent value="day"><DayView /></TabsContent>
+        <TabsContent value="list"><ListView /></TabsContent>
       </Tabs>
     </div>
   );
