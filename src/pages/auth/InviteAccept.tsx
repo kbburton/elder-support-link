@@ -32,16 +32,12 @@ const InviteAccept = () => {
 
   const fetchInvitation = async () => {
     try {
-      // Query invitation and related data separately
-      const { data: invitation, error } = await supabase
-        .from("care_group_invitations")
-        .select("id, group_id, token, expires_at, message, invited_by_user_id")
-        .eq("token", token)
-        .eq("status", "pending")
-        .gt("expires_at", new Date().toISOString())
-        .maybeSingle();
+      // Use RPC function to get invitation by token
+      const { data: invitation, error } = await supabase.rpc('get_invitation_by_token', {
+        invitation_token: token
+      });
 
-      if (error || !invitation) {
+      if (error || !invitation || invitation.length === 0) {
         toast({
           title: "Invalid invitation",
           description: "This invitation is invalid or has expired.",
@@ -51,27 +47,7 @@ const InviteAccept = () => {
         return;
       }
 
-      // Get group name
-      const { data: group } = await supabase
-        .from("care_groups")
-        .select("name")
-        .eq("id", invitation.group_id)
-        .single();
-
-      // Get inviter email
-      const { data: inviter } = await supabase
-        .from("profiles")
-        .select("email")
-        .eq("user_id", invitation.invited_by_user_id)
-        .single();
-
-      setInvitation({
-        id: invitation.id,
-        group_id: invitation.group_id,
-        group_name: group?.name || "Unknown Group",
-        invited_by_email: inviter?.email || "Unknown User",
-        message: invitation.message
-      });
+      setInvitation(invitation[0]);
     } catch (error) {
       console.error("Error fetching invitation:", error);
       toast({
@@ -140,15 +116,11 @@ const InviteAccept = () => {
         return;
       }
 
-      // Update invitation status
-      await supabase
-        .from("care_group_invitations")
-        .update({
-          status: "accepted",
-          accepted_at: new Date().toISOString(),
-          accepted_by_user_id: session.user.id
-        })
-        .eq("id", invitation.id);
+      // Update invitation status using RPC
+      await supabase.rpc('accept_invitation', {
+        invitation_id: invitation.id,
+        user_id: session.user.id
+      });
 
       toast({
         title: "Welcome!",
