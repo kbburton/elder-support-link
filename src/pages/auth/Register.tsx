@@ -29,7 +29,13 @@ const Register = () => {
     }
     try {
       setLoading(true);
-      const redirectUrl = `${window.location.origin}/onboarding`;
+      
+      // Check if there's a pending invitation
+      const pendingInvitation = localStorage.getItem("pendingInvitation");
+      const redirectUrl = pendingInvitation 
+        ? `${window.location.origin}/invite/accept?token=${pendingInvitation}`
+        : `${window.location.origin}/onboarding`;
+        
       const { error } = await supabase.auth.signUp({
         email,
         password,
@@ -46,7 +52,18 @@ const Register = () => {
         },
       });
       if (error) throw error;
-      toast({ title: "Check your email", description: "Confirm your email to finish sign up." });
+      
+      if (pendingInvitation) {
+        toast({ 
+          title: "Check your email", 
+          description: "Confirm your email to complete signup and join the group." 
+        });
+      } else {
+        toast({ 
+          title: "Check your email", 
+          description: "Confirm your email to finish sign up." 
+        });
+      }
       navigate("/login", { replace: true });
     } catch (err: any) {
       toast({ title: "Registration failed", description: err?.message || "Please try again." });

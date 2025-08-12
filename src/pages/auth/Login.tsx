@@ -24,6 +24,15 @@ const Login = () => {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       
+      // Check for pending invitation first
+      const pendingInvitation = localStorage.getItem("pendingInvitation");
+      if (pendingInvitation) {
+        localStorage.removeItem("pendingInvitation");
+        toast({ title: "Welcome!", description: "Successfully signed in. You can now accept the invitation." });
+        navigate(`/invite/accept?token=${pendingInvitation}`, { replace: true });
+        return;
+      }
+      
       // Check if user has existing care groups
       const { data: userGroups, error: groupsError } = await supabase
         .from('care_group_members')
