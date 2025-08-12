@@ -1341,30 +1341,6 @@ const CalendarPage = () => {
               Today
             </Button>
           </div>
-          
-          {/* Big date picker */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="justify-start">
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {format(viewDate, "MMMM yyyy")}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="end">
-              <DatePicker 
-                mode="single" 
-                selected={viewDate} 
-                onSelect={(d) => {
-                  if (d) {
-                    setViewDate(d);
-                    // Refresh current view with new date
-                  }
-                }} 
-                initialFocus 
-                className={cn("p-3 pointer-events-auto")} 
-              />
-            </PopoverContent>
-          </Popover>
         </div>
 
         <TabsContent value="month"><MonthView /></TabsContent>
