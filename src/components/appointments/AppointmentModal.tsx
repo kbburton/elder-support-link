@@ -9,7 +9,11 @@ import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { format, parseISO } from "date-fns";
-// Contacts integration temporarily removed for simplicity
+import ContactMultiSelect from "@/components/contacts/ContactMultiSelect";
+import { TaskAppointmentDocumentLinker } from "@/components/documents/TaskAppointmentDocumentLinker";
+import { useLinkedContacts } from "@/hooks/useLinkedContacts";
+import { useContactLinkOperations } from "@/hooks/useContactLinkOperations";
+import { triggerReindex } from "@/utils/reindex";
 
 interface Appointment {
   id: string;
@@ -44,7 +48,11 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
     outcome_notes: "",
   });
 
-  // Contact linking will be added later
+  const [relatedContacts, setRelatedContacts] = useState<string[]>([]);
+  
+  // Get linked contacts if editing existing appointment
+  const { data: linkedContactsData = [] } = useLinkedContacts("appointment", appointment?.id || "");
+  const { persistContactLinks } = useContactLinkOperations();
 
   // Fetch current user
   const { data: currentUser } = useQuery({
@@ -99,6 +107,11 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
         reminder_days_before: appointment.reminder_days_before || 1,
         outcome_notes: appointment.outcome_notes || "",
       });
+      
+      // Set linked contacts
+      if (linkedContactsData) {
+        setRelatedContacts(linkedContactsData.map((contact: any) => contact.id));
+      }
     } else {
       setFormData({
         date_time: "",
@@ -109,6 +122,7 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
         reminder_days_before: 1,
         outcome_notes: "",
       });
+      setRelatedContacts([]);
     }
   }, [appointment]);
 
@@ -128,12 +142,22 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
       if (error) throw error;
       return result;
     },
-    onSuccess: (newAppointment) => {
+    onSuccess: async (newAppointment) => {
+      // Link contacts if any
+      if (relatedContacts.length > 0) {
+        await persistContactLinks("appointments", newAppointment.id, relatedContacts, []);
+      }
+
+      // Trigger reindex
+      try {
+        await triggerReindex('appointments', newAppointment.id);
+      } catch (error) {
+        console.warn('Failed to trigger reindex:', error);
+      }
+
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
       queryClient.invalidateQueries({ queryKey: ["calendarEvents"] });
       toast({ title: "Success", description: "Appointment created successfully." });
-      
-      // Contact linking will be added later
       
       onClose();
     },
@@ -154,12 +178,23 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
       if (error) throw error;
       return result;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Update contact links if appointment exists
+      if (appointment) {
+        const existingContactIds = linkedContactsData.map((contact: any) => contact.id);
+        await persistContactLinks("appointments", appointment.id, relatedContacts, existingContactIds);
+
+        // Trigger reindex
+        try {
+          await triggerReindex('appointments', appointment.id);
+        } catch (error) {
+          console.warn('Failed to trigger reindex:', error);
+        }
+      }
+
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
       queryClient.invalidateQueries({ queryKey: ["calendarEvents"] });
       toast({ title: "Success", description: "Appointment updated successfully." });
-      
-      // Contact linking will be added later
       
       onClose();
     },
@@ -298,7 +333,26 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
             />
           </div>
 
-          {/* Related Contacts - Will be added later */}
+          {/* Related Contacts */}
+          <div>
+            <Label>Related Contacts</Label>
+            <ContactMultiSelect
+              selectedContactIds={relatedContacts}
+              onSelectionChange={setRelatedContacts}
+              entityType="appointments"
+            />
+          </div>
+
+          {/* Related Documents */}
+          <div>
+            <Label>Documents</Label>
+            <TaskAppointmentDocumentLinker
+              itemId={appointment?.id || null}
+              itemType="appointment"
+              itemTitle={formData.description || "New Appointment"}
+              isCreationMode={!appointment}
+            />
+          </div>
 
           <div className="flex justify-end gap-2 pt-4">
             <Button type="button" variant="outline" onClick={onClose}>
