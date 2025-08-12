@@ -14,7 +14,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 
-const items = [
+const mainItems = [
   { title: "Calendar", url: "calendar", icon: Calendar },
   { title: "Tasks", url: "tasks", icon: ListTodo },
   { title: "Documents", url: "documents", icon: FileText },
@@ -22,7 +22,11 @@ const items = [
   { title: "Search", url: "search", icon: Search },
   { title: "Group Settings", url: "settings", icon: Settings },
   { title: "Profile", url: "profile", icon: User },
-  { title: "Admin", url: "admin", icon: Shield },
+];
+
+const adminItems = [
+  { title: "Invite Others to Care Group", url: "invite", icon: Shield },
+  { title: "System Admin", url: "admin", icon: Settings },
 ];
 
 export function AppSidebar() {
@@ -34,10 +38,28 @@ export function AppSidebar() {
     <Sidebar className={state === "collapsed" ? "w-14" : "w-60"} collapsible="icon">
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Group</SidebarGroupLabel>
+          <SidebarGroupLabel>Main</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map((item) => (
+              {mainItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink to={`${base}/${item.url}`} end className={({ isActive }) => isActive ? "bg-muted text-primary font-medium" : "hover:bg-muted/50"}>
+                      <item.icon className="mr-2 h-4 w-4" />
+                      <span>{item.title}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        
+        <SidebarGroup>
+          <SidebarGroupLabel>Group Admin</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {adminItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink to={`${base}/${item.url}`} end className={({ isActive }) => isActive ? "bg-muted text-primary font-medium" : "hover:bg-muted/50"}>
