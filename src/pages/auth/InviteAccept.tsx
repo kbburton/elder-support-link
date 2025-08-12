@@ -70,13 +70,13 @@ const InviteAccept = () => {
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
-        // Store invitation token and redirect to login
+        // Store invitation token and redirect to login with token in URL
         localStorage.setItem("pendingInvitation", token!);
         toast({
           title: "Please log in",
           description: "You need to log in to accept this invitation.",
         });
-        navigate("/login");
+        navigate(`/login?token=${token}`, { replace: true });
         return;
       }
 

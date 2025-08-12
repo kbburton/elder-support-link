@@ -1,18 +1,27 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import SEO from "@/components/layout/SEO";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 
 const Login = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Check for invitation token in URL params on load
+  useEffect(() => {
+    const token = searchParams.get("token");
+    if (token) {
+      localStorage.setItem("pendingInvitation", token);
+    }
+  }, [searchParams]);
 
   const handleSignIn = async () => {
     if (!email || !password) {
