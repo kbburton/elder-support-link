@@ -19,6 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import MonthlyOverview from "@/components/calendar/MonthlyOverview";
 import { TaskAppointmentDocumentLinker } from "@/components/documents/TaskAppointmentDocumentLinker";
+import { CalendarItem } from "@/components/calendar/CalendarItem";
 
 type Appointment = {
   id: string;
@@ -582,35 +583,21 @@ const CalendarPage = () => {
                       isAfter(new Date(), new Date(item.date));
                     
                     return (
-                      <div
+                      <CalendarItem
                         key={`${item.type}-${item.id}`}
-                        className={cn(
-                          "text-xs p-1 rounded border cursor-pointer hover:scale-105 transition-transform",
-                          getCategoryColor(item.category, item.type, item.status, item.completed_at),
-                          isOverdue && "border-red-500 border-l-4"
-                        )}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleItemClick(item);
-                        }}
-                        onContextMenu={(e) => {
-                          e.preventDefault();
-                          handleItemClick(item);
-                        }}
-                        title={`${item.title}${item.time ? ` at ${item.time}` : ''}${item.location ? ` • ${item.location}` : ''}${item.created_by_email ? ` • Created by ${item.created_by_email}` : ''}`}
-                      >
-                        <div className="flex items-center gap-1">
-                          {item.type === "appointment" ? (
-                            <Clock className="h-3 w-3 flex-shrink-0" />
-                          ) : (
-                            <CheckSquare className="h-3 w-3 flex-shrink-0" />
-                          )}
-                          <span className="truncate flex-1">{item.title}</span>
-                        </div>
-                        {item.time && (
-                          <div className="text-[10px] opacity-75 ml-4">{item.time}</div>
-                        )}
-                      </div>
+                        entityType={item.type}
+                        id={item.id}
+                        title={item.title}
+                        startTime={item.type === "appointment" ? item.date : undefined}
+                        dueDate={item.type === "task" ? item.date.split('T')[0] : undefined}
+                        category={item.category}
+                        isCompleted={item.status === "closed" || !!item.completed_at}
+                        isOverdue={isOverdue}
+                        location={item.location}
+                        created_by_email={item.created_by_email}
+                        onClick={() => handleItemClick(item)}
+                        size="small"
+                      />
                     );
                   })}
                   {dayItems.length > 4 && (
@@ -762,40 +749,23 @@ const CalendarPage = () => {
                 return (
                   <Card 
                     key={a.id} 
-                    className={cn(
-                      "border-l-4 cursor-pointer hover:shadow-md transition-shadow",
-                      isCompleted && "opacity-75"
-                    )}
-                    onClick={() => handleAppointmentClick(a)}
+                    className="hover:shadow-md transition-shadow"
                   >
-                    <CardHeader className="pb-2">
-                      <CardTitle className="flex items-center gap-2 text-base">
-                        {(a.category && categoryToToken[a.category as Category]) ? (
-                          <span className={cn("h-2 w-2 rounded-full", categoryToToken[a.category as Category].dotClass)} aria-hidden />
-                        ) : null}
-                        {a.description || "Appointment"}
-                        {a.category && (
-                          <Badge variant={categoryToToken[a.category as Category]?.badgeVariant ?? "outline"}>
-                            {a.category}
-                          </Badge>
-                        )}
-                        {isCompleted && (
-                          <Badge variant="secondary">Outcome recorded</Badge>
-                        )}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="text-sm text-muted-foreground space-y-2">
-                      <p className="flex items-center gap-2">
-                        <Clock className="h-4 w-4" />
-                        {format(parseISO(a.date_time), "h:mm a")}
-                        {a.location && (
-                          <>
-                            <span>•</span>
-                            <span>{a.location}</span>
-                          </>
-                        )}
-                      </p>
-                      <p className="text-xs">Created by: {a.created_by_email || "Unknown"}</p>
+                    <CardContent className="p-4">
+                      <CalendarItem
+                        entityType="appointment"
+                        id={a.id}
+                        title={a.description || "Appointment"}
+                        startTime={a.date_time}
+                        category={a.category}
+                        isCompleted={!!isCompleted}
+                        location={a.location}
+                        created_by_email={a.created_by_email}
+                        onClick={() => handleAppointmentClick(a)}
+                        size="large"
+                        showDetails={true}
+                        className="mb-4"
+                      />
                       
                       {/* Document Links */}
                       <div className="py-2">
@@ -862,38 +832,27 @@ const CalendarPage = () => {
                 return (
                   <Card 
                     key={task.id} 
-                    className={cn(
-                      "border-l-4 cursor-pointer hover:shadow-md transition-shadow",
-                      isCompleted && "opacity-50",
-                      isOverdue && "border-red-500"
-                    )}
-                    onClick={() => handleTaskClick(task)}
+                    className="hover:shadow-md transition-shadow"
                   >
-                    <CardHeader className="pb-2">
-                      <CardTitle className="flex items-center gap-2 text-base">
-                        <CheckSquare className={cn(
-                          "h-4 w-4",
-                          isCompleted ? "text-green-600" : "text-muted-foreground"
-                        )} />
-                        {task.title}
-                        {task.category && (
-                          <Badge variant={categoryToToken[task.category as Category]?.badgeVariant ?? "outline"}>
-                            {task.category}
-                          </Badge>
-                        )}
-                        {isCompleted && (
-                          <Badge variant="secondary">Completed</Badge>
-                        )}
-                        {isOverdue && (
-                          <Badge variant="destructive">Overdue</Badge>
-                        )}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="text-sm text-muted-foreground space-y-2">
+                    <CardContent className="p-4">
+                      <CalendarItem
+                        entityType="task"
+                        id={task.id}
+                        title={task.title}
+                        dueDate={task.due_date!}
+                        category={task.category}
+                        isCompleted={!!isCompleted}
+                        isOverdue={!!isOverdue}
+                        created_by_email={task.created_by_email}
+                        onClick={() => handleTaskClick(task)}
+                        size="large"
+                        showDetails={true}
+                        className="mb-4"
+                      />
+                      
                       {task.description && (
-                        <p>{task.description}</p>
+                        <p className="text-sm text-muted-foreground mb-2">{task.description}</p>
                       )}
-                      <p className="text-xs">Created by: {task.created_by_email || "Unknown"}</p>
                       
                       <div className="flex gap-2 pt-2">
                         <Button size="sm" variant="outline" onClick={(e) => {
@@ -1052,21 +1011,19 @@ const CalendarPage = () => {
                         const isOverdue = task.status === "open" && isAfter(new Date(), new Date(task.date));
                         
                         return (
-                          <div
+                          <CalendarItem
                             key={task.id}
-                            className={cn(
-                              "text-xs p-1 rounded border cursor-pointer hover:scale-105 transition-transform",
-                              getCategoryColor(task.category, task.type, task.status, task.completed_at),
-                              isOverdue && "border-red-500 border-l-4"
-                            )}
+                            entityType="task"
+                            id={task.id}
+                            title={task.title}
+                            dueDate={task.date.split('T')[0]}
+                            category={task.category}
+                            isCompleted={task.status === "closed" || !!task.completed_at}
+                            isOverdue={isOverdue}
+                            created_by_email={task.created_by_email}
                             onClick={() => handleItemClick(task)}
-                            title={`${task.title}${task.created_by_email ? ` • Created by ${task.created_by_email}` : ''}`}
-                          >
-                            <div className="flex items-center gap-1">
-                              <CheckSquare className="h-3 w-3 flex-shrink-0" />
-                              <span className="truncate">{task.title}</span>
-                            </div>
-                          </div>
+                            size="small"
+                          />
                         );
                       })}
                     </div>
@@ -1078,22 +1035,20 @@ const CalendarPage = () => {
                   {appointments
                     .sort((a, b) => compareAsc(parseISO(a.date), parseISO(b.date)))
                     .map((apt) => (
-                      <div
+                      <CalendarItem
                         key={apt.id}
-                        className={cn(
-                          "text-xs p-1 rounded border cursor-pointer hover:scale-105 transition-transform",
-                          getCategoryColor(apt.category, apt.type)
-                        )}
+                        entityType="appointment"
+                        id={apt.id}
+                        title={apt.title}
+                        startTime={apt.date}
+                        category={apt.category}
+                        isCompleted={!!apt.time && isBefore(parseISO(apt.date), new Date())}
+                        location={apt.location}
+                        created_by_email={apt.created_by_email}
                         onClick={() => handleItemClick(apt)}
-                        title={`${apt.title}${apt.time ? ` at ${apt.time}` : ''}${apt.location ? ` • ${apt.location}` : ''}${apt.created_by_email ? ` • Created by ${apt.created_by_email}` : ''}`}
-                      >
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-3 w-3 flex-shrink-0" />
-                          <span className="font-medium">{apt.time}</span>
-                        </div>
-                        <div className="truncate mt-1">{apt.title}</div>
-                        {apt.location && <div className="text-muted-foreground truncate text-[10px]">{apt.location}</div>}
-                      </div>
+                        size="small"
+                        showDetails={true}
+                      />
                     ))}
                 </div>
                 
@@ -1199,106 +1154,93 @@ const CalendarPage = () => {
             return (
               <Card 
                 key={`${item.type}-${item.id}`} 
-                className={cn(
-                  "border-l-4 cursor-pointer hover:shadow-md transition-shadow",
-                  isCompleted && "opacity-50",
-                  isOverdue && "border-red-500"
-                )}
-                onClick={() => handleItemClick(item)}
+                className="hover:shadow-md transition-shadow"
               >
-                <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    {item.type === "appointment" ? (
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <CheckSquare className={cn(
-                        "h-4 w-4",
-                        isCompleted ? "text-green-600" : "text-muted-foreground"
-                      )} />
-                    )}
-                    {item.title}
-                    {item.category && (
-                      <Badge variant={categoryToToken[item.category as Category]?.badgeVariant ?? "outline"}>
-                        {item.category}
-                      </Badge>
-                    )}
-                    {item.type === "appointment" && isCompleted && (
-                      <Badge variant="secondary">Outcome recorded</Badge>
-                    )}
-                    {item.type === "task" && isCompleted && (
-                      <Badge variant="secondary">Completed</Badge>
-                    )}
-                    {isOverdue && (
-                      <Badge variant="destructive">Overdue</Badge>
-                    )}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="text-sm text-muted-foreground space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">
-                      {item.type === "appointment" ? 
-                        format(parseISO(item.date), "PPPP h:mm a") : 
-                        `Due: ${format(parseISO(item.date), "PPPP")}`
-                      }
-                    </span>
-                    {item.location && (
-                      <>
-                        <span>•</span>
-                        <span>{item.location}</span>
-                      </>
-                    )}
-                  </div>
-                  <p className="text-xs">Created by: {item.created_by_email || "Unknown"}</p>
+                <CardContent className="p-4">
+                  <CalendarItem
+                    entityType={item.type}
+                    id={item.id}
+                    title={item.title}
+                    startTime={item.type === "appointment" ? item.date : undefined}
+                    dueDate={item.type === "task" ? item.date.split('T')[0] : undefined}
+                    category={item.category}
+                    isCompleted={!!isCompleted}
+                    isOverdue={!!isOverdue}
+                    location={item.location}
+                    created_by_email={item.created_by_email}
+                    onClick={() => handleItemClick(item)}
+                    size="large"
+                    showDetails={true}
+                    className="mb-4"
+                  />
                   
-                  {/* Document Links for appointments */}
-                  {item.type === "appointment" && (
-                    <div className="py-2">
-                      <TaskAppointmentDocumentLinker
-                        itemId={item.id}
-                        itemType="appointment"
-                        itemTitle={item.title}
-                        onLinksChange={() => {}}
-                      />
+                  {/* Additional details and actions */}
+                  <div className="text-sm text-muted-foreground space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">
+                        {item.type === "appointment" ? 
+                          format(parseISO(item.date), "PPPP h:mm a") : 
+                          `Due: ${format(parseISO(item.date), "PPPP")}`
+                        }
+                      </span>
+                      {item.location && (
+                        <>
+                          <span>•</span>
+                          <span>{item.location}</span>
+                        </>
+                      )}
                     </div>
-                  )}
-                  
-                  <div className="flex flex-wrap gap-2 pt-2">
-                    <Button size="sm" variant="outline" onClick={(e) => {
-                      e.stopPropagation();
-                      handleItemClick(item);
-                    }}>
-                      Edit
-                    </Button>
+                    
+                    {/* Document Links for appointments */}
                     {item.type === "appointment" && (
-                      <>
-                        <Button size="sm" variant="ghost" onClick={(e) => {
-                          e.stopPropagation();
-                          downloadIcs(item.originalData as Appointment);
-                        }}>
-                          Add to Calendar
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={(e) => {
-                          e.stopPropagation();
-                          createFollowUpTask(item.originalData as Appointment);
-                        }}>
-                          Create follow-up
-                        </Button>
+                      <div className="py-2">
+                        <TaskAppointmentDocumentLinker
+                          itemId={item.id}
+                          itemType="appointment"
+                          itemTitle={item.title}
+                          onLinksChange={() => {}}
+                        />
+                      </div>
+                    )}
+                    
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      <Button size="sm" variant="outline" onClick={(e) => {
+                        e.stopPropagation();
+                        handleItemClick(item);
+                      }}>
+                        Edit
+                      </Button>
+                      {item.type === "appointment" && (
+                        <>
+                          <Button size="sm" variant="ghost" onClick={(e) => {
+                            e.stopPropagation();
+                            downloadIcs(item.originalData as Appointment);
+                          }}>
+                            Add to Calendar
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={(e) => {
+                            e.stopPropagation();
+                            createFollowUpTask(item.originalData as Appointment);
+                          }}>
+                            Create follow-up
+                          </Button>
+                          <Button size="sm" variant="destructive" onClick={(e) => {
+                            e.stopPropagation();
+                            deleteAppointment(item.id);
+                          }}>
+                            Delete
+                          </Button>
+                        </>
+                      )}
+                      {item.type === "task" && (
                         <Button size="sm" variant="destructive" onClick={(e) => {
                           e.stopPropagation();
-                          deleteAppointment(item.id);
+                          deleteTask(item.id);
                         }}>
                           Delete
                         </Button>
-                      </>
-                    )}
-                    {item.type === "task" && (
-                      <Button size="sm" variant="destructive" onClick={(e) => {
-                        e.stopPropagation();
-                        deleteTask(item.id);
-                      }}>
-                        Delete
-                      </Button>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
