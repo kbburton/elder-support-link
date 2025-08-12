@@ -20,6 +20,7 @@ import { useToast } from "@/components/ui/use-toast";
 import MonthlyOverview from "@/components/calendar/MonthlyOverview";
 import { TaskAppointmentDocumentLinker } from "@/components/documents/TaskAppointmentDocumentLinker";
 import { CalendarItem } from "@/components/calendar/CalendarItem";
+import { CalendarLegend } from "@/components/calendar/CalendarLegend";
 
 type Appointment = {
   id: string;
@@ -66,10 +67,10 @@ const CATEGORIES = ["Medical", "Financial/Legal", "Personal/Social", "Other"] as
 type Category = typeof CATEGORIES[number];
 
 const categoryToToken: Record<Category, { badgeVariant: "default" | "secondary" | "outline"; dotClass: string }> = {
-  "Medical": { badgeVariant: "default", dotClass: "bg-primary" },
-  "Financial/Legal": { badgeVariant: "secondary", dotClass: "bg-accent" },
-  "Personal/Social": { badgeVariant: "outline", dotClass: "bg-muted-foreground" },
-  "Other": { badgeVariant: "outline", dotClass: "bg-border" },
+  "Medical": { badgeVariant: "default", dotClass: "bg-purple-600" },
+  "Financial/Legal": { badgeVariant: "secondary", dotClass: "bg-red-600" },
+  "Personal/Social": { badgeVariant: "outline", dotClass: "bg-teal-600" },
+  "Other": { badgeVariant: "outline", dotClass: "bg-teal-600" },
 };
 
 const CalendarPage = () => {
@@ -484,16 +485,15 @@ const CalendarPage = () => {
       const opacity = isCompleted ? "opacity-50" : "";
       
       if (type === "task") {
-        const isOverdue = status === "open" && new Date() > new Date(viewDate);
-        const taskClass = isOverdue ? "bg-red-100 text-red-800 border-red-300" : "bg-blue-100 text-blue-800 border-blue-200";
+        const taskClass = "bg-blue-100 text-blue-800 border-blue-200";
         return `${taskClass} ${opacity}`;
       }
       
       switch (category) {
-        case "Medical": return `bg-red-100 text-red-800 border-red-200 ${opacity}`;
-        case "Financial/Legal": return `bg-green-100 text-green-800 border-green-200 ${opacity}`;
-        case "Personal/Social": return `bg-purple-100 text-purple-800 border-purple-200 ${opacity}`;
-        default: return `bg-gray-100 text-gray-800 border-gray-200 ${opacity}`;
+        case "Medical": return `bg-purple-100 text-purple-800 border-purple-200 ${opacity}`;
+        case "Financial/Legal": return `bg-red-100 text-red-800 border-red-200 ${opacity}`;
+        case "Personal/Social": return `bg-teal-100 text-teal-800 border-teal-200 ${opacity}`;
+        default: return `bg-teal-100 text-teal-800 border-teal-200 ${opacity}`;
       }
     };
 
@@ -612,48 +612,7 @@ const CalendarPage = () => {
         </div>
 
         {/* Legend */}
-        <div className="flex flex-wrap gap-6 text-xs border-t pt-4">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              <span>Appointments:</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 bg-red-100 border border-red-200 rounded"></div>
-              <span>Medical</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 bg-green-100 border border-green-200 rounded"></div>
-              <span>Financial/Legal</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 bg-purple-100 border border-purple-200 rounded"></div>
-              <span>Personal/Social</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 bg-gray-100 border border-gray-200 rounded"></div>
-              <span>Other</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1">
-              <CheckSquare className="h-3 w-3" />
-              <span>Tasks:</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 bg-blue-100 border border-blue-200 rounded"></div>
-              <span>Normal</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 bg-red-100 border border-red-300 rounded"></div>
-              <span>Overdue</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 bg-blue-100 border border-blue-200 rounded opacity-50"></div>
-              <span>Completed</span>
-            </div>
-          </div>
-        </div>
+        <CalendarLegend className="border-t pt-4" />
       </div>
     );
   };
@@ -718,7 +677,8 @@ const CalendarPage = () => {
               Select a date to view events and tasks.
             </p>
           </div>
-          <div className="flex items-center gap-2 md:justify-end">
+          <div className="flex items-center gap-4 md:justify-end">
+            <CalendarLegend layout="compact" />
             <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as any)}>
               <SelectTrigger className="w-[200px]">
                 <SelectValue placeholder="Filter by category" />
@@ -944,16 +904,15 @@ const CalendarPage = () => {
       const opacity = isCompleted ? "opacity-50" : "";
       
       if (type === "task") {
-        const isOverdue = status === "open" && new Date() > new Date(viewDate);
-        const taskClass = isOverdue ? "bg-red-100 text-red-800 border-red-300" : "bg-blue-100 text-blue-800 border-blue-200";
+        const taskClass = "bg-blue-100 text-blue-800 border-blue-200";
         return `${taskClass} ${opacity}`;
       }
       
       switch (category) {
-        case "Medical": return `bg-red-100 text-red-800 border-red-200 ${opacity}`;
-        case "Financial/Legal": return `bg-green-100 text-green-800 border-green-200 ${opacity}`;
-        case "Personal/Social": return `bg-purple-100 text-purple-800 border-purple-200 ${opacity}`;
-        default: return `bg-gray-100 text-gray-800 border-gray-200 ${opacity}`;
+        case "Medical": return `bg-purple-100 text-purple-800 border-purple-200 ${opacity}`;
+        case "Financial/Legal": return `bg-red-100 text-red-800 border-red-200 ${opacity}`;
+        case "Personal/Social": return `bg-teal-100 text-teal-800 border-teal-200 ${opacity}`;
+        default: return `bg-teal-100 text-teal-800 border-teal-200 ${opacity}`;
       }
     };
 
@@ -1109,16 +1068,15 @@ const CalendarPage = () => {
       const opacity = isCompleted ? "opacity-50" : "";
       
       if (type === "task") {
-        const isOverdue = status === "open" && isAfter(new Date(), new Date());
-        const taskClass = isOverdue ? "bg-red-100 text-red-800 border-red-300" : "bg-blue-100 text-blue-800 border-blue-200";
+        const taskClass = "bg-blue-100 text-blue-800 border-blue-200";
         return `${taskClass} ${opacity}`;
       }
       
       switch (category) {
-        case "Medical": return `bg-red-100 text-red-800 border-red-200 ${opacity}`;
-        case "Financial/Legal": return `bg-green-100 text-green-800 border-green-200 ${opacity}`;
-        case "Personal/Social": return `bg-purple-100 text-purple-800 border-purple-200 ${opacity}`;
-        default: return `bg-gray-100 text-gray-800 border-gray-200 ${opacity}`;
+        case "Medical": return `bg-purple-100 text-purple-800 border-purple-200 ${opacity}`;
+        case "Financial/Legal": return `bg-red-100 text-red-800 border-red-200 ${opacity}`;
+        case "Personal/Social": return `bg-teal-100 text-teal-800 border-teal-200 ${opacity}`;
+        default: return `bg-teal-100 text-teal-800 border-teal-200 ${opacity}`;
       }
     };
 
@@ -1137,13 +1095,16 @@ const CalendarPage = () => {
             <h3 className="text-lg font-semibold">All Appointments & Tasks</h3>
             <span className="text-sm text-muted-foreground">({allItems.length} items)</span>
           </div>
-          <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as any)}>
-            <SelectTrigger className="w-[200px]"><SelectValue placeholder="Filter by category" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All categories</SelectItem>
-              {CATEGORIES.map((c) => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-4">
+            <CalendarLegend layout="compact" />
+            <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as any)}>
+              <SelectTrigger className="w-[200px]"><SelectValue placeholder="Filter by category" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All categories</SelectItem>
+                {CATEGORIES.map((c) => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <div className="space-y-3">

@@ -24,10 +24,10 @@ const CATEGORIES = ["Medical", "Financial/Legal", "Personal/Social", "Other"] as
 type Category = typeof CATEGORIES[number];
 
 const categoryToToken: Record<Category, { badgeVariant: "default" | "secondary" | "outline"; dotClass: string }> = {
-  "Medical": { badgeVariant: "default", dotClass: "bg-primary" },
-  "Financial/Legal": { badgeVariant: "secondary", dotClass: "bg-accent" },
-  "Personal/Social": { badgeVariant: "outline", dotClass: "bg-muted-foreground" },
-  "Other": { badgeVariant: "outline", dotClass: "bg-border" },
+  "Medical": { badgeVariant: "default", dotClass: "bg-purple-600" },
+  "Financial/Legal": { badgeVariant: "secondary", dotClass: "bg-red-600" },
+  "Personal/Social": { badgeVariant: "outline", dotClass: "bg-teal-600" },
+  "Other": { badgeVariant: "outline", dotClass: "bg-teal-600" },
 };
 
 export function CalendarItem({
@@ -50,15 +50,15 @@ export function CalendarItem({
     const opacity = isCompleted ? "opacity-50" : "";
     
     if (type === "task") {
-      const taskClass = isOverdue ? "bg-red-100 text-red-800 border-red-300" : "bg-blue-100 text-blue-800 border-blue-200";
+      const taskClass = "bg-blue-100 text-blue-800 border-blue-200";
       return `${taskClass} ${opacity}`;
     }
     
     switch (category) {
-      case "Medical": return `bg-red-100 text-red-800 border-red-200 ${opacity}`;
-      case "Financial/Legal": return `bg-green-100 text-green-800 border-green-200 ${opacity}`;
-      case "Personal/Social": return `bg-purple-100 text-purple-800 border-purple-200 ${opacity}`;
-      default: return `bg-gray-100 text-gray-800 border-gray-200 ${opacity}`;
+      case "Medical": return `bg-purple-100 text-purple-800 border-purple-200 ${opacity}`;
+      case "Financial/Legal": return `bg-red-100 text-red-800 border-red-200 ${opacity}`;
+      case "Personal/Social": return `bg-teal-100 text-teal-800 border-teal-200 ${opacity}`;
+      default: return `bg-teal-100 text-teal-800 border-teal-200 ${opacity}`; // Personal/Other default
     }
   };
 
