@@ -1,9 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { Search } from "lucide-react";
+import { debounce } from "@/utils/debounce";
 
 const AppHeader = () => {
   const navigate = useNavigate();
@@ -12,6 +15,28 @@ const AppHeader = () => {
 
   const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
   const [userName, setUserName] = useState<string>("");
+  const [searchValue, setSearchValue] = useState<string>("");
+
+  // Debounced search navigation
+  const debouncedSearch = useCallback(
+    debounce((query: string) => {
+      if (query.trim()) {
+        navigate(`/app/${currentId}/search?q=${encodeURIComponent(query.trim())}`);
+      }
+    }, 250),
+    [navigate, currentId]
+  );
+
+  const handleSearchChange = (value: string) => {
+    setSearchValue(value);
+    debouncedSearch(value);
+  };
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && searchValue.trim()) {
+      navigate(`/app/${currentId}/search?q=${encodeURIComponent(searchValue.trim())}`);
+    }
+  };
   useEffect(() => {
     const load = async () => {
       try {
@@ -75,6 +100,22 @@ const AppHeader = () => {
         <div className="h-6 w-6 rounded-md shadow-glow" style={{ background: "var(--gradient-primary)" }} />
         <span className="font-medium">DaveAssist{userName ? ` — ${userName}` : ""}</span>
       </div>
+      
+      {/* Search Bar */}
+      <div className="flex-1 max-w-md mx-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="search"
+            placeholder="Search appointments, tasks, documents..."
+            value={searchValue}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            onKeyDown={handleSearchKeyDown}
+            className="pl-10"
+          />
+        </div>
+      </div>
+
       <div className="ml-auto flex items-center gap-3">
         <Select value={currentId} onValueChange={(val) => navigate(`/app/${val}/calendar`)}>
           <SelectTrigger className="w-[200px]">
@@ -86,7 +127,6 @@ const AppHeader = () => {
             ))}
           </SelectContent>
         </Select>
-        <Button variant="outline" onClick={() => navigate(`/app/${currentId}/search`)}>Search</Button>
       </div>
     </header>
   );
