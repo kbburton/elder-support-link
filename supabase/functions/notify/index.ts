@@ -72,6 +72,12 @@ serve(async (req) => {
 });
 
 async function handleImmediateNotification(body: ImmediatePayload, supabase: any) {
+  console.log('🔔 Starting immediate notification process:', {
+    entity: body.entity,
+    group_id: body.group_id,
+    item_id: body.item_id
+  });
+
   // Map entity -> preference flag + detail query
   const prefFlag: Record<ImmediatePayload["entity"], string> = {
     appointments: "notify_on_new_appointment",
@@ -80,30 +86,50 @@ async function handleImmediateNotification(body: ImmediatePayload, supabase: any
     activity_logs: "notify_on_new_activity_log",
   };
 
+  console.log('📊 Looking for users with preference:', prefFlag[body.entity]);
+
   // 1) Load recipients from notification_preferences
   const { data: prefs, error: prefErr } = await supabase
     .from("notification_preferences")
     .select("user_id")
     .eq("group_id", body.group_id)
     .eq(prefFlag[body.entity], true);
-  if (prefErr) throw prefErr;
+  
+  console.log('🎯 Notification preferences query result:', { prefs, prefErr });
+  
+  if (prefErr) {
+    console.error('❌ Failed to fetch notification preferences:', prefErr);
+    throw prefErr;
+  }
 
   const prefUserIds = (prefs || []).map((p: any) => p.user_id).filter(Boolean);
+  console.log('👥 Users with notification preferences enabled:', prefUserIds);
 
   // 2) Resolve emails from profiles
   let emails: { user_id: string; email: string }[] = [];
   if (prefUserIds.length > 0) {
+    console.log('📧 Fetching email addresses for users:', prefUserIds);
     const { data: profs, error: profErr } = await supabase
       .from("profiles")
       .select("user_id, email")
       .in("user_id", prefUserIds);
-    if (profErr) throw profErr;
+    
+    console.log('📬 Profiles query result:', { profs, profErr });
+    
+    if (profErr) {
+      console.error('❌ Failed to fetch user profiles:', profErr);
+      throw profErr;
+    }
+    
     emails = (profs || [])
       .filter((p: any) => !!p.email)
       .map((p: any) => ({ user_id: p.user_id as string, email: p.email as string }));
   }
 
+  console.log('✅ Final email recipients:', emails);
+
   if (emails.length === 0) {
+    console.warn('⚠️ No email recipients found');
     return new Response(JSON.stringify({ sent: 0, reason: "No recipients" }), {
       headers: { "Content-Type": "application/json", ...corsHeaders },
     });
@@ -177,22 +203,38 @@ async function handleImmediateNotification(body: ImmediatePayload, supabase: any
     </div>
   `;
 
+  console.log('📮 Sending emails to recipients...', { 
+    emailCount: emails.length, 
+    subject,
+    recipients: emails.map(e => e.email)
+  });
+
   // 4) Send emails (individually to avoid exposing addresses)
   const results = await Promise.allSettled(
-    emails.map((e) =>
-      resend.emails.send({
+    emails.map(async (e) => {
+      console.log(`📤 Sending email to: ${e.email}`);
+      const result = await resend.emails.send({
         from: "DaveAssist <onboarding@resend.dev>",
         to: [e.email],
         subject,
         html,
-      })
-    )
+      });
+      console.log(`📬 Email result for ${e.email}:`, result);
+      return result;
+    })
   );
 
   const sent = results.filter((r) => r.status === "fulfilled").length;
   const failed = results.length - sent;
+  
+  // Log failed emails for debugging
+  results.forEach((result, index) => {
+    if (result.status === "rejected") {
+      console.error(`❌ Email failed for ${emails[index].email}:`, result.reason);
+    }
+  });
 
-  console.log("notify summary", { sent, failed, entity: body.entity, group: body.group_id, item: body.item_id });
+  console.log("📊 Notification summary", { sent, failed, entity: body.entity, group: body.group_id, item: body.item_id });
 
   return new Response(JSON.stringify({ sent, failed }), {
     headers: { "Content-Type": "application/json", ...corsHeaders },

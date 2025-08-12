@@ -174,6 +174,30 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
         }).catch(error => {
           console.warn(`AI processing failed for ${file.name}:`, error);
         });
+
+        // Send notifications for new document
+        try {
+          console.log('Sending notification for new document:', { documentId: documentData.id, groupId });
+          const notifyResponse = await supabase.functions.invoke("notify", {
+            body: {
+              type: "immediate",
+              entity: "documents",
+              group_id: groupId,
+              item_id: documentData.id,
+              baseUrl: typeof window !== "undefined" ? window.location.origin : undefined,
+            },
+          });
+          console.log('Document notification response:', notifyResponse);
+          
+          if (notifyResponse.error) {
+            console.error('Document notification failed:', notifyResponse.error);
+          } else {
+            console.log('Document notification sent successfully:', notifyResponse.data);
+          }
+        } catch (notifyError) {
+          console.error('Failed to send document notification:', notifyError);
+          // Continue silently - don't block user experience
+        }
       }
 
       setUploadProgress(100);

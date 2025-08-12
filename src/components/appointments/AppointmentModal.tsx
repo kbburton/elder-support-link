@@ -147,6 +147,8 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
       return result;
     },
     onSuccess: async (newAppointment) => {
+      console.log('Appointment created successfully:', newAppointment.id);
+      
       // Link contacts if any
       if (relatedContacts.length > 0) {
         await persistContactLinks("appointments", newAppointment.id, relatedContacts, []);
@@ -157,6 +159,30 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
         await triggerReindex('appointments', newAppointment.id);
       } catch (error) {
         console.warn('Failed to trigger reindex:', error);
+      }
+
+      // Send notifications for new appointment
+      try {
+        console.log('Sending notification for new appointment:', { appointmentId: newAppointment.id, groupId });
+        const notifyResponse = await supabase.functions.invoke("notify", {
+          body: {
+            type: "immediate",
+            entity: "appointments",
+            group_id: groupId,
+            item_id: newAppointment.id,
+            baseUrl: typeof window !== "undefined" ? window.location.origin : undefined,
+          },
+        });
+        console.log('Notification response:', notifyResponse);
+        
+        if (notifyResponse.error) {
+          console.error('Notification failed:', notifyResponse.error);
+        } else {
+          console.log('Notification sent successfully:', notifyResponse.data);
+        }
+      } catch (notifyError) {
+        console.error('Failed to send appointment notification:', notifyError);
+        // Continue silently - don't block user experience
       }
 
       queryClient.invalidateQueries({ queryKey: ["appointments"] });

@@ -232,6 +232,8 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
       return newTask;
     },
     onSuccess: async (newTask) => {
+      console.log('Task created successfully:', newTask.id);
+      
       // Link contacts if any
       if (relatedContacts.length > 0) {
         await persistContactLinks("tasks", newTask.id, relatedContacts, []);
@@ -242,6 +244,30 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
         await triggerReindex('tasks', newTask.id);
       } catch (error) {
         console.warn('Failed to trigger reindex:', error);
+      }
+
+      // Send notifications for new task
+      try {
+        console.log('Sending notification for new task:', { taskId: newTask.id, groupId });
+        const notifyResponse = await supabase.functions.invoke("notify", {
+          body: {
+            type: "immediate",
+            entity: "tasks",
+            group_id: groupId,
+            item_id: newTask.id,
+            baseUrl: typeof window !== "undefined" ? window.location.origin : undefined,
+          },
+        });
+        console.log('Notification response:', notifyResponse);
+        
+        if (notifyResponse.error) {
+          console.error('Notification failed:', notifyResponse.error);
+        } else {
+          console.log('Notification sent successfully:', notifyResponse.data);
+        }
+      } catch (notifyError) {
+        console.error('Failed to send task notification:', notifyError);
+        // Continue silently - don't block user experience
       }
 
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
