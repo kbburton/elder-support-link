@@ -33,6 +33,7 @@ import ContactFormPage from "./pages/app/ContactFormPage";
 import ContactsImportPage from "./pages/app/ContactsImportPage";
 import SearchJobsPage from "./pages/app/SearchJobsPage";
 import CreateGroupPage from "./pages/app/CreateGroupPage";
+import FeedbackPage from "./pages/app/FeedbackPage";
 const queryClient = new QueryClient();
 const App = () => (
   <HelmetProvider>
@@ -63,6 +64,7 @@ const App = () => (
               <Route path="search" element={<SearchPage />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="settings" element={<GroupSettingsPage />} />
+              <Route path="settings/feedback" element={<FeedbackPage />} />
               <Route path="invite" element={<GroupInvitePage />} />
               <Route path="admin" element={<AdminConsolePage />} />
               <Route path="admin/users" element={<UsersCrud />} />
