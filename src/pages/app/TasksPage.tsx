@@ -1,10 +1,19 @@
+import { useState } from "react";
+import { useParams } from "react-router-dom";
 import SEO from "@/components/layout/SEO";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import MonthlyOverview from "@/components/calendar/MonthlyOverview";
 import TasksCrud from "@/pages/crud/TasksCrud";
+import SharedCalendar from "@/components/calendar/SharedCalendar";
 
 const TasksPage = () => {
+  const { groupId } = useParams<{ groupId: string }>();
+  const [selectedDate, setSelectedDate] = useState(new Date());
+
+  if (!groupId) {
+    return <div>Group ID not found</div>;
+  }
+
   return (
     <div className="space-y-6">
       <SEO title="Tasks — DaveAssist" description="Manage and coordinate care tasks." />
@@ -28,7 +37,14 @@ const TasksPage = () => {
         </TabsContent>
         
         <TabsContent value="calendar">
-          <MonthlyOverview />
+          <SharedCalendar
+            view="month"
+            selectedDate={selectedDate}
+            onSelectedDateChange={setSelectedDate}
+            showLegend={true}
+            filters={{ showCompleted: true }}
+            groupId={groupId}
+          />
         </TabsContent>
       </Tabs>
     </div>

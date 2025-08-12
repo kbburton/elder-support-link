@@ -1,0 +1,196 @@
+import { useState, useEffect } from "react";
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays, isSameDay, isToday, isBefore, parseISO } from "date-fns";
+import { CalendarIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
+import { CalendarItem } from "./CalendarItem";
+import { CalendarLegend } from "./CalendarLegend";
+import { CalendarViews } from "./CalendarViews";
+
+export interface SharedCalendarProps {
+  view: 'month' | 'week' | 'day' | 'list';
+  selectedDate: Date;
+  onSelectedDateChange: (date: Date) => void;
+  showLegend?: boolean;
+  filters?: {
+    category?: string;
+    assigneeIds?: string[];
+    status?: string;
+    showCompleted?: boolean;
+    showOverdueOnly?: boolean;
+  };
+  colorMap?: Record<string, string>;
+  groupId: string;
+}
+
+interface CalendarEvent {
+  id: string;
+  entityType: 'appointment' | 'task';
+  title: string;
+  startTime?: Date;
+  dueDate?: Date;
+  category: string;
+  status?: string;
+  isCompleted: boolean;
+  isOverdue: boolean;
+  location?: string;
+  description?: string;
+  createdBy?: string;
+}
+
+export default function SharedCalendar({
+  view,
+  selectedDate,
+  onSelectedDateChange,
+  showLegend = true,
+  filters = {},
+  colorMap = {},
+  groupId
+}: SharedCalendarProps) {
+  const [activeView, setActiveView] = useState(view);
+
+  useEffect(() => {
+    setActiveView(view);
+  }, [view]);
+
+  // Fetch appointments
+  const { data: appointments = [] } = useQuery({
+    queryKey: ['appointments', groupId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('group_id', groupId)
+        .order('date_time', { ascending: true });
+      
+      if (error) throw error;
+      return data || [];
+    }
+  });
+
+  // Fetch tasks
+  const { data: tasks = [] } = useQuery({
+    queryKey: ['tasks', groupId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('group_id', groupId)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data || [];
+    }
+  });
+
+  // Transform data into calendar events
+  const calendarEvents: CalendarEvent[] = [
+    ...appointments.map(apt => ({
+      id: apt.id,
+      entityType: 'appointment' as const,
+      title: apt.description || 'Appointment',
+      startTime: new Date(apt.date_time),
+      category: apt.category || 'Other',
+      isCompleted: false,
+      isOverdue: isBefore(new Date(apt.date_time), new Date()) && !apt.outcome_notes,
+      location: apt.location,
+      description: apt.description,
+      createdBy: apt.created_by_email
+    })),
+    ...tasks.map(task => ({
+      id: task.id,
+      entityType: 'task' as const,
+      title: task.title,
+      dueDate: task.due_date ? new Date(task.due_date) : undefined,
+      category: task.category || 'Other',
+      status: task.status,
+      isCompleted: task.status === 'completed',
+      isOverdue: task.due_date && task.status !== 'completed' ? isBefore(new Date(task.due_date), new Date()) : false,
+      description: task.description,
+      createdBy: task.created_by_email
+    }))
+  ];
+
+  // Apply filters
+  const filteredEvents = calendarEvents.filter(event => {
+    if (filters.category && event.category !== filters.category) return false;
+    if (filters.status && event.status !== filters.status) return false;
+    if (!filters.showCompleted && event.isCompleted) return false;
+    if (filters.showOverdueOnly && !event.isOverdue) return false;
+    return true;
+  });
+
+  const handleTodayClick = () => {
+    onSelectedDateChange(new Date());
+    setActiveView('day');
+  };
+
+  const handleDateSelect = (date: Date | undefined) => {
+    if (date) {
+      onSelectedDateChange(date);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Tabs value={activeView} onValueChange={(v) => setActiveView(v as any)} className="space-y-4">
+            <TabsList>
+              <TabsTrigger value="month">Month</TabsTrigger>
+              <TabsTrigger value="week">Week</TabsTrigger>
+              <TabsTrigger value="day">Day</TabsTrigger>
+              <TabsTrigger value="list">Full List</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={handleTodayClick}
+          >
+            Today
+          </Button>
+        </div>
+
+        {/* Big date picker */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className="justify-start">
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {format(selectedDate, "MMMM yyyy")}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="end">
+            <Calendar 
+              mode="single" 
+              selected={selectedDate} 
+              onSelect={handleDateSelect} 
+              initialFocus 
+              className={cn("p-3 pointer-events-auto")} 
+            />
+          </PopoverContent>
+        </Popover>
+      </div>
+
+      <CalendarViews 
+        view={activeView}
+        selectedDate={selectedDate}
+        events={filteredEvents}
+        onDateChange={onSelectedDateChange}
+        groupId={groupId}
+      />
+
+      {showLegend && (
+        <CalendarLegend 
+          layout={activeView === 'month' ? 'horizontal' : 'compact'}
+        />
+      )}
+    </div>
+  );
+}
