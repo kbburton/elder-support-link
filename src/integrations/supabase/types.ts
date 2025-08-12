@@ -943,6 +943,72 @@ export type Database = {
         }
         Relationships: []
       }
+      task_recurrence_rules: {
+        Row: {
+          created_at: string
+          created_by_user_id: string
+          created_occurrences: number
+          end_after_occurrences: number | null
+          end_type: string
+          end_until_date: string | null
+          group_id: string
+          id: string
+          interval_value: number
+          last_occurrence_date: string | null
+          monthly_day_of_month: number | null
+          monthly_nth_weekday: number | null
+          monthly_weekday: number | null
+          pattern_type: string
+          task_id: string
+          updated_at: string
+          weekly_days: number[] | null
+          yearly_day: number | null
+          yearly_month: number | null
+        }
+        Insert: {
+          created_at?: string
+          created_by_user_id: string
+          created_occurrences?: number
+          end_after_occurrences?: number | null
+          end_type?: string
+          end_until_date?: string | null
+          group_id: string
+          id?: string
+          interval_value?: number
+          last_occurrence_date?: string | null
+          monthly_day_of_month?: number | null
+          monthly_nth_weekday?: number | null
+          monthly_weekday?: number | null
+          pattern_type: string
+          task_id: string
+          updated_at?: string
+          weekly_days?: number[] | null
+          yearly_day?: number | null
+          yearly_month?: number | null
+        }
+        Update: {
+          created_at?: string
+          created_by_user_id?: string
+          created_occurrences?: number
+          end_after_occurrences?: number | null
+          end_type?: string
+          end_until_date?: string | null
+          group_id?: string
+          id?: string
+          interval_value?: number
+          last_occurrence_date?: string | null
+          monthly_day_of_month?: number | null
+          monthly_nth_weekday?: number | null
+          monthly_weekday?: number | null
+          pattern_type?: string
+          task_id?: string
+          updated_at?: string
+          weekly_days?: number[] | null
+          yearly_day?: number | null
+          yearly_month?: number | null
+        }
+        Relationships: []
+      }
       task_updates: {
         Row: {
           content: string

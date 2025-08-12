@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import ContactMultiSelect from "@/components/contacts/ContactMultiSelect";
 import { DocumentLinker } from "@/components/documents/DocumentLinker";
 import { triggerReindex } from "@/utils/reindex";
+import { RecurrenceModal } from "./RecurrenceModal";
 import { useLinkedContacts } from "@/hooks/useLinkedContacts";
 import { useContactLinkOperations } from "@/hooks/useContactLinkOperations";
 
@@ -68,8 +69,26 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
   const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
   const [completedAt, setCompletedAt] = useState<Date | undefined>(undefined);
   const [relatedContacts, setRelatedContacts] = useState<string[]>([]);
+  const [showRecurrenceModal, setShowRecurrenceModal] = useState(false);
   const queryClient = useQueryClient();
   const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // Get task recurrence rule if editing existing task
+  const { data: recurrenceRule } = useQuery({
+    queryKey: ["task-recurrence", task?.id],
+    queryFn: async () => {
+      if (!task?.id) return null;
+      const { data, error } = await supabase
+        .from("task_recurrence_rules")
+        .select("*")
+        .eq("task_id", task.id)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') throw error; // Ignore not found errors
+      return data;
+    },
+    enabled: !!task?.id,
+  });
 
   // Get linked contacts if editing existing task
   const { data: linkedContactsData = [] } = useLinkedContacts("task", task?.id || "");
@@ -533,17 +552,63 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
             </div>
           )}
 
-          <div className="flex justify-end gap-2 pt-4">
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={createTask.isPending || updateTask.isPending}>
-              {createTask.isPending || updateTask.isPending 
-                ? "Saving..." 
-                : task ? "Save Changes" : "Create Task"}
-            </Button>
+          {/* Make Recurring - only show for existing tasks */}
+          {task && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Recurrence</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowRecurrenceModal(true)}
+                >
+                  {recurrenceRule ? "Edit Recurrence" : "Make Recurring"}
+                </Button>
+              </div>
+              {recurrenceRule && (
+                <div className="text-sm text-muted-foreground">
+                  This task is recurring ({recurrenceRule.pattern_type})
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex justify-between gap-2 pt-4">
+            <div>
+              {task && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowRecurrenceModal(true)}
+                >
+                  {recurrenceRule ? "Edit Recurrence" : "Make Recurring"}
+                </Button>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createTask.isPending || updateTask.isPending}>
+                {createTask.isPending || updateTask.isPending 
+                  ? "Saving..." 
+                  : task ? "Save Changes" : "Create Task"}
+              </Button>
+            </div>
           </div>
         </form>
+
+        {/* Recurrence Modal */}
+        {task && (
+          <RecurrenceModal
+            taskId={task.id}
+            groupId={groupId}
+            isOpen={showRecurrenceModal}
+            onClose={() => setShowRecurrenceModal(false)}
+            existingRule={recurrenceRule}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );

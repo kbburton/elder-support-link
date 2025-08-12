@@ -23,6 +23,10 @@ interface Task {
   secondary_owner_id?: string;
   created_by_email?: string;
   completed_by_email?: string;
+  task_recurrence_rules?: Array<{
+    id: string;
+    pattern_type: string;
+  }> | null;
 }
 
 interface TaskListProps {
@@ -50,7 +54,10 @@ export function TaskList({ groupId, sortBy, filters, hideCompleted, searchQuery 
     queryFn: async () => {
       let query = supabase
         .from("tasks")
-        .select("*")
+        .select(`
+          *,
+          task_recurrence_rules(id, pattern_type)
+        `)
         .eq("group_id", groupId);
 
       // Apply filters
@@ -94,7 +101,7 @@ export function TaskList({ groupId, sortBy, filters, hideCompleted, searchQuery 
 
       const { data, error } = await query;
       if (error) throw error;
-      return data as Task[];
+      return data as any[];
     },
   });
 
@@ -139,6 +146,7 @@ export function TaskList({ groupId, sortBy, filters, hideCompleted, searchQuery 
     if (!user) return;
 
     const isCompleting = currentStatus !== "Completed";
+    const task = tasks.find(t => t.id === taskId);
     
     let updates: any;
     if (isCompleting) {
@@ -149,6 +157,21 @@ export function TaskList({ groupId, sortBy, filters, hideCompleted, searchQuery 
         completed_by_user_id: user.id,
         completed_by_email: user.email,
       };
+
+      // If task is recurring, trigger creation of next instance
+      if (task?.task_recurrence_rules && task.task_recurrence_rules.length > 0) {
+        try {
+          await supabase.functions.invoke('create-next-recurring-task', {
+            body: { 
+              taskId: taskId,
+              completedAt: new Date().toISOString()
+            }
+          });
+        } catch (error) {
+          console.warn('Failed to create next recurring instance:', error);
+          // Don't fail the completion, just warn
+        }
+      }
     } else {
       // Uncompleting the task
       updates = {
@@ -230,6 +253,11 @@ export function TaskList({ groupId, sortBy, filters, hideCompleted, searchQuery 
                   </Button>
                   
                   <div className="flex items-center gap-2 flex-shrink-0">
+                    {task.task_recurrence_rules && task.task_recurrence_rules.length > 0 && (
+                      <Badge variant="secondary" className="text-xs">
+                        Recurring
+                      </Badge>
+                    )}
                     {task.category && (
                       <Badge variant="outline" className="text-xs">
                         {task.category}
