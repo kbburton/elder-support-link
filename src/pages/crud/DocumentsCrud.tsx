@@ -9,7 +9,7 @@ const config: CrudConfig = {
     { name: "title", label: "Title" },
     { name: "file_url", label: "File URL" },
     { name: "file_type", label: "File Type" },
-    
+    { name: "processing_status", label: "Processing Status" },
     { name: "upload_date", label: "Upload Date", type: "datetime" },
     { name: "summary", label: "AI Summary", type: "textarea" },
     { name: "full_text", label: "Full Text (OCR)", type: "textarea" },

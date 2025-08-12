@@ -10,15 +10,20 @@ export const FILE_LIMITS = {
   // Maximum photo size in bytes (10MB for photos)
   MAX_PHOTO_SIZE: 10 * 1024 * 1024,
   
-  // Allowed file types for documents
+  // Allowed file types for documents (enhanced pipeline support)
   ALLOWED_DOCUMENT_TYPES: [
     'application/pdf',
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     'application/vnd.ms-excel',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'text/plain',
-    'text/csv'
+    'text/csv',
+    'image/jpeg',
+    'image/jpg', 
+    'image/png',
+    'image/webp'
   ] as readonly string[],
   
   // Allowed image types for photos
@@ -30,9 +35,9 @@ export const FILE_LIMITS = {
     'image/webp'
   ] as readonly string[],
   
-  // File extensions for documents
+  // File extensions for documents (enhanced pipeline support)
   ALLOWED_DOCUMENT_EXTENSIONS: [
-    '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.csv'
+    '.pdf', '.doc', '.docx', '.pptx', '.xls', '.xlsx', '.txt', '.csv', '.jpg', '.jpeg', '.png', '.webp'
   ] as readonly string[],
   
   // File extensions for images
