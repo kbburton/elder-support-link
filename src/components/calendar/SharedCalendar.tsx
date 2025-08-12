@@ -140,15 +140,6 @@ export default function SharedCalendar({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Tabs value={activeView} onValueChange={(v) => setActiveView(v as any)} className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="month">Month</TabsTrigger>
-              <TabsTrigger value="week">Week</TabsTrigger>
-              <TabsTrigger value="day">Day</TabsTrigger>
-              <TabsTrigger value="list">Full List</TabsTrigger>
-            </TabsList>
-          </Tabs>
-          
           <Button 
             variant="outline" 
             size="sm"
