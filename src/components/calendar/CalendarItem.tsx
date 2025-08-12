@@ -22,6 +22,7 @@ export type CalendarItemProps = {
   className?: string;
   size?: "small" | "medium" | "large";
   showDetails?: boolean;
+  hideCategory?: boolean;
 };
 
 const CATEGORIES = ["Medical", "Financial/Legal", "Personal/Social", "Other"] as const;
@@ -53,20 +54,39 @@ export function CalendarItem({
   className,
   size = "medium",
   showDetails = false,
+  hideCategory = false,
 }: CalendarItemProps) {
   const getCategoryColor = (category: string | null, type: "appointment" | "task", isCompleted: boolean, isOverdue: boolean) => {
     const opacity = isCompleted ? "opacity-50" : "";
+    const overdueClass = type === "task" && isOverdue ? "border-l-4 border-red-500" : "";
     
     if (type === "task") {
-      const taskClass = "bg-blue-100 text-blue-800 border-blue-200";
+      const taskClass = `bg-blue-100 text-blue-800 border-blue-200 ${overdueClass}`;
       return `${taskClass} ${opacity}`;
     }
     
     switch (category) {
-      case "Medical": return `bg-purple-100 text-purple-800 border-purple-200 ${opacity}`;
-      case "Financial/Legal": return `bg-red-100 text-red-800 border-red-200 ${opacity}`;
-      case "Personal/Social": return `bg-teal-100 text-teal-800 border-teal-200 ${opacity}`;
-      default: return `bg-teal-100 text-teal-800 border-teal-200 ${opacity}`; // Personal/Other default
+      case "Medical": 
+      case "medical": 
+        return `bg-purple-100 text-purple-800 border-purple-200 ${opacity}`;
+      case "Financial/Legal": 
+      case "financial": 
+      case "legal": 
+        return `bg-red-100 text-red-800 border-red-200 ${opacity}`;
+      case "Personal/Social": 
+      case "personal": 
+      case "social": 
+        return `bg-teal-100 text-teal-800 border-teal-200 ${opacity}`;
+      case "dental":
+        return `bg-green-100 text-green-800 border-green-200 ${opacity}`;
+      case "therapy":
+        return `bg-orange-100 text-orange-800 border-orange-200 ${opacity}`;
+      case "consultation":
+        return `bg-indigo-100 text-indigo-800 border-indigo-200 ${opacity}`;
+      case "follow-up":
+        return `bg-yellow-100 text-yellow-800 border-yellow-200 ${opacity}`;
+      default: 
+        return `bg-gray-100 text-gray-800 border-gray-200 ${opacity}`;
     }
   };
 
@@ -150,7 +170,6 @@ export function CalendarItem({
       className={cn(
         "rounded border cursor-pointer hover:scale-105 transition-transform focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1",
         getCategoryColor(category, entityType, isCompleted, isOverdue),
-        isOverdue && "border-red-500 border-l-4",
         sizeClasses[size],
         className
       )}
@@ -180,7 +199,7 @@ export function CalendarItem({
           )} />
         )}
         <span className="truncate flex-1">{title}</span>
-        {category && size !== "small" && (
+        {!hideCategory && category && size !== "small" && (
           <Badge 
             variant={categoryToToken[category as Category]?.badgeVariant ?? "outline"}
             className="text-xs"
@@ -193,7 +212,7 @@ export function CalendarItem({
             {entityType === "appointment" ? "Recorded" : "Done"}
           </Badge>
         )}
-        {isOverdue && (
+        {isOverdue && entityType === "task" && (
           <Badge variant="destructive" className="text-xs">
             Overdue
           </Badge>

@@ -124,7 +124,7 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
       });
       setRelatedContacts([]);
     }
-  }, [appointment]);
+  }, [appointment, linkedContactsData]);
 
   const createAppointment = useMutation({
     mutationFn: async (data: any) => {
@@ -263,12 +263,14 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="medical">Medical</SelectItem>
+                  <SelectItem value="Medical">Medical</SelectItem>
                   <SelectItem value="dental">Dental</SelectItem>
                   <SelectItem value="therapy">Therapy</SelectItem>
                   <SelectItem value="consultation">Consultation</SelectItem>
                   <SelectItem value="follow-up">Follow-up</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
+                  <SelectItem value="Financial/Legal">Financial/Legal</SelectItem>
+                  <SelectItem value="Personal/Social">Personal/Social</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
                 </SelectContent>
               </Select>
             </div>

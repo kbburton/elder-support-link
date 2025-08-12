@@ -163,7 +163,7 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
       setCompletedAt(task.completed_at ? new Date(task.completed_at) : undefined);
       
       // Set linked contacts
-      if (linkedContactsData) {
+      if (linkedContactsData?.length) {
         setRelatedContacts(linkedContactsData.map((contact: any) => contact.id));
       }
     } else {

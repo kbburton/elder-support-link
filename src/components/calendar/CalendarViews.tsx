@@ -201,32 +201,33 @@ function WeekView({ selectedDate, events, onNavigatePrevious, onNavigateNext, gr
 
           return (
             <Card key={day.toString()} className={isToday(day) ? 'border-primary' : ''}>
-              <CardContent className="p-3">
+              <CardContent className="p-3 min-h-[120px]">
                 <div className={`text-sm font-medium mb-2 ${isToday(day) ? 'text-primary' : ''}`}>
                   {format(day, 'EEE d')}
                 </div>
-                  <div className="space-y-2">
-                    {dayEvents.map(event => (
-                      <div key={event.id} data-calendar-item-id={event.id}>
-                        <CalendarItem
-                          entityType={event.entityType}
-                          id={event.id}
-                          title={event.title}
-                          startTime={event.startTime?.toISOString()}
-                          dueDate={event.dueDate?.toISOString().split('T')[0]}
-                          category={event.category}
-                          isCompleted={event.isCompleted}
-                          isOverdue={event.isOverdue}
-                          isRecurring={event.isRecurring}
-                          status={event.status}
-                          primaryOwnerName={event.primaryOwnerName}
-                          secondaryOwnerName={event.secondaryOwnerName}
-                          onClick={() => onItemClick?.(event)}
-                          size="medium"
-                        />
-                      </div>
-                    ))}
-                  </div>
+                <div className="space-y-1">
+                  {dayEvents.map(event => (
+                    <div key={event.id} data-calendar-item-id={event.id}>
+                      <CalendarItem
+                        entityType={event.entityType}
+                        id={event.id}
+                        title={event.title}
+                        startTime={event.startTime?.toISOString()}
+                        dueDate={event.dueDate?.toISOString().split('T')[0]}
+                        category={event.category}
+                        isCompleted={event.isCompleted}
+                        isOverdue={event.entityType === 'task' ? event.isOverdue : false}
+                        isRecurring={event.isRecurring}
+                        status={event.status}
+                        primaryOwnerName={event.primaryOwnerName}
+                        secondaryOwnerName={event.secondaryOwnerName}
+                        onClick={() => onItemClick?.(event)}
+                        size="small"
+                        hideCategory={true}
+                      />
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           );
