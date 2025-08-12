@@ -149,6 +149,7 @@ export function TaskFilters({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="default">Default (Status → Due Date → Priority → Title)</SelectItem>
               <SelectItem value="status">Status</SelectItem>
               <SelectItem value="due_date">Due Date</SelectItem>
               <SelectItem value="priority">Priority</SelectItem>

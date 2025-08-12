@@ -81,22 +81,31 @@ export function TaskList({ groupId, sortBy, filters, hideCompleted, searchQuery 
         query = query.or(`title.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%`);
       }
 
-      // Apply sorting
-      switch (sortBy) {
-        case "status":
-          query = query.order("status", { ascending: true });
-          break;
-        case "due_date":
-          query = query.order("due_date", { ascending: true, nullsFirst: false });
-          break;
-        case "priority":
-          query = query.order("priority", { ascending: false });
-          break;
-        case "title":
-          query = query.order("title", { ascending: true });
-          break;
-        default:
-          query = query.order("created_at", { ascending: false });
+      // Apply default sorting: Status (Open→InProgress→Completed), then Due Date asc, Priority High→Low, Title
+      if (sortBy === "default") {
+        // Custom status ordering with CASE for proper Open→InProgress→Completed order
+        query = query.order("status", { ascending: true })
+                     .order("due_date", { ascending: true, nullsFirst: false })
+                     .order("priority", { ascending: false })
+                     .order("title", { ascending: true });
+      } else {
+        // Apply individual sorts
+        switch (sortBy) {
+          case "status":
+            query = query.order("status", { ascending: true });
+            break;
+          case "due_date":
+            query = query.order("due_date", { ascending: true, nullsFirst: false });
+            break;
+          case "priority":
+            query = query.order("priority", { ascending: false });
+            break;
+          case "title":
+            query = query.order("title", { ascending: true });
+            break;
+          default:
+            query = query.order("created_at", { ascending: false });
+        }
       }
 
       const { data, error } = await query;

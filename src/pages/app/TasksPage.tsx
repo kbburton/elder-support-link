@@ -6,14 +6,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import SharedCalendar from "@/components/calendar/SharedCalendar";
 import { TaskList } from "@/components/tasks/TaskList";
 import { TaskFilters } from "@/components/tasks/TaskFilters";
+import { TaskModal } from "@/components/tasks/TaskModal";
 import { Plus } from "lucide-react";
 
 const TasksPage = () => {
   const { groupId } = useParams<{ groupId: string }>();
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [sortBy, setSortBy] = useState("created_at");
+  const [sortBy, setSortBy] = useState("default"); // Default to combined sort
   const [searchQuery, setSearchQuery] = useState("");
   const [hideCompleted, setHideCompleted] = useState(false);
+  const [showTaskModal, setShowTaskModal] = useState(false);
   const [filters, setFilters] = useState({
     status: [] as string[],
     assignee: undefined,
@@ -33,7 +35,10 @@ const TasksPage = () => {
       
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Task Center</h2>
-        <Button variant="hero">
+        <Button 
+          variant="hero"
+          onClick={() => setShowTaskModal(true)}
+        >
           <Plus className="h-4 w-4 mr-2" />
           New task
         </Button>
@@ -78,6 +83,14 @@ const TasksPage = () => {
           />
         </TabsContent>
       </Tabs>
+      
+      {/* New Task Modal */}
+      <TaskModal
+        task={null}
+        isOpen={showTaskModal}
+        onClose={() => setShowTaskModal(false)}
+        groupId={groupId}
+      />
     </div>
   );
 };
