@@ -12,6 +12,7 @@ import { toast } from "@/hooks/use-toast";
 import SEO from "@/components/layout/SEO";
 import { TaskAppointmentDocumentLinker } from "@/components/documents/TaskAppointmentDocumentLinker";
 import ContactMultiSelect from "@/components/contacts/ContactMultiSelect";
+import { useContactLinkOperations } from "@/hooks/useContactLinkOperations";
 const sb = supabase as any;
 export type CrudField = {
   name: string;
@@ -66,6 +67,7 @@ function fromInputDateTime(value: string) {
 }
 
 export default function CrudPage({ config }: { config: CrudConfig }) {
+  const { persistContactLinks } = useContactLinkOperations();
   const { groupId } = useParams();
   const qc = useQueryClient();
   const idField = config.idField ?? "id";
@@ -516,6 +518,7 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
                   <ContactMultiSelect
                     selectedContactIds={relatedContacts}
                     onSelectionChange={setRelatedContacts}
+                    entityType={config.table as "appointments" | "tasks" | "activity_logs" | "documents"}
                     placeholder="Select related contacts..."
                   />
                 ) : (
