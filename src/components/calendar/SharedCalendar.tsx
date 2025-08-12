@@ -43,6 +43,8 @@ interface CalendarEvent {
   description?: string;
   createdBy?: string;
   isRecurring?: boolean;
+  primaryOwnerName?: string;
+  secondaryOwnerName?: string;
 }
 
 export default function SharedCalendar({
@@ -78,7 +80,7 @@ export default function SharedCalendar({
     }
   });
 
-  // Fetch tasks with recurrence rules
+  // Fetch tasks with recurrence rules and owner names
   const { data: tasks = [] } = useQuery({
     queryKey: ['tasks', groupId],
     queryFn: async () => {
@@ -89,7 +91,9 @@ export default function SharedCalendar({
           task_recurrence_rules (
             id,
             pattern_type
-          )
+          ),
+          primary_owner:profiles!tasks_primary_owner_id_fkey(first_name, last_name),
+          secondary_owner:profiles!tasks_secondary_owner_id_fkey(first_name, last_name)
         `)
         .eq('group_id', groupId)
         .order('created_at', { ascending: false });
@@ -124,7 +128,9 @@ export default function SharedCalendar({
       isOverdue: task.due_date && task.status !== 'Completed' ? isBefore(new Date(task.due_date), new Date()) : false,
       description: task.description,
       createdBy: task.created_by_email,
-      isRecurring: task.task_recurrence_rules && task.task_recurrence_rules.length > 0
+      isRecurring: task.task_recurrence_rules && task.task_recurrence_rules.length > 0,
+      primaryOwnerName: task.primary_owner ? `${task.primary_owner.first_name || ''} ${task.primary_owner.last_name || ''}`.trim() : undefined,
+      secondaryOwnerName: task.secondary_owner ? `${task.secondary_owner.first_name || ''} ${task.secondary_owner.last_name || ''}`.trim() : undefined
     }))
   ];
 
@@ -161,6 +167,14 @@ export default function SharedCalendar({
     setSelectedTask(null);
     // Invalidate queries to refresh the calendar
     queryClient.invalidateQueries({ queryKey: ['tasks', groupId] });
+    
+    // Return focus to the last focused calendar item
+    setTimeout(() => {
+      const focusTarget = document.querySelector(`[data-calendar-item-id="${selectedTask?.id}"]`) as HTMLElement;
+      if (focusTarget) {
+        focusTarget.focus();
+      }
+    }, 100);
   };
 
   return (

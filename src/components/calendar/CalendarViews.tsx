@@ -19,6 +19,8 @@ interface CalendarEvent {
   description?: string;
   createdBy?: string;
   isRecurring?: boolean;
+  primaryOwnerName?: string;
+  secondaryOwnerName?: string;
 }
 
 interface CalendarViewsProps {
@@ -126,33 +128,37 @@ function MonthView({ selectedDate, events, onNavigatePrevious, onNavigateNext, g
               <div className={`text-sm mb-1 ${isToday(day) ? 'font-bold text-primary' : ''}`}>
                 {format(day, 'd')}
               </div>
-              <div className="space-y-1">
+               <div className="space-y-1">
                   {dayEvents.slice(0, 3).map(event => (
-                    <CalendarItem
-                      key={event.id}
-                      entityType={event.entityType}
-                      id={event.id}
-                      title={event.title}
-                      startTime={event.startTime?.toISOString()}
-                      dueDate={event.dueDate?.toISOString().split('T')[0]}
-                      category={event.category}
-                      isCompleted={event.isCompleted}
-                      isOverdue={event.isOverdue}
-                      isRecurring={event.isRecurring}
-                      onClick={() => {
-                        if (event.entityType === 'task' && onTaskClick) {
-                          onTaskClick(event.id);
-                        }
-                      }}
-                      size="small"
-                    />
+                    <div key={event.id} data-calendar-item-id={event.id}>
+                      <CalendarItem
+                        entityType={event.entityType}
+                        id={event.id}
+                        title={event.title}
+                        startTime={event.startTime?.toISOString()}
+                        dueDate={event.dueDate?.toISOString().split('T')[0]}
+                        category={event.category}
+                        isCompleted={event.isCompleted}
+                        isOverdue={event.isOverdue}
+                        isRecurring={event.isRecurring}
+                        status={event.status}
+                        primaryOwnerName={event.primaryOwnerName}
+                        secondaryOwnerName={event.secondaryOwnerName}
+                        onClick={() => {
+                          if (event.entityType === 'task' && onTaskClick) {
+                            onTaskClick(event.id);
+                          }
+                        }}
+                        size="small"
+                      />
+                    </div>
                   ))}
                   {dayEvents.length > 3 && (
                     <div className="text-xs text-muted-foreground">
                       +{dayEvents.length - 3} more
                     </div>
                   )}
-              </div>
+               </div>
             </div>
           );
         })}
@@ -204,24 +210,28 @@ function WeekView({ selectedDate, events, onNavigatePrevious, onNavigateNext, gr
                 </div>
                   <div className="space-y-2">
                     {dayEvents.map(event => (
-                      <CalendarItem
-                        key={event.id}
-                        entityType={event.entityType}
-                        id={event.id}
-                        title={event.title}
-                        startTime={event.startTime?.toISOString()}
-                        dueDate={event.dueDate?.toISOString().split('T')[0]}
-                        category={event.category}
-                        isCompleted={event.isCompleted}
-                        isOverdue={event.isOverdue}
-                        isRecurring={event.isRecurring}
-                        onClick={() => {
-                          if (event.entityType === 'task' && onTaskClick) {
-                            onTaskClick(event.id);
-                          }
-                        }}
-                        size="medium"
-                      />
+                      <div key={event.id} data-calendar-item-id={event.id}>
+                        <CalendarItem
+                          entityType={event.entityType}
+                          id={event.id}
+                          title={event.title}
+                          startTime={event.startTime?.toISOString()}
+                          dueDate={event.dueDate?.toISOString().split('T')[0]}
+                          category={event.category}
+                          isCompleted={event.isCompleted}
+                          isOverdue={event.isOverdue}
+                          isRecurring={event.isRecurring}
+                          status={event.status}
+                          primaryOwnerName={event.primaryOwnerName}
+                          secondaryOwnerName={event.secondaryOwnerName}
+                          onClick={() => {
+                            if (event.entityType === 'task' && onTaskClick) {
+                              onTaskClick(event.id);
+                            }
+                          }}
+                          size="medium"
+                        />
+                      </div>
                     ))}
                   </div>
               </CardContent>
@@ -269,27 +279,31 @@ function DayView({ selectedDate, events, onNavigatePrevious, onNavigateNext, gro
           ) : (
             <div className="space-y-3">
               {dayEvents.map(event => (
-                <CalendarItem
-                  key={event.id}
-                  entityType={event.entityType}
-                  id={event.id}
-                  title={event.title}
-                  startTime={event.startTime?.toISOString()}
-                  dueDate={event.dueDate?.toISOString().split('T')[0]}
-                  category={event.category}
-                  isCompleted={event.isCompleted}
-                  isOverdue={event.isOverdue}
-                  isRecurring={event.isRecurring}
-                  onClick={() => {
-                    if (event.entityType === 'task' && onTaskClick) {
-                      onTaskClick(event.id);
-                    }
-                  }}
-                  size="large"
-                  showDetails={true}
-                  location={event.location}
-                  created_by_email={event.createdBy}
-                />
+                <div key={event.id} data-calendar-item-id={event.id}>
+                  <CalendarItem
+                    entityType={event.entityType}
+                    id={event.id}
+                    title={event.title}
+                    startTime={event.startTime?.toISOString()}
+                    dueDate={event.dueDate?.toISOString().split('T')[0]}
+                    category={event.category}
+                    isCompleted={event.isCompleted}
+                    isOverdue={event.isOverdue}
+                    isRecurring={event.isRecurring}
+                    status={event.status}
+                    primaryOwnerName={event.primaryOwnerName}
+                    secondaryOwnerName={event.secondaryOwnerName}
+                    onClick={() => {
+                      if (event.entityType === 'task' && onTaskClick) {
+                        onTaskClick(event.id);
+                      }
+                    }}
+                    size="large"
+                    showDetails={true}
+                    location={event.location}
+                    created_by_email={event.createdBy}
+                  />
+                </div>
               ))}
             </div>
           )}
@@ -320,27 +334,31 @@ function ListView({ events, groupId, onTaskClick }: { events: CalendarEvent[]; g
           ) : (
             <div className="space-y-3">
               {sortedEvents.map(event => (
-                <CalendarItem
-                  key={event.id}
-                  entityType={event.entityType}
-                  id={event.id}
-                  title={event.title}
-                  startTime={event.startTime?.toISOString()}
-                  dueDate={event.dueDate?.toISOString().split('T')[0]}
-                  category={event.category}
-                  isCompleted={event.isCompleted}
-                  isOverdue={event.isOverdue}
-                  isRecurring={event.isRecurring}
-                  onClick={() => {
-                    if (event.entityType === 'task' && onTaskClick) {
-                      onTaskClick(event.id);
-                    }
-                  }}
-                  size="large"
-                  showDetails={true}
-                  location={event.location}
-                  created_by_email={event.createdBy}
-                />
+                <div key={event.id} data-calendar-item-id={event.id}>
+                  <CalendarItem
+                    entityType={event.entityType}
+                    id={event.id}
+                    title={event.title}
+                    startTime={event.startTime?.toISOString()}
+                    dueDate={event.dueDate?.toISOString().split('T')[0]}
+                    category={event.category}
+                    isCompleted={event.isCompleted}
+                    isOverdue={event.isOverdue}
+                    isRecurring={event.isRecurring}
+                    status={event.status}
+                    primaryOwnerName={event.primaryOwnerName}
+                    secondaryOwnerName={event.secondaryOwnerName}
+                    onClick={() => {
+                      if (event.entityType === 'task' && onTaskClick) {
+                        onTaskClick(event.id);
+                      }
+                    }}
+                    size="large"
+                    showDetails={true}
+                    location={event.location}
+                    created_by_email={event.createdBy}
+                  />
+                </div>
               ))}
             </div>
           )}

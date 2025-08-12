@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { Clock, CheckSquare } from "lucide-react";
+import { Clock, CheckSquare, Users, Calendar as CalendarIcon } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
 export type CalendarItemProps = {
@@ -15,6 +15,9 @@ export type CalendarItemProps = {
   isRecurring?: boolean;
   location?: string | null;
   created_by_email?: string | null;
+  status?: string;
+  primaryOwnerName?: string;
+  secondaryOwnerName?: string;
   onClick: () => void;
   className?: string;
   size?: "small" | "medium" | "large";
@@ -43,6 +46,9 @@ export function CalendarItem({
   isRecurring = false,
   location,
   created_by_email,
+  status,
+  primaryOwnerName,
+  secondaryOwnerName,
   onClick,
   className,
   size = "medium",
@@ -72,6 +78,57 @@ export function CalendarItem({
       return `Due: ${format(new Date(dueDate), "MMM d")}`;
     }
     return "";
+  };
+
+  const buildTooltipText = () => {
+    const parts = [];
+    
+    // Title and type
+    parts.push(`${title} (${entityType === 'appointment' ? 'Appointment' : 'Task'})`);
+    
+    // Time/Date info
+    if (entityType === "appointment" && startTime) {
+      parts.push(`📅 ${format(parseISO(startTime), "PPP 'at' p")}`);
+    }
+    if (entityType === "task" && dueDate) {
+      parts.push(`⏰ Due: ${format(new Date(dueDate), "PPP")}`);
+    }
+    
+    // Status for tasks
+    if (entityType === "task" && status) {
+      parts.push(`📋 Status: ${status}`);
+    }
+    
+    // Location for appointments
+    if (location) {
+      parts.push(`📍 ${location}`);
+    }
+    
+    // Owners
+    const owners = [];
+    if (primaryOwnerName) owners.push(primaryOwnerName);
+    if (secondaryOwnerName) owners.push(secondaryOwnerName);
+    if (owners.length > 0) {
+      parts.push(`👤 ${owners.join(", ")}`);
+    }
+    
+    // Category
+    if (category) {
+      parts.push(`🏷️ ${category}`);
+    }
+    
+    // Special indicators
+    if (isRecurring && entityType === "task") {
+      parts.push("🔄 Recurring");
+    }
+    if (isOverdue) {
+      parts.push("⚠️ Overdue");
+    }
+    if (isCompleted) {
+      parts.push(`✅ ${entityType === 'appointment' ? 'Recorded' : 'Completed'}`);
+    }
+    
+    return parts.join("\n");
   };
 
   const sizeClasses = {
@@ -108,7 +165,9 @@ export function CalendarItem({
         e.preventDefault();
         onClick();
       }}
-      title={`${title}${formatTime() ? ` • ${formatTime()}` : ''}${location ? ` • ${location}` : ''}${created_by_email ? ` • Created by ${created_by_email}` : ''}`}
+      title={buildTooltipText()}
+      aria-label={buildTooltipText().replace(/\n/g, ". ")}
+      aria-describedby={`calendar-item-${id}`}
     >
       <div className="flex items-center gap-1">
         {entityType === "appointment" ? (
