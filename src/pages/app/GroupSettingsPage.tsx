@@ -22,6 +22,7 @@ const GroupSchema = z.object({
   recipient_state: z.string().optional(),
   recipient_zip: z.string().optional(),
   recipient_phone: z.string().optional(),
+  recipient_email: z.string().email("Invalid email address").optional().or(z.literal("")),
   date_of_birth: z.string().optional(),
   profile_description: z.string().optional(),
   other_important_information: z.string().optional(),
@@ -43,6 +44,7 @@ export default function GroupSettingsPage() {
       recipient_state: "",
       recipient_zip: "",
       recipient_phone: "",
+      recipient_email: "",
       date_of_birth: "",
       profile_description: "",
       other_important_information: "",
@@ -56,7 +58,7 @@ export default function GroupSettingsPage() {
       const { data, error } = await supabase
         .from("care_groups")
         .select(
-          "name, recipient_address, recipient_city, recipient_state, recipient_zip, recipient_phone, date_of_birth, profile_description, other_important_information"
+          "name, recipient_address, recipient_city, recipient_state, recipient_zip, recipient_phone, recipient_email, date_of_birth, profile_description, other_important_information"
         )
         .eq("id", groupId)
         .single();
@@ -74,6 +76,7 @@ export default function GroupSettingsPage() {
         recipient_state: data.recipient_state ?? "",
         recipient_zip: data.recipient_zip ?? "",
         recipient_phone: data.recipient_phone ?? "",
+        recipient_email: (data as any).recipient_email ?? "",
         date_of_birth: data.date_of_birth ?? "",
         profile_description: data.profile_description ?? "",
         other_important_information: (data as any).other_important_information ?? "",
@@ -230,7 +233,7 @@ const handleSignOut = async () => {
                   )}
                 />
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <FormField
                     control={form.control}
                     name="recipient_phone"
@@ -239,6 +242,20 @@ const handleSignOut = async () => {
                         <FormLabel>Phone</FormLabel>
                         <FormControl>
                           <Input placeholder="(555) 555-5555" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="recipient_email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input type="email" placeholder="example@email.com" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

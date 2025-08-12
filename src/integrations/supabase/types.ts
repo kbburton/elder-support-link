@@ -369,6 +369,7 @@ export type Database = {
           profile_description: string | null
           recipient_address: string | null
           recipient_city: string | null
+          recipient_email: string | null
           recipient_first_name: string | null
           recipient_last_name: string | null
           recipient_phone: string | null
@@ -393,6 +394,7 @@ export type Database = {
           profile_description?: string | null
           recipient_address?: string | null
           recipient_city?: string | null
+          recipient_email?: string | null
           recipient_first_name?: string | null
           recipient_last_name?: string | null
           recipient_phone?: string | null
@@ -417,6 +419,7 @@ export type Database = {
           profile_description?: string | null
           recipient_address?: string | null
           recipient_city?: string | null
+          recipient_email?: string | null
           recipient_first_name?: string | null
           recipient_last_name?: string | null
           recipient_phone?: string | null
