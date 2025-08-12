@@ -146,10 +146,6 @@ export default function SharedCalendar({
     return true;
   });
 
-  const handleTodayClick = () => {
-    onSelectedDateChange(new Date());
-    setActiveView('day');
-  };
 
   const handleDateSelect = (date: Date | undefined) => {
     if (date) {
@@ -209,17 +205,7 @@ export default function SharedCalendar({
   return (
     <div className="space-y-6">
       {(activeView === 'day' || view === 'day') && (
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={handleTodayClick}
-            >
-              Today
-            </Button>
-          </div>
-
+        <div className="flex items-center justify-end">
           {/* Big date picker */}
           <Popover>
             <PopoverTrigger asChild>
