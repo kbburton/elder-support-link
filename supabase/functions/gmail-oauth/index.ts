@@ -150,8 +150,8 @@ serve(async (req: Request) => {
 
       console.log('User email:', user.email);
       
-      // Check if user is platform admin (specifically kbburton3@gmail.com)
-      if (user.email !== 'kbburton3@gmail.com') {
+      // Check if user is platform admin (specifically noreply@burtontechservices.com)
+      if (user.email !== 'noreply@burtontechservices.com') {
         console.log('Returning 403: Not platform admin, user is:', user.email);
         return new Response(JSON.stringify({ 
           error: 'Platform admin access required',
@@ -280,7 +280,7 @@ serve(async (req: Request) => {
       const token = authHeader.split(' ')[1];
       const { data: { user }, error } = await supabase.auth.getUser(token);
       
-      if (error || !user || user.email !== 'kbburton3@gmail.com') {
+      if (error || !user || user.email !== 'noreply@burtontechservices.com') {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), {
           status: 401,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }

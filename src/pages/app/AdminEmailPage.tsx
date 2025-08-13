@@ -18,7 +18,7 @@ const AdminEmailPage = () => {
   const [disconnecting, setDisconnecting] = useState(false);
   const { isPlatformAdmin, isLoading: adminLoading } = usePlatformAdmin();
 
-  const gmailFrom = 'kbburton3@gmail.com'; // This should match GMAIL_FROM secret
+  const gmailFrom = 'noreply@burtontechservices.com'; // This should match GMAIL_FROM secret
 
   useEffect(() => {
     checkConnection();
