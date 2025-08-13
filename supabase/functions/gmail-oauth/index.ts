@@ -68,23 +68,35 @@ serve(async (req: Request) => {
     if (path === '/start') {
       console.log('Processing /start path');
       
-      // Verify user is authenticated and is platform admin
-      const authHeader = req.headers.get('Authorization');
-      console.log('Auth header present:', !!authHeader);
+      let authToken = null;
       
-      if (!authHeader?.startsWith('Bearer ')) {
-        console.log('Returning 401: No valid auth header');
-        return new Response(JSON.stringify({ error: 'Unauthorized - no bearer token' }), {
+      // Handle both GET (with Authorization header) and POST (with form data)
+      if (req.method === 'GET') {
+        const authHeader = req.headers.get('Authorization');
+        console.log('GET request - Auth header present:', !!authHeader);
+        
+        if (authHeader?.startsWith('Bearer ')) {
+          authToken = authHeader.split(' ')[1];
+        }
+      } else if (req.method === 'POST') {
+        console.log('POST request - Reading form data');
+        const formData = await req.formData();
+        authToken = formData.get('auth_token')?.toString();
+        console.log('POST request - Token from form:', !!authToken);
+      }
+      
+      if (!authToken) {
+        console.log('Returning 401: No valid auth token');
+        return new Response(JSON.stringify({ error: 'Unauthorized - no token provided' }), {
           status: 401,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
-      const token = authHeader.split(' ')[1];
-      console.log('Token extracted, length:', token?.length);
+      console.log('Token extracted, length:', authToken?.length);
       
       console.log('Calling supabase.auth.getUser...');
-      const { data: { user }, error } = await supabase.auth.getUser(token);
+      const { data: { user }, error } = await supabase.auth.getUser(authToken);
       console.log('getUser result:', { 
         userEmail: user?.email, 
         hasUser: !!user,
