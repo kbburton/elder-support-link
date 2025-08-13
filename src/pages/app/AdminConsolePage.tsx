@@ -133,6 +133,12 @@ const AdminConsolePage = () => {
               <CardContent className="text-muted-foreground">Monitor search indexing</CardContent>
             </Card>
           </Link>
+          <Link to={`${base}/email`}>
+            <Card className="h-full hover:bg-muted/50 transition-colors">
+              <CardHeader><CardTitle>Email Configuration</CardTitle></CardHeader>
+              <CardContent className="text-muted-foreground">Configure Gmail API</CardContent>
+            </Card>
+          </Link>
         </div>
       </div>
     </div>

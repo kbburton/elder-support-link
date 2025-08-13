@@ -215,18 +215,29 @@ async function handleImmediateNotification(body: ImmediatePayload, supabase: any
     recipients: emails.map(e => e.email)
   });
 
-  // 4) Send emails (individually to avoid exposing addresses)
+  // 4) Send emails using Gmail API (individually to avoid exposing addresses)
   const results = await Promise.allSettled(
     emails.map(async (e) => {
       console.log(`📤 Sending email to: ${e.email}`);
-      const result = await resend.emails.send({
-        from: "DaveAssist <onboarding@resend.dev>",
-        to: [e.email],
-        subject,
-        html,
+      
+      // Call Gmail send function
+      const response = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/gmail-send`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: e.email,
+          subject,
+          html,
+          groupId: body.group_id
+        }),
       });
+
+      const result = await response.json();
       console.log(`📬 Email result for ${e.email}:`, result);
-      return result;
+      return { status: result.success ? 'fulfilled' : 'rejected', value: result, reason: result.error };
     })
   );
 

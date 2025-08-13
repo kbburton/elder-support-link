@@ -34,6 +34,7 @@ import ContactsImportPage from "./pages/app/ContactsImportPage";
 import SearchJobsPage from "./pages/app/SearchJobsPage";
 import CreateGroupPage from "./pages/app/CreateGroupPage";
 import FeedbackPage from "./pages/app/FeedbackPage";
+import AdminEmailPage from "./pages/app/AdminEmailPage";
 const queryClient = new QueryClient();
 const App = () => (
   <HelmetProvider>
@@ -75,6 +76,7 @@ const App = () => (
               <Route path="admin/documents" element={<DocumentsCrud />} />
               <Route path="admin/activity-logs" element={<ActivityLogsCrud />} />
               <Route path="admin/search-jobs" element={<SearchJobsPage />} />
+              <Route path="admin/email" element={<AdminEmailPage />} />
             </Route>
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
