@@ -66,6 +66,7 @@ const Register = () => {
       }
       navigate("/login", { replace: true });
     } catch (err: any) {
+      console.error('Registration error:', err);
       toast({ title: "Registration failed", description: err?.message || "Please try again." });
     } finally {
       setLoading(false);
