@@ -150,12 +150,18 @@ serve(async (req: Request) => {
 
       console.log('User email:', user.email);
       
-      // Check if user is platform admin (specifically noreply@burtontechservices.com)
-      if (user.email !== 'noreply@burtontechservices.com') {
+      // Check if user is platform admin using the database
+      const { data: platformAdmin, error: adminError } = await supabase
+        .from('platform_admins')
+        .select('user_id')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (adminError || !platformAdmin) {
         console.log('Returning 403: Not platform admin, user is:', user.email);
         return new Response(JSON.stringify({ 
           error: 'Platform admin access required',
-          details: `User ${user.email} is not authorized` 
+          details: `User ${user.email} is not authorized for platform administration` 
         }), {
           status: 403,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -280,8 +286,22 @@ serve(async (req: Request) => {
       const token = authHeader.split(' ')[1];
       const { data: { user }, error } = await supabase.auth.getUser(token);
       
-      if (error || !user || user.email !== 'noreply@burtontechservices.com') {
+      if (error || !user) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Check if user is platform admin using the database
+      const { data: platformAdmin, error: adminError } = await supabase
+        .from('platform_admins')
+        .select('user_id')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (adminError || !platformAdmin) {
+        return new Response(JSON.stringify({ error: 'Unauthorized - Platform admin required' }), {
           status: 401,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
