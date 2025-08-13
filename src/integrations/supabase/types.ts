@@ -213,6 +213,7 @@ export type Database = {
           created_by_user_id: string | null
           date_time: string
           description: string | null
+          duration_minutes: number | null
           group_id: string | null
           id: string
           location: string | null
@@ -227,6 +228,7 @@ export type Database = {
           created_by_user_id?: string | null
           date_time: string
           description?: string | null
+          duration_minutes?: number | null
           group_id?: string | null
           id?: string
           location?: string | null
@@ -241,6 +243,7 @@ export type Database = {
           created_by_user_id?: string | null
           date_time?: string
           description?: string | null
+          duration_minutes?: number | null
           group_id?: string | null
           id?: string
           location?: string | null

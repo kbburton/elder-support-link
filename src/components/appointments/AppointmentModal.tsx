@@ -18,6 +18,7 @@ import { triggerReindex } from "@/utils/reindex";
 interface Appointment {
   id: string;
   date_time: string;
+  duration_minutes?: number;
   location?: string;
   category?: string;
   description?: string;
@@ -40,6 +41,7 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState({
     date_time: "",
+    duration_minutes: 60,
     location: "",
     category: "",
     description: "",
@@ -101,6 +103,7 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
       console.log('Setting appointment form data:', appointment.date_time);
       setFormData({
         date_time: appointment.date_time ? format(parseISO(appointment.date_time), "yyyy-MM-dd'T'HH:mm") : "",
+        duration_minutes: appointment.duration_minutes || 60,
         location: appointment.location || "",
         category: appointment.category || "",
         description: appointment.description || "",
@@ -111,6 +114,7 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
     } else {
       setFormData({
         date_time: "",
+        duration_minutes: 60,
         location: "",
         category: "",
         description: "",
@@ -271,6 +275,29 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
               />
             </div>
 
+            <div>
+              <Label htmlFor="duration_minutes">Duration (minutes)</Label>
+              <Select 
+                value={formData.duration_minutes.toString()} 
+                onValueChange={(value) => setFormData({ ...formData, duration_minutes: parseInt(value) })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="15">15 minutes</SelectItem>
+                  <SelectItem value="30">30 minutes</SelectItem>
+                  <SelectItem value="45">45 minutes</SelectItem>
+                  <SelectItem value="60">1 hour</SelectItem>
+                  <SelectItem value="90">1.5 hours</SelectItem>
+                  <SelectItem value="120">2 hours</SelectItem>
+                  <SelectItem value="180">3 hours</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="location">Location</Label>
               <Input

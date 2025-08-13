@@ -52,6 +52,7 @@ export default function AppointmentsCrud() {
     groupScoped: true,
     fields: [
       { name: "date_time", label: "Date/Time", type: "datetime" },
+      { name: "duration_minutes", label: "Duration (minutes)", type: "number" },
       { name: "location", label: "Location" },
       { name: "category", label: "Category" },
       { name: "description", label: "Description", type: "textarea" },
