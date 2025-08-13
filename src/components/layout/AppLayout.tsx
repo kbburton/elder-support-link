@@ -9,18 +9,28 @@ const AppLayout = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) {
+    const checkAuth = async () => {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      console.log('AppLayout session check:', { hasSession: !!session, error, userId: session?.user?.id });
+      
+      if (!session && !error) {
+        console.log('No session found, redirecting to login');
+        toast({ title: "Session required", description: "Please log in again." });
+        navigate("/login", { replace: true });
+      }
+    };
+
+    checkAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth state change:', { event, hasSession: !!session, userId: session?.user?.id });
+      
+      if (!session && event !== 'INITIAL_SESSION') {
         toast({ title: "Session expired", description: "Please log in again." });
         navigate("/login", { replace: true });
       }
     });
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        toast({ title: "Session required", description: "Please log in again." });
-        navigate("/login", { replace: true });
-      }
-    });
+
     return () => {
       subscription?.unsubscribe();
     };
