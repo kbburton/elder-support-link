@@ -18,6 +18,10 @@ const AdminEmailPage = () => {
   const [disconnecting, setDisconnecting] = useState(false);
   const { isPlatformAdmin, isLoading: adminLoading } = usePlatformAdmin();
 
+  console.log('AdminEmailPage rendered');
+  console.log('Current search params:', Object.fromEntries(searchParams));
+  console.log('Window location:', window.location.href);
+
   const gmailFrom = 'noreply@burtontechservices.com'; // This will be loaded from GMAIL_FROM secret
 
   useEffect(() => {
