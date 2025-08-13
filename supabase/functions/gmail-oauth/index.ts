@@ -148,8 +148,8 @@ serve(async (req: Request) => {
 
       console.log('User authorized, building OAuth URL...');
       
-      // Build OAuth URL
-      const baseUrl = `${url.protocol}//${url.host}`;
+      // Build OAuth URL with HTTPS
+      const baseUrl = 'https://yfwgegapmggwywrnzqvg.functions.supabase.co';
       const redirectUri = `${baseUrl}/gmail-oauth/callback`;
       console.log('Base URL:', baseUrl);
       console.log('Redirect URI:', redirectUri);
@@ -186,7 +186,7 @@ serve(async (req: Request) => {
       }
 
       // Exchange code for tokens
-      const baseUrl = `${url.protocol}//${url.host}`;
+      const baseUrl = 'https://yfwgegapmggwywrnzqvg.functions.supabase.co';
       const redirectUri = `${baseUrl}/gmail-oauth/callback`;
 
       console.log('Exchanging code for tokens...');
