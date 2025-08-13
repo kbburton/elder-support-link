@@ -186,8 +186,9 @@ serve(async (req: Request) => {
       oauthUrl.searchParams.set('response_type', 'code');
       oauthUrl.searchParams.set('access_type', 'offline');
       oauthUrl.searchParams.set('prompt', 'consent');
-      // Store group ID in state parameter for callback
-      oauthUrl.searchParams.set('state', groupId);
+      // Store both group ID and origin domain in state parameter for callback
+      const originDomain = req.headers.get('referer') ? new URL(req.headers.get('referer')!).origin : 'https://yfwgegapmggwywrnzqvg.lovableproject.com';
+      oauthUrl.searchParams.set('state', JSON.stringify({ groupId, originDomain }));
 
       console.log('Final OAuth URL:', oauthUrl.toString());
       console.log('Returning 302 redirect...');
@@ -204,9 +205,24 @@ serve(async (req: Request) => {
     if (path === '/callback') {
       console.log('Processing /callback path');
       const code = url.searchParams.get('code');
-      const state = url.searchParams.get('state') || 'demo'; // group ID from state parameter
+      const stateParam = url.searchParams.get('state');
       
-      console.log('Callback with group ID:', state);
+      // Parse state parameter
+      let groupId = 'demo';
+      let originDomain = 'https://yfwgegapmggwywrnzqvg.lovableproject.com';
+      
+      if (stateParam) {
+        try {
+          const stateData = JSON.parse(stateParam);
+          groupId = stateData.groupId || 'demo';
+          originDomain = stateData.originDomain || 'https://yfwgegapmggwywrnzqvg.lovableproject.com';
+        } catch {
+          // If parsing fails, treat as simple groupId string (fallback)
+          groupId = stateParam;
+        }
+      }
+      
+      console.log('Callback with group ID:', groupId, 'and origin:', originDomain);
       
       if (!code) {
         console.log('No authorization code in callback');
@@ -268,10 +284,8 @@ serve(async (req: Request) => {
       }
 
       // Redirect back to admin page with success message
-      // Determine the correct app domain - never use edge function domains
-      const referer = req.headers.get('referer');
-      const appDomain = referer ? new URL(referer).origin : 'https://yfwgegapmggwywrnzqvg.lovableproject.com';
-      const adminUrl = `${appDomain}/app/${state}/admin/email?connected=true`;
+      // Use the stored origin domain from the state parameter
+      const adminUrl = `${originDomain}/app/${groupId}/admin/email?connected=true`;
       console.log('Redirecting to:', adminUrl);
       
       return new Response(null, {
