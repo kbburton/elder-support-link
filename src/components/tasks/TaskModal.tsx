@@ -116,57 +116,36 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
   }, []);
 
   // Get group members for assignee options
-  const { data: groupMembers = [], isLoading: isLoadingMembers, error: membersError } = useQuery({
+  const { data: groupMembers = [] } = useQuery({
     queryKey: ["groupMembers", groupId],
     queryFn: async () => {
-      console.log('🔍 Fetching group members for group:', groupId);
       const { data, error } = await supabase
         .from("care_group_members")
         .select("user_id")
         .eq("group_id", groupId);
 
-      if (error) {
-        console.error('❌ Error fetching group members:', error);
-        throw error;
-      }
+      if (error) throw error;
       
-      console.log('👥 Raw group members data:', data);
-      
-      if (!data?.length) {
-        console.warn('⚠️ No group members found');
-        return [];
-      }
+      if (!data?.length) return [];
       
       const userIds = data.map(m => m.user_id);
-      console.log('🆔 User IDs to fetch profiles for:', userIds);
-      
       const { data: profiles, error: profileError } = await supabase
         .from("profiles")
         .select("user_id, email, first_name, last_name")
         .in("user_id", userIds);
         
-      if (profileError) {
-        console.error('❌ Error fetching profiles:', profileError);
-        throw profileError;
-      }
+      if (profileError) throw profileError;
       
-      console.log('👤 Raw profiles data:', profiles);
-      
-      const result = profiles?.map(profile => {
+      return profiles?.map(profile => {
         const firstName = profile.first_name || "";
         const lastName = profile.last_name || "";
         const fullName = `${firstName} ${lastName}`.trim();
-        const memberData = {
+        return {
           id: profile.user_id,
           email: profile.email || "",
           name: fullName || profile.email || "Unknown User"
         };
-        console.log('🏷️ Processed member:', memberData);
-        return memberData;
       }) || [];
-      
-      console.log('✅ Final group members result:', result);
-      return result;
     },
     enabled: !!groupId,
   });
@@ -507,19 +486,11 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
                   <SelectValue placeholder="Select primary owner" />
                 </SelectTrigger>
                 <SelectContent>
-                  {isLoadingMembers ? (
-                    <SelectItem value="" disabled>Loading members...</SelectItem>
-                  ) : membersError ? (
-                    <SelectItem value="" disabled>Error loading members</SelectItem>
-                  ) : !groupMembers || groupMembers.length === 0 ? (
-                    <SelectItem value="" disabled>No members found</SelectItem>
-                  ) : (
-                    groupMembers.map((member) => (
-                      <SelectItem key={member.id} value={member.id}>
-                        {member.name} ({member.email})
-                      </SelectItem>
-                    ))
-                  )}
+                  {groupMembers.map((member) => (
+                    <SelectItem key={member.id} value={member.id}>
+                      {member.name} ({member.email})
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -534,19 +505,11 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
                   <SelectValue placeholder="Select secondary owner" />
                 </SelectTrigger>
                 <SelectContent>
-                  {isLoadingMembers ? (
-                    <SelectItem value="" disabled>Loading members...</SelectItem>
-                  ) : membersError ? (
-                    <SelectItem value="" disabled>Error loading members</SelectItem>
-                  ) : !groupMembers || groupMembers.length === 0 ? (
-                    <SelectItem value="" disabled>No members found</SelectItem>
-                  ) : (
-                    groupMembers.map((member) => (
-                      <SelectItem key={member.id} value={member.id}>
-                        {member.name} ({member.email})
-                      </SelectItem>
-                    ))
-                  )}
+                  {groupMembers.map((member) => (
+                    <SelectItem key={member.id} value={member.id}>
+                      {member.name} ({member.email})
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
