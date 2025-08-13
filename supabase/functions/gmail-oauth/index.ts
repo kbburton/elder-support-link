@@ -259,14 +259,16 @@ serve(async (req: Request) => {
       }
 
       // Redirect back to admin page with success message
-      const adminUrl = `${SUPABASE_URL?.replace('https://', '').replace('.supabase.co', '')}.lovableproject.com/app/demo/admin/email?connected=true`;
+      // Get the current domain from the request
+      const origin = req.headers.get('origin') || `https://${SUPABASE_URL?.replace('https://', '').replace('.supabase.co', '')}.lovableproject.com`;
+      const adminUrl = `${origin}/app/admin/email?connected=true`;
       console.log('Redirecting to:', adminUrl);
       
       return new Response(null, {
         status: 302,
         headers: {
           ...corsHeaders,
-          'Location': `https://${adminUrl}`
+          'Location': adminUrl
         }
       });
     }
