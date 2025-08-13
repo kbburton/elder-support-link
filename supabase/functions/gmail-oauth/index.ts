@@ -12,25 +12,47 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
 serve(async (req: Request) => {
+  console.log('=== Gmail OAuth Function Debug Logs ===');
+  console.log('Request method:', req.method);
+  console.log('Request URL:', req.url);
+  console.log('Request headers:', Object.fromEntries(req.headers.entries()));
+  
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
+    console.log('Handling CORS preflight request');
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const url = new URL(req.url);
     const path = url.pathname.split('/gmail-oauth')[1] || '';
+    console.log('Parsed path:', path);
+    console.log('Full pathname:', url.pathname);
+    
+    // Check environment variables
+    console.log('Environment check:', {
+      hasGoogleClientId: !!GOOGLE_OAUTH_CLIENT_ID,
+      hasGoogleClientSecret: !!GOOGLE_OAUTH_CLIENT_SECRET,
+      hasSupabaseUrl: !!SUPABASE_URL,
+      hasServiceRoleKey: !!SUPABASE_SERVICE_ROLE_KEY
+    });
     
     // Create Supabase client for auth verification
     const supabase = createClient(
       SUPABASE_URL!,
       SUPABASE_SERVICE_ROLE_KEY!
     );
+    console.log('Supabase client created successfully');
 
     if (path === '/start') {
+      console.log('Processing /start path');
       // Verify user is authenticated and is platform admin
       const authHeader = req.headers.get('Authorization');
+      console.log('Auth header present:', !!authHeader);
+      console.log('Auth header starts with Bearer:', authHeader?.startsWith('Bearer '));
+      
       if (!authHeader?.startsWith('Bearer ')) {
+        console.log('Returning 401: No valid auth header');
         return new Response(JSON.stringify({ error: 'Unauthorized' }), {
           status: 401,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -38,26 +60,36 @@ serve(async (req: Request) => {
       }
 
       const token = authHeader.split(' ')[1];
+      console.log('Token extracted, length:', token?.length);
+      
+      console.log('Calling supabase.auth.getUser...');
       const { data: { user }, error } = await supabase.auth.getUser(token);
+      console.log('getUser result:', { user: user?.email, error: error?.message });
       
       if (error || !user) {
+        console.log('Returning 401: Invalid token or no user');
         return new Response(JSON.stringify({ error: 'Invalid token' }), {
           status: 401,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
+      console.log('User email:', user.email);
       // Check if user is platform admin (specifically kbburton3@gmail.com)
       if (user.email !== 'kbburton3@gmail.com') {
+        console.log('Returning 403: Not platform admin');
         return new Response(JSON.stringify({ error: 'Platform admin access required' }), {
           status: 403,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
+      console.log('User authorized, building OAuth URL...');
       // Build OAuth URL
       const baseUrl = `${url.protocol}//${url.host}`;
       const redirectUri = `${baseUrl}/gmail-oauth/callback`;
+      console.log('Base URL:', baseUrl);
+      console.log('Redirect URI:', redirectUri);
       
       const oauthUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
       oauthUrl.searchParams.set('client_id', GOOGLE_OAUTH_CLIENT_ID!);
@@ -67,6 +99,8 @@ serve(async (req: Request) => {
       oauthUrl.searchParams.set('access_type', 'offline');
       oauthUrl.searchParams.set('prompt', 'consent');
 
+      console.log('Final OAuth URL:', oauthUrl.toString());
+      console.log('Returning 302 redirect...');
       return new Response(null, {
         status: 302,
         headers: {
@@ -188,8 +222,16 @@ serve(async (req: Request) => {
     });
 
   } catch (error) {
-    console.error('Gmail OAuth error:', error);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+    console.error('=== Gmail OAuth Function Error ===');
+    console.error('Error type:', error.constructor.name);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    console.error('Full error object:', error);
+    
+    return new Response(JSON.stringify({ 
+      error: 'Internal server error',
+      details: error.message 
+    }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });

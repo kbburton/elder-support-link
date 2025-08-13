@@ -45,12 +45,27 @@ const AdminEmailPage = () => {
   };
 
   const handleConnect = async () => {
+    console.log('=== Gmail Connect Debug Logs ===');
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      console.log('Session check:', {
+        hasSession: !!session,
+        hasToken: !!session?.access_token,
+        userEmail: session?.user?.email,
+        userId: session?.user?.id
+      });
+      
       if (session?.access_token) {
-        // Make a request to the OAuth start endpoint with the auth token
         const baseUrl = `https://yfwgegapmggwywrnzqvg.functions.supabase.co`;
-        const response = await fetch(`${baseUrl}/gmail-oauth/start`, {
+        const fullUrl = `${baseUrl}/gmail-oauth/start`;
+        
+        console.log('Making request to:', fullUrl);
+        console.log('With headers:', {
+          'Authorization': `Bearer ${session.access_token.substring(0, 20)}...`,
+          'Content-Type': 'application/json'
+        });
+
+        const response = await fetch(fullUrl, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
@@ -58,19 +73,39 @@ const AdminEmailPage = () => {
           }
         });
 
+        console.log('Response received:', {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok,
+          headers: Object.fromEntries(response.headers.entries())
+        });
+
         if (response.status === 302) {
-          // Get the redirect location from the response
           const location = response.headers.get('Location');
+          console.log('Redirect location:', location);
           if (location) {
+            console.log('Redirecting to:', location);
             window.location.href = location;
           } else {
             throw new Error('No redirect URL received');
           }
         } else if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || `HTTP ${response.status}`);
+          const responseText = await response.text();
+          console.log('Error response body:', responseText);
+          let errorData;
+          try {
+            errorData = JSON.parse(responseText);
+          } catch {
+            errorData = { error: responseText };
+          }
+          throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+        } else {
+          const responseText = await response.text();
+          console.log('Unexpected success response:', responseText);
+          throw new Error('Unexpected response format');
         }
       } else {
+        console.log('No session or access token available');
         toast({
           title: "Authentication Error",
           description: "Please log in again.",
@@ -78,7 +113,12 @@ const AdminEmailPage = () => {
         });
       }
     } catch (error) {
-      console.error('Gmail OAuth error:', error);
+      console.error('=== Gmail Connect Error ===');
+      console.error('Error type:', error.constructor.name);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      console.error('Full error object:', error);
+      
       toast({
         title: "Connection Failed",
         description: error.message || "Failed to start Gmail OAuth",
