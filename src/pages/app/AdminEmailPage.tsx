@@ -56,12 +56,17 @@ const AdminEmailPage = () => {
       });
       
       if (data.session?.access_token) {
-        // Encode the token and pass it as a URL parameter
+        // Get current group ID from URL
+        const pathParts = window.location.pathname.split('/');
+        const currentGroupId = pathParts[2]; // /app/{groupId}/admin/email
+        
+        // Encode the token and pass it as a URL parameter along with group ID
         const baseUrl = `https://yfwgegapmggwywrnzqvg.functions.supabase.co`;
         const encodedToken = encodeURIComponent(data.session.access_token);
-        const oauthUrl = `${baseUrl}/gmail-oauth/start?token=${encodedToken}`;
+        const encodedGroupId = encodeURIComponent(currentGroupId);
+        const oauthUrl = `${baseUrl}/gmail-oauth/start?token=${encodedToken}&groupId=${encodedGroupId}`;
         
-        console.log('Redirecting to OAuth URL with token parameter');
+        console.log('Redirecting to OAuth URL with token and group ID:', currentGroupId);
         
         // Direct redirect to the OAuth URL with token parameter
         window.location.href = oauthUrl;

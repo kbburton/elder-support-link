@@ -83,52 +83,55 @@ serve(async (req: Request) => {
 
     if (path === '/start') {
       console.log('Processing /start path');
-      console.log('Request method:', req.method);
       
-      let authToken = null;
+      // Extract authentication token and group ID from URL parameters
+      const token = url.searchParams.get('token');
+      const groupId = url.searchParams.get('groupId') || 'demo'; // fallback to demo
       
-      // Try multiple ways to get the auth token
-      // 1. URL parameter (for direct redirect)
-      const tokenParam = url.searchParams.get('token');
-      if (tokenParam) {
-        authToken = decodeURIComponent(tokenParam);
-        console.log('Token found in URL parameter');
-      }
+      console.log('Group ID from request:', groupId);
+      console.log('Token found in URL parameter');
       
-      // 2. Authorization header (for API calls)
+      let authToken = token;
+      
+      // If not in URL, try Authorization header
       if (!authToken) {
-        const authHeader = req.headers.get('Authorization');
-        if (authHeader?.startsWith('Bearer ')) {
-          authToken = authHeader.split(' ')[1];
+        const authHeader = req.headers.get('authorization');
+        if (authHeader && authHeader.startsWith('Bearer ')) {
           console.log('Token found in Authorization header');
+          authToken = authHeader.split(' ')[1];
         }
       }
-      
-      // 3. Form data (for POST requests)
+
+      // If not in header, try form data for POST requests
       if (!authToken && req.method === 'POST') {
         try {
           const formData = await req.formData();
-          authToken = formData.get('auth_token')?.toString();
-          if (authToken) {
+          const formToken = formData.get('token') as string;
+          if (formToken) {
             console.log('Token found in form data');
+            authToken = formToken;
           }
         } catch (e) {
-          console.log('Failed to read form data:', e.message);
+          console.log('No form data or error parsing form data');
         }
       }
-      
-      console.log('Final auth token status:', !!authToken);
+
+      const hasAuthToken = !!authToken;
+      console.log('Final auth token status:', hasAuthToken);
+      if (authToken) {
+        console.log('Token extracted, length:', authToken.length);
+      }
       
       if (!authToken) {
-        console.log('Returning 401: No valid auth token found');
-        return new Response(JSON.stringify({ error: 'Unauthorized - no token provided' }), {
+        console.log('No auth token provided');
+        return new Response('No authentication token provided', {
           status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          headers: corsHeaders
         });
       }
 
-      console.log('Token extracted, length:', authToken?.length);
-      
+      // Create Supabase client and verify user
+      console.log('Supabase client created successfully');
       console.log('Calling supabase.auth.getUser...');
       const { data: { user }, error } = await supabase.auth.getUser(authToken);
       console.log('getUser result:', { 
@@ -183,6 +186,8 @@ serve(async (req: Request) => {
       oauthUrl.searchParams.set('response_type', 'code');
       oauthUrl.searchParams.set('access_type', 'offline');
       oauthUrl.searchParams.set('prompt', 'consent');
+      // Store group ID in state parameter for callback
+      oauthUrl.searchParams.set('state', groupId);
 
       console.log('Final OAuth URL:', oauthUrl.toString());
       console.log('Returning 302 redirect...');
@@ -199,6 +204,10 @@ serve(async (req: Request) => {
     if (path === '/callback') {
       console.log('Processing /callback path');
       const code = url.searchParams.get('code');
+      const state = url.searchParams.get('state') || 'demo'; // group ID from state parameter
+      
+      console.log('Callback with group ID:', state);
+      
       if (!code) {
         console.log('No authorization code in callback');
         return new Response('Missing authorization code', {
@@ -261,7 +270,7 @@ serve(async (req: Request) => {
       // Redirect back to admin page with success message
       // Get the current domain from the request
       const origin = req.headers.get('origin') || `https://${SUPABASE_URL?.replace('https://', '').replace('.supabase.co', '')}.lovableproject.com`;
-      const adminUrl = `${origin}/app/demo/admin/email?connected=true`;
+      const adminUrl = `${origin}/app/${state}/admin/email?connected=true`;
       console.log('Redirecting to:', adminUrl);
       
       return new Response(null, {
