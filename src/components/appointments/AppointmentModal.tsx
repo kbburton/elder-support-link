@@ -87,13 +87,16 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
         
       if (profileError) throw profileError;
       
-      return profiles?.map(profile => ({
-        id: profile.user_id,
-        name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 
-              profile.email || 
-              profile.user_id,
-        email: profile.email
-      })) || [];
+      return profiles?.map(profile => {
+        const firstName = profile.first_name || "";
+        const lastName = profile.last_name || "";
+        const fullName = `${firstName} ${lastName}`.trim();
+        return {
+          id: profile.user_id,
+          name: fullName || profile.email || "Unknown User",
+          email: profile.email || ""
+        };
+      }) || [];
     },
     enabled: !!groupId,
   });

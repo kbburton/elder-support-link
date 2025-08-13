@@ -137,11 +137,16 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
         
       if (profileError) throw profileError;
       
-      return profiles?.map(profile => ({
-        id: profile.user_id,
-        email: profile.email || "",
-        name: `${profile.first_name || ""} ${profile.last_name || ""}`.trim() || profile.email || ""
-      })) || [];
+      return profiles?.map(profile => {
+        const firstName = profile.first_name || "";
+        const lastName = profile.last_name || "";
+        const fullName = `${firstName} ${lastName}`.trim();
+        return {
+          id: profile.user_id,
+          email: profile.email || "",
+          name: fullName || profile.email || "Unknown User"
+        };
+      }) || [];
     },
   });
 
