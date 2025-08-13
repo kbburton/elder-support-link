@@ -67,6 +67,19 @@ serve(async (req: Request) => {
       SUPABASE_SERVICE_ROLE_KEY!
     );
     console.log('Supabase client created successfully');
+    
+    // Add a debug endpoint to check credentials
+    if (path === '/debug' && req.method === 'GET') {
+      return new Response(JSON.stringify({
+        hasClientId: !!GOOGLE_OAUTH_CLIENT_ID,
+        clientIdLength: GOOGLE_OAUTH_CLIENT_ID?.length || 0,
+        clientIdStart: GOOGLE_OAUTH_CLIENT_ID?.substring(0, 15) || 'missing',
+        hasClientSecret: !!GOOGLE_OAUTH_CLIENT_SECRET,
+        timestamp: new Date().toISOString()
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
 
     if (path === '/start') {
       console.log('Processing /start path');
