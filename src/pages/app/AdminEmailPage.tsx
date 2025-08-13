@@ -56,29 +56,15 @@ const AdminEmailPage = () => {
       });
       
       if (data.session?.access_token) {
-        // For OAuth flows, we need to redirect directly, not use fetch
-        // The edge function will handle auth verification and redirect to Google
+        // Encode the token and pass it as a URL parameter
         const baseUrl = `https://yfwgegapmggwywrnzqvg.functions.supabase.co`;
-        const oauthUrl = `${baseUrl}/gmail-oauth/start`;
+        const encodedToken = encodeURIComponent(data.session.access_token);
+        const oauthUrl = `${baseUrl}/gmail-oauth/start?token=${encodedToken}`;
         
-        console.log('Redirecting to OAuth URL:', oauthUrl);
+        console.log('Redirecting to OAuth URL with token parameter');
         
-        // Create a form to POST the auth token (since we can't send headers in a redirect)
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = oauthUrl;
-        form.style.display = 'none';
-        
-        const tokenInput = document.createElement('input');
-        tokenInput.type = 'hidden';
-        tokenInput.name = 'auth_token';
-        tokenInput.value = data.session.access_token;
-        
-        form.appendChild(tokenInput);
-        document.body.appendChild(form);
-        
-        console.log('Submitting form with auth token');
-        form.submit();
+        // Direct redirect to the OAuth URL with token parameter
+        window.location.href = oauthUrl;
       } else {
         console.log('No session or access token available');
         toast({

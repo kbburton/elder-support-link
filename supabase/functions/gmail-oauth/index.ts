@@ -67,26 +67,44 @@ serve(async (req: Request) => {
 
     if (path === '/start') {
       console.log('Processing /start path');
+      console.log('Request method:', req.method);
       
       let authToken = null;
       
-      // Handle both GET (with Authorization header) and POST (with form data)
-      if (req.method === 'GET') {
-        const authHeader = req.headers.get('Authorization');
-        console.log('GET request - Auth header present:', !!authHeader);
-        
-        if (authHeader?.startsWith('Bearer ')) {
-          authToken = authHeader.split(' ')[1];
-        }
-      } else if (req.method === 'POST') {
-        console.log('POST request - Reading form data');
-        const formData = await req.formData();
-        authToken = formData.get('auth_token')?.toString();
-        console.log('POST request - Token from form:', !!authToken);
+      // Try multiple ways to get the auth token
+      // 1. URL parameter (for direct redirect)
+      const tokenParam = url.searchParams.get('token');
+      if (tokenParam) {
+        authToken = decodeURIComponent(tokenParam);
+        console.log('Token found in URL parameter');
       }
       
+      // 2. Authorization header (for API calls)
       if (!authToken) {
-        console.log('Returning 401: No valid auth token');
+        const authHeader = req.headers.get('Authorization');
+        if (authHeader?.startsWith('Bearer ')) {
+          authToken = authHeader.split(' ')[1];
+          console.log('Token found in Authorization header');
+        }
+      }
+      
+      // 3. Form data (for POST requests)
+      if (!authToken && req.method === 'POST') {
+        try {
+          const formData = await req.formData();
+          authToken = formData.get('auth_token')?.toString();
+          if (authToken) {
+            console.log('Token found in form data');
+          }
+        } catch (e) {
+          console.log('Failed to read form data:', e.message);
+        }
+      }
+      
+      console.log('Final auth token status:', !!authToken);
+      
+      if (!authToken) {
+        console.log('Returning 401: No valid auth token found');
         return new Response(JSON.stringify({ error: 'Unauthorized - no token provided' }), {
           status: 401,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
