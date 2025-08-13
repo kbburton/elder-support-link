@@ -40,12 +40,9 @@ export const usePlatformAdmin = () => {
         return;
       }
 
-      // Check if user is platform admin
-      const { data: platformAdmin, error: adminError } = await supabase
-        .from('platform_admins')
-        .select('user_id')
-        .eq('user_id', user.id)
-        .maybeSingle();
+      // Check if user is platform admin using the security definer function
+      const { data: platformAdminResult, error: adminError } = await supabase
+        .rpc('is_platform_admin', { user_uuid: user.id });
 
       if (adminError) {
         console.error('Error checking platform admin status:', adminError);
@@ -53,7 +50,7 @@ export const usePlatformAdmin = () => {
         return;
       }
 
-      const isPlatformAdmin = !!platformAdmin;
+      const isPlatformAdmin = !!platformAdminResult;
       const isEmailVerified = !!user.email_confirmed_at;
 
       // Check MFA enrollment
