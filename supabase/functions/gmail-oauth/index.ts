@@ -261,7 +261,7 @@ serve(async (req: Request) => {
       // Redirect back to admin page with success message
       // Get the current domain from the request
       const origin = req.headers.get('origin') || `https://${SUPABASE_URL?.replace('https://', '').replace('.supabase.co', '')}.lovableproject.com`;
-      const adminUrl = `${origin}/app/admin/email?connected=true`;
+      const adminUrl = `${origin}/app/demo/admin/email?connected=true`;
       console.log('Redirecting to:', adminUrl);
       
       return new Response(null, {
