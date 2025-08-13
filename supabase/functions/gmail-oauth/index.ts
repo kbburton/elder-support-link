@@ -268,9 +268,10 @@ serve(async (req: Request) => {
       }
 
       // Redirect back to admin page with success message
-      // Use the project-specific lovableproject.com domain
-      const projectDomain = `https://yfwgegapmggwywrnzqvg.lovableproject.com`;
-      const adminUrl = `${projectDomain}/app/${state}/admin/email?connected=true`;
+      // Get the current domain from the request headers
+      const currentDomain = req.headers.get('host') || 'yfwgegapmggwywrnzqvg.lovableproject.com';
+      const protocol = currentDomain.includes('localhost') ? 'http' : 'https';
+      const adminUrl = `${protocol}://${currentDomain}/app/${state}/admin/email?connected=true`;
       console.log('Redirecting to:', adminUrl);
       
       return new Response(null, {
