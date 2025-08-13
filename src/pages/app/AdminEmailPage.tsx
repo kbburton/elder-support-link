@@ -44,13 +44,32 @@ const AdminEmailPage = () => {
     }
   };
 
-  const handleConnect = () => {
-    // Get auth token
-    const authToken = supabase.auth.getSession().then(({ data }) => {
-      if (data.session?.access_token) {
-        // Redirect to OAuth start endpoint with auth header
+  const handleConnect = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        // Make a request to the OAuth start endpoint with the auth token
         const baseUrl = `https://yfwgegapmggwywrnzqvg.functions.supabase.co`;
-        window.location.href = `${baseUrl}/gmail-oauth/start`;
+        const response = await fetch(`${baseUrl}/gmail-oauth/start`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.status === 302) {
+          // Get the redirect location from the response
+          const location = response.headers.get('Location');
+          if (location) {
+            window.location.href = location;
+          } else {
+            throw new Error('No redirect URL received');
+          }
+        } else if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `HTTP ${response.status}`);
+        }
       } else {
         toast({
           title: "Authentication Error",
@@ -58,7 +77,14 @@ const AdminEmailPage = () => {
           variant: "destructive"
         });
       }
-    });
+    } catch (error) {
+      console.error('Gmail OAuth error:', error);
+      toast({
+        title: "Connection Failed",
+        description: error.message || "Failed to start Gmail OAuth",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleTestEmail = async () => {
