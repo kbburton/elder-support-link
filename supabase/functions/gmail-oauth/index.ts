@@ -33,7 +33,10 @@ serve(async (req: Request) => {
       hasGoogleClientId: !!GOOGLE_OAUTH_CLIENT_ID,
       hasGoogleClientSecret: !!GOOGLE_OAUTH_CLIENT_SECRET,
       hasSupabaseUrl: !!SUPABASE_URL,
-      hasServiceRoleKey: !!SUPABASE_SERVICE_ROLE_KEY
+      hasServiceRoleKey: !!SUPABASE_SERVICE_ROLE_KEY,
+      clientIdLength: GOOGLE_OAUTH_CLIENT_ID?.length,
+      clientIdPreview: GOOGLE_OAUTH_CLIENT_ID?.substring(0, 20) + '...',
+      timestamp: new Date().toISOString()
     });
 
     if (!GOOGLE_OAUTH_CLIENT_ID || !GOOGLE_OAUTH_CLIENT_SECRET) {
