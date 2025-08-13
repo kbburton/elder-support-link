@@ -12,10 +12,9 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
 serve(async (req: Request) => {
-  console.log('=== Gmail OAuth Function Debug Logs ===');
+  console.log('=== Gmail OAuth Function Started ===');
   console.log('Request method:', req.method);
   console.log('Request URL:', req.url);
-  console.log('Request headers:', Object.fromEntries(req.headers.entries()));
   
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -24,18 +23,40 @@ serve(async (req: Request) => {
   }
 
   try {
+    console.log('Function is working - processing request');
     const url = new URL(req.url);
     const path = url.pathname.split('/gmail-oauth')[1] || '';
     console.log('Parsed path:', path);
-    console.log('Full pathname:', url.pathname);
     
-    // Check environment variables
+    // Check environment variables first
     console.log('Environment check:', {
       hasGoogleClientId: !!GOOGLE_OAUTH_CLIENT_ID,
       hasGoogleClientSecret: !!GOOGLE_OAUTH_CLIENT_SECRET,
       hasSupabaseUrl: !!SUPABASE_URL,
       hasServiceRoleKey: !!SUPABASE_SERVICE_ROLE_KEY
     });
+
+    if (!GOOGLE_OAUTH_CLIENT_ID || !GOOGLE_OAUTH_CLIENT_SECRET) {
+      console.log('Missing Google OAuth credentials');
+      return new Response(JSON.stringify({ 
+        error: 'Google OAuth credentials not configured',
+        details: 'Missing GOOGLE_OAUTH_CLIENT_ID or GOOGLE_OAUTH_CLIENT_SECRET' 
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      console.log('Missing Supabase credentials');
+      return new Response(JSON.stringify({ 
+        error: 'Supabase credentials not configured',
+        details: 'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY' 
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
     
     // Create Supabase client for auth verification
     const supabase = createClient(
@@ -46,14 +67,14 @@ serve(async (req: Request) => {
 
     if (path === '/start') {
       console.log('Processing /start path');
+      
       // Verify user is authenticated and is platform admin
       const authHeader = req.headers.get('Authorization');
       console.log('Auth header present:', !!authHeader);
-      console.log('Auth header starts with Bearer:', authHeader?.startsWith('Bearer '));
       
       if (!authHeader?.startsWith('Bearer ')) {
         console.log('Returning 401: No valid auth header');
-        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        return new Response(JSON.stringify({ error: 'Unauthorized - no bearer token' }), {
           status: 401,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
@@ -64,27 +85,39 @@ serve(async (req: Request) => {
       
       console.log('Calling supabase.auth.getUser...');
       const { data: { user }, error } = await supabase.auth.getUser(token);
-      console.log('getUser result:', { user: user?.email, error: error?.message });
+      console.log('getUser result:', { 
+        userEmail: user?.email, 
+        hasUser: !!user,
+        errorMessage: error?.message 
+      });
       
       if (error || !user) {
         console.log('Returning 401: Invalid token or no user');
-        return new Response(JSON.stringify({ error: 'Invalid token' }), {
+        return new Response(JSON.stringify({ 
+          error: 'Invalid token',
+          details: error?.message || 'No user found' 
+        }), {
           status: 401,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
       console.log('User email:', user.email);
+      
       // Check if user is platform admin (specifically kbburton3@gmail.com)
       if (user.email !== 'kbburton3@gmail.com') {
-        console.log('Returning 403: Not platform admin');
-        return new Response(JSON.stringify({ error: 'Platform admin access required' }), {
+        console.log('Returning 403: Not platform admin, user is:', user.email);
+        return new Response(JSON.stringify({ 
+          error: 'Platform admin access required',
+          details: `User ${user.email} is not authorized` 
+        }), {
           status: 403,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
       console.log('User authorized, building OAuth URL...');
+      
       // Build OAuth URL
       const baseUrl = `${url.protocol}//${url.host}`;
       const redirectUri = `${baseUrl}/gmail-oauth/callback`;
@@ -101,6 +134,7 @@ serve(async (req: Request) => {
 
       console.log('Final OAuth URL:', oauthUrl.toString());
       console.log('Returning 302 redirect...');
+      
       return new Response(null, {
         status: 302,
         headers: {
@@ -111,8 +145,10 @@ serve(async (req: Request) => {
     }
 
     if (path === '/callback') {
+      console.log('Processing /callback path');
       const code = url.searchParams.get('code');
       if (!code) {
+        console.log('No authorization code in callback');
         return new Response('Missing authorization code', {
           status: 400,
           headers: corsHeaders
@@ -123,6 +159,7 @@ serve(async (req: Request) => {
       const baseUrl = `${url.protocol}//${url.host}`;
       const redirectUri = `${baseUrl}/gmail-oauth/callback`;
 
+      console.log('Exchanging code for tokens...');
       const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
         headers: {
@@ -147,9 +184,11 @@ serve(async (req: Request) => {
       }
 
       const tokens = await tokenResponse.json();
+      console.log('Tokens received, has refresh_token:', !!tokens.refresh_token);
       
       // Store refresh token if present
       if (tokens.refresh_token) {
+        console.log('Storing refresh token...');
         const { error: upsertError } = await supabase
           .from('app_settings')
           .upsert({
@@ -164,10 +203,12 @@ serve(async (req: Request) => {
             headers: corsHeaders
           });
         }
+        console.log('Refresh token stored successfully');
       }
 
       // Redirect back to admin page with success message
       const adminUrl = `${SUPABASE_URL?.replace('https://', '').replace('.supabase.co', '')}.lovableproject.com/app/demo/admin/email?connected=true`;
+      console.log('Redirecting to:', adminUrl);
       
       return new Response(null, {
         status: 302,
@@ -179,6 +220,8 @@ serve(async (req: Request) => {
     }
 
     if (path === '/disconnect') {
+      console.log('Processing /disconnect path');
+      
       // Verify user is authenticated and is platform admin
       const authHeader = req.headers.get('Authorization');
       if (!authHeader?.startsWith('Bearer ')) {
@@ -216,6 +259,7 @@ serve(async (req: Request) => {
       });
     }
 
+    console.log('Unknown path requested:', path);
     return new Response('Not found', {
       status: 404,
       headers: corsHeaders
@@ -226,7 +270,6 @@ serve(async (req: Request) => {
     console.error('Error type:', error.constructor.name);
     console.error('Error message:', error.message);
     console.error('Error stack:', error.stack);
-    console.error('Full error object:', error);
     
     return new Response(JSON.stringify({ 
       error: 'Internal server error',
