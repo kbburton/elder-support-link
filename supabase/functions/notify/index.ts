@@ -108,7 +108,7 @@ async function handleImmediateNotification(body: ImmediatePayload, supabase: any
   // 2) Resolve emails from profiles
   let emails: { user_id: string; email: string }[] = [];
   if (prefUserIds.length > 0) {
-    console.log('📧 Fetching email addresses for users:', prefUserIds);
+  console.log('📧 Fetching email addresses for users:', prefUserIds);
     const { data: profs, error: profErr } = await supabase
       .from("profiles")
       .select("user_id, email")
@@ -121,8 +121,14 @@ async function handleImmediateNotification(body: ImmediatePayload, supabase: any
       throw profErr;
     }
     
+    console.log('🔍 Raw profiles before filtering:', profs);
+    
     emails = (profs || [])
-      .filter((p: any) => !!p.email)
+      .filter((p: any) => {
+        const hasEmail = !!p.email;
+        console.log(`👤 Profile ${p.user_id}: email="${p.email}", hasEmail=${hasEmail}`);
+        return hasEmail;
+      })
       .map((p: any) => ({ user_id: p.user_id as string, email: p.email as string }));
   }
 
