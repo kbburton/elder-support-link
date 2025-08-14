@@ -47,8 +47,8 @@ export const useDemoContacts = (groupId?: string) => {
 export const useDemoAppointments = (groupId?: string) => {
   const { isDemo, demoData } = useDemo();
   
-  // Use stable base dates
-  const stableBaseDate = useMemo(() => new Date('2025-01-15'), []);
+  // Use stable base dates - set to current month for better demo experience
+  const stableBaseDate = useMemo(() => new Date(), []); // Use current date
   const stableTimestamp = useMemo(() => new Date('2024-01-01T00:00:00Z').toISOString(), []);
   
   const appointments = useMemo(() => {
@@ -56,12 +56,12 @@ export const useDemoAppointments = (groupId?: string) => {
       return null;
     }
 
-    const baseDate = stableBaseDate; // Use stable base date
+    const baseDate = stableBaseDate; // Use current date as base
     
     return demoData.appointments.map((appointment, index) => {
-      // Generate stable dates based on index
+      // Generate dates around current date for better demo experience
       const appointmentDate = new Date(baseDate);
-      appointmentDate.setDate(baseDate.getDate() + index);
+      appointmentDate.setDate(baseDate.getDate() + index - 2); // Some before, some after today
       appointmentDate.setHours(10 + index * 2, 0, 0, 0);
       
       return {
@@ -98,8 +98,8 @@ export const useDemoAppointments = (groupId?: string) => {
 export const useDemoTasks = (groupId?: string) => {
   const { isDemo, demoData } = useDemo();
   
-  // Use stable base dates
-  const stableBaseDate = useMemo(() => new Date('2025-01-15'), []);
+  // Use stable base dates - set to current month for better demo experience  
+  const stableBaseDate = useMemo(() => new Date(), []); // Use current date
   const stableTimestamp = useMemo(() => new Date('2024-01-01T00:00:00Z').toISOString(), []);
   
   const tasks = useMemo(() => {
@@ -107,12 +107,12 @@ export const useDemoTasks = (groupId?: string) => {
       return null;
     }
 
-    const baseDate = stableBaseDate; // Use stable base date
+    const baseDate = stableBaseDate; // Use current date as base
     
     return demoData.tasks.map((task, index) => {
-      // Generate stable dates based on index
+      // Generate dates around current date for better demo experience
       const dueDate = new Date(baseDate);
-      dueDate.setDate(baseDate.getDate() + index + 1);
+      dueDate.setDate(baseDate.getDate() + index); // Some due today, some in coming days
       
       return {
         ...task,
@@ -154,8 +154,8 @@ export const useDemoTasks = (groupId?: string) => {
 export const useDemoActivities = (groupId?: string) => {
   const { isDemo, demoData } = useDemo();
   
-  // Use stable base dates
-  const stableBaseDate = useMemo(() => new Date('2025-01-12'), []);
+  // Use stable base dates - set to current month for better demo experience
+  const stableBaseDate = useMemo(() => new Date(), []); // Use current date  
   const stableTimestamp = useMemo(() => new Date('2024-01-01T00:00:00Z').toISOString(), []);
   
   const activities = useMemo(() => {
@@ -163,12 +163,12 @@ export const useDemoActivities = (groupId?: string) => {
       return null;
     }
 
-    const baseDate = stableBaseDate; // Use stable base date
+    const baseDate = stableBaseDate; // Use current date as base
     
     return demoData.activities.map((activity, index) => {
-      // Generate stable dates based on index
+      // Generate dates around current date for better demo experience
       const activityDate = new Date(baseDate);
-      activityDate.setDate(baseDate.getDate() + index);
+      activityDate.setDate(baseDate.getDate() + index - 5); // Some in the past, for realistic activity log
       activityDate.setHours(14 + index, 0, 0, 0);
       
       return {
