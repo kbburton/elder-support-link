@@ -187,14 +187,15 @@ export const DemoProvider: React.FC<DemoProviderProps> = ({ children }) => {
 
   // Track page changes automatically
   useEffect(() => {
-    if (currentPage && demoSession) {
-      return () => {
-        if (currentPage) {
-          trackPageLeave(currentPage);
-        }
-      };
-    }
-  }, [currentPage, demoSession]);
+    if (!currentPage || !demoSession) return;
+    
+    return () => {
+      if (currentPage && demoSession) {
+        const timeSpent = pageStartTime ? Math.floor((Date.now() - pageStartTime) / 1000) : 0;
+        trackPageLeave(currentPage, timeSpent);
+      }
+    };
+  }, [currentPage]); // Remove demoSession from dependencies to prevent infinite loop
 
   const value: DemoContextType = {
     isDemo: !!demoSession,
