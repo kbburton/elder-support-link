@@ -6,18 +6,30 @@ import SEO from "@/components/layout/SEO";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+
 // Helper functions for invitation handling
-function getPendingInvite() {
+// >>> UPDATED: return JSON if available; if legacy string, treat it as an invitationId
+function getPendingInvite():
+  | { invitationId: string; groupId?: string; groupName?: string }
+  | null {
   try {
-    const raw = localStorage.getItem('pendingInvitation');
-    return raw ? JSON.parse(raw) : null; // { invitationId, groupId, groupName }
+    const raw = localStorage.getItem("pendingInvitation");
+    if (!raw) return null;
+    try {
+      const obj = JSON.parse(raw);
+      if (obj && obj.invitationId) return obj;
+    } catch {
+      // legacy string format → interpret as invitationId only
+      return { invitationId: raw };
+    }
   } catch {
     return null;
   }
+  return null;
 }
 
 function clearPendingInvite() {
-  localStorage.removeItem('pendingInvitation');
+  localStorage.removeItem("pendingInvitation");
 }
 
 const Login = () => {
@@ -28,69 +40,92 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Check for invitation token and prefilled email in URL params on load
+  // >>> UPDATED: capture token + optional groupId/groupName as JSON
   useEffect(() => {
     const token = searchParams.get("token");
     const emailParam = searchParams.get("email");
-    
+    const groupId = searchParams.get("groupId");
+    const groupName = searchParams.get("groupName");
+
     if (token) {
-      localStorage.setItem("pendingInvitation", token);
+      const payload = {
+        invitationId: token,
+        groupId: groupId || undefined,
+        groupName: groupName ? decodeURIComponent(groupName) : undefined,
+      };
+      localStorage.setItem("pendingInvitation", JSON.stringify(payload));
     }
-    
+
     if (emailParam) {
       setEmail(decodeURIComponent(emailParam));
     }
   }, [searchParams]);
 
-  // Call this right after you confirm auth success in Login.tsx
-  async function processPostLoginInvite() {
+  // >>> UPDATED: return boolean indicating if we navigated (so caller knows to short-circuit)
+  async function processPostLoginInvite(): Promise<boolean> {
     const invite = getPendingInvite();
-    if (!invite?.invitationId) return;
+    if (!invite?.invitationId) return false;
 
-    // ✅ Use the SECURITY DEFINER RPC function 
-    const { error } = await supabase.rpc('accept_invitation', {
+    // ensure we are authenticated
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    // ✅ Use the RPC Lovable wired (accept_invitation). If your DB uses accept_invite(p_invite_id uuid),
+    // you can switch to: supabase.rpc('accept_invite', { p_invite_id: invite.invitationId })
+    const { error } = await supabase.rpc("accept_invitation", {
       invitation_id: invite.invitationId,
-      user_id: (await supabase.auth.getUser()).data.user?.id
+      user_id: user.id,
     });
 
     if (error) {
-      console.error('accept_invite failed', error);
+      console.error("accept_invitation failed", error);
       toast({
         title: "Error joining group",
-        description: error.message ?? 'Could not join the care group',
-        variant: "destructive"
+        description: error.message ?? "Could not join the care group",
+        variant: "destructive",
       });
-      return;
+      return false;
     }
 
     clearPendingInvite();
     toast({
       title: "Welcome!",
-      description: `Joined ${invite.groupName ?? 'care group'} successfully!`
+      description: `Joined ${invite.groupName ?? "care group"} successfully!`,
     });
 
-    // Navigate to the group home
-    navigate(`/app/${invite.groupId}`, { replace: true });
+    // If the invite carried the target group, navigate now and tell caller we handled it.
+    if (invite.groupId) {
+      navigate(`/app/${invite.groupId}`, { replace: true });
+      return true;
+    }
+
+    // Otherwise let the normal login flow decide where to send the user.
+    return false;
   }
 
   const handleSignIn = async () => {
     console.log("🔄 Login started for:", email);
-    
+
     if (!email || !password) {
-      toast({ title: "Missing credentials", description: "Enter email and password." });
+      toast({
+        title: "Missing credentials",
+        description: "Enter email and password.",
+      });
       return;
     }
     try {
       setLoading(true);
       console.log("🔐 Authenticating user...");
-      
+
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
         console.error("❌ Authentication error:", error);
         throw error;
       }
       console.log("✅ Authentication successful");
-      
+
       // Check for welcome message first (from registration)
       const welcomeMessage = localStorage.getItem("welcomeMessage");
       if (welcomeMessage) {
@@ -98,41 +133,43 @@ const Login = () => {
         localStorage.removeItem("welcomeMessage");
         toast({ title: "Welcome!", description: welcomeMessage });
       }
-      
+
       // Get current user info first
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      const {
+        data: { user: currentUser },
+      } = await supabase.auth.getUser();
       console.log("👤 Current user ID:", currentUser?.id);
-      
-      // Process invitation using the new utility functions
+
+      // >>> UPDATED: process invitation; only return early if we actually navigated
       try {
-        await processPostLoginInvite();
-        return; // Exit early if invitation was processed
+        const handled = await processPostLoginInvite();
+        if (handled) return; // we already navigated to the invited group
       } catch (error) {
         console.error("❌ Error processing invitation:", error);
         // Continue with normal login flow on error
       }
-      
+
       console.log("🔄 Processing normal login flow...");
       // Check if user has existing care groups (normal login flow)
       const { data: userGroups, error: groupsError } = await supabase
-        .from('care_group_members')
-        .select('group_id, care_groups(id, name)')
-        .eq('user_id', currentUser?.id);
-      
+        .from("care_group_members")
+        .select("group_id, care_groups(id, name)")
+        .eq("user_id", currentUser?.id);
+
       if (groupsError) {
         console.error("❌ Error getting user groups:", groupsError);
         throw groupsError;
       }
-      
+
       console.log("👥 User groups:", userGroups?.length || 0, "groups found");
-      
+
       // Get user profile to check last active group
       const { data: userProfile } = await supabase
-        .from('profiles')
-        .select('last_active_group_id')
-        .eq('user_id', currentUser?.id)
+        .from("profiles")
+        .select("last_active_group_id")
+        .eq("user_id", currentUser?.id)
         .single();
-      
+
       if (userGroups && userGroups.length > 0) {
         console.log("✅ User has existing groups, processing redirect...");
         // User has care groups
@@ -140,28 +177,25 @@ const Login = () => {
           console.log("📍 Single group - redirecting directly");
           // Single group - redirect directly
           const groupId = userGroups[0].group_id;
-          
+
           // Update last active group
-          await supabase
-            .from('profiles')
-            .update({ last_active_group_id: groupId })
-            .eq('user_id', currentUser?.id);
-            
+          await supabase.from("profiles").update({ last_active_group_id: groupId }).eq("user_id", currentUser?.id);
+
           toast({ title: "Welcome back", description: "Signed in successfully." });
           navigate(`/app/${groupId}`, { replace: true });
         } else {
           console.log("📍 Multiple groups - checking last active");
           // Multiple groups - check for last active group
           let targetGroupId = userProfile?.last_active_group_id;
-          
+
           // Verify the last active group is still accessible
           if (targetGroupId) {
-            const isGroupAccessible = userGroups.some(group => group.group_id === targetGroupId);
+            const isGroupAccessible = userGroups.some((group) => group.group_id === targetGroupId);
             if (!isGroupAccessible) {
-              targetGroupId = null;
+              targetGroupId = null as unknown as string | null;
             }
           }
-          
+
           if (targetGroupId) {
             console.log("📍 Going to last active group:", targetGroupId);
             // Go to last active group
@@ -171,13 +205,13 @@ const Login = () => {
             console.log("📍 No valid last active group - using first group");
             // Multiple groups but no valid last active - use first group
             const firstGroupId = userGroups[0].group_id;
-            
+
             // Update last active group to first group
             await supabase
-              .from('profiles')
+              .from("profiles")
               .update({ last_active_group_id: firstGroupId })
-              .eq('user_id', currentUser?.id);
-              
+              .eq("user_id", currentUser?.id);
+
             toast({ title: "Welcome back", description: "Signed in successfully." });
             navigate(`/app/${firstGroupId}`, { replace: true });
           }
@@ -191,7 +225,10 @@ const Login = () => {
     } catch (err: any) {
       const msg = err?.message?.toLowerCase?.() || "";
       if (msg.includes("confirm")) {
-        toast({ title: "Email not confirmed", description: "Check your inbox for the confirmation email, then try again." });
+        toast({
+          title: "Email not confirmed",
+          description: "Check your inbox for the confirmation email, then try again.",
+        });
       } else {
         toast({ title: "Sign in failed", description: err?.message || "Please try again." });
       }
@@ -209,9 +246,9 @@ const Login = () => {
       setLoading(true);
       const redirectUrl = `${window.location.origin}/onboarding`;
       const { error } = await supabase.auth.resend({
-        type: 'signup',
+        type: "signup",
         email,
-        options: { emailRedirectTo: redirectUrl }
+        options: { emailRedirectTo: redirectUrl },
       });
       if (error) throw error;
       toast({ title: "Email sent", description: "Confirmation email resent. Please check your inbox." });
@@ -253,4 +290,3 @@ const Login = () => {
 };
 
 export default Login;
-
