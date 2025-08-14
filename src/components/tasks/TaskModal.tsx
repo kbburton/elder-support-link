@@ -30,6 +30,8 @@ import { triggerReindex } from "@/utils/reindex";
 import { RecurrenceModal } from "./RecurrenceModal";
 import { useLinkedContacts } from "@/hooks/useLinkedContacts";
 import { useContactLinkOperations } from "@/hooks/useContactLinkOperations";
+import { useDemoOperations } from "@/hooks/useDemoOperations";
+import { useDemoProfiles } from "@/hooks/useDemoData";
 
 interface Task {
   id: string;
@@ -72,6 +74,8 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
   const [showRecurrenceModal, setShowRecurrenceModal] = useState(false);
   const queryClient = useQueryClient();
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const { blockOperation } = useDemoOperations();
+  const demoProfiles = useDemoProfiles();
 
   // Get task recurrence rule if editing existing task
   const { data: recurrenceRule } = useQuery({
@@ -115,40 +119,46 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
     getCurrentUser();
   }, []);
 
-  // Get group members for assignee options
-  const { data: groupMembers = [] } = useQuery({
-    queryKey: ["groupMembers", groupId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("care_group_members")
-        .select("user_id")
-        .eq("group_id", groupId);
+  // Get group members for assignee options - use demo data if in demo mode
+  const { data: groupMembers = [] } = demoProfiles.isDemo 
+    ? { data: demoProfiles.data?.map(profile => ({
+        id: profile.user_id,
+        email: profile.email,
+        name: `${profile.first_name} ${profile.last_name}`.trim() || profile.email
+      })) || [] }
+    : useQuery({
+        queryKey: ["groupMembers", groupId],
+        queryFn: async () => {
+          const { data, error } = await supabase
+            .from("care_group_members")
+            .select("user_id")
+            .eq("group_id", groupId);
 
-      if (error) throw error;
-      
-      if (!data?.length) return [];
-      
-      const userIds = data.map(m => m.user_id);
-      const { data: profiles, error: profileError } = await supabase
-        .from("profiles")
-        .select("user_id, email, first_name, last_name")
-        .in("user_id", userIds);
-        
-      if (profileError) throw profileError;
-      
-      return profiles?.map(profile => {
-        const firstName = profile.first_name || "";
-        const lastName = profile.last_name || "";
-        const fullName = `${firstName} ${lastName}`.trim();
-        return {
-          id: profile.user_id,
-          email: profile.email || "",
-          name: fullName || profile.email || "Unknown User"
-        };
-      }) || [];
-    },
-    enabled: !!groupId,
-  });
+          if (error) throw error;
+          
+          if (!data?.length) return [];
+          
+          const userIds = data.map(m => m.user_id);
+          const { data: profiles, error: profileError } = await supabase
+            .from("profiles")
+            .select("user_id, email, first_name, last_name")
+            .in("user_id", userIds);
+            
+          if (profileError) throw profileError;
+          
+          return profiles?.map(profile => {
+            const firstName = profile.first_name || "";
+            const lastName = profile.last_name || "";
+            const fullName = `${firstName} ${lastName}`.trim();
+            return {
+              id: profile.user_id,
+              email: profile.email || "",
+              name: fullName || profile.email || "Unknown User"
+            };
+          }) || [];
+        },
+        enabled: !!groupId && !demoProfiles.isDemo,
+      });
 
   useEffect(() => {
     if (task) {
@@ -346,6 +356,8 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (blockOperation()) return;
 
     const submitData = {
       ...formData,
@@ -640,7 +652,11 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={createTask.isPending || updateTask.isPending}>
+              <Button 
+                type="submit" 
+                disabled={createTask.isPending || updateTask.isPending || blockOperation()}
+                className={blockOperation() ? "opacity-50 cursor-not-allowed" : ""}
+              >
                 {createTask.isPending || updateTask.isPending 
                   ? "Saving..." 
                   : task ? "Save Changes" : "Create Task"}

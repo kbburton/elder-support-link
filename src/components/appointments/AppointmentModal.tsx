@@ -14,6 +14,8 @@ import { TaskAppointmentDocumentLinker } from "@/components/documents/TaskAppoin
 import { useLinkedContacts } from "@/hooks/useLinkedContacts";
 import { useContactLinkOperations } from "@/hooks/useContactLinkOperations";
 import { triggerReindex } from "@/utils/reindex";
+import { useDemoOperations } from "@/hooks/useDemoOperations";
+import { useDemoProfiles } from "@/hooks/useDemoData";
 
 interface Appointment {
   id: string;
@@ -51,6 +53,8 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
   });
 
   const [relatedContacts, setRelatedContacts] = useState<string[]>([]);
+  const { blockOperation } = useDemoOperations();
+  const demoProfiles = useDemoProfiles();
   
   // Get linked contacts if editing existing appointment
   const { data: linkedContactsData = [] } = useLinkedContacts("appointment", appointment?.id || "");
@@ -65,41 +69,47 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
     },
   });
 
-  // Fetch group members for attendee selection
-  const { data: groupMembers } = useQuery({
-    queryKey: ["groupMembers", groupId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("care_group_members")
-        .select("user_id")
-        .eq("group_id", groupId);
+  // Fetch group members for attendee selection - use demo data if in demo mode
+  const { data: groupMembers } = demoProfiles.isDemo 
+    ? { data: demoProfiles.data?.map(profile => ({
+        id: profile.user_id,
+        name: `${profile.first_name} ${profile.last_name}`.trim() || profile.email,
+        email: profile.email || ""
+      })) || [] }
+    : useQuery({
+        queryKey: ["groupMembers", groupId],
+        queryFn: async () => {
+          const { data, error } = await supabase
+            .from("care_group_members")
+            .select("user_id")
+            .eq("group_id", groupId);
 
-      if (error) throw error;
-      
-      if (!data || data.length === 0) return [];
-      
-      const userIds = data.map(m => m.user_id).filter(Boolean);
-      
-      const { data: profiles, error: profileError } = await supabase
-        .from("profiles")
-        .select("user_id, first_name, last_name, email")
-        .in("user_id", userIds);
-        
-      if (profileError) throw profileError;
-      
-      return profiles?.map(profile => {
-        const firstName = profile.first_name || "";
-        const lastName = profile.last_name || "";
-        const fullName = `${firstName} ${lastName}`.trim();
-        return {
-          id: profile.user_id,
-          name: fullName || profile.email || "Unknown User",
-          email: profile.email || ""
-        };
-      }) || [];
-    },
-    enabled: !!groupId,
-  });
+          if (error) throw error;
+          
+          if (!data || data.length === 0) return [];
+          
+          const userIds = data.map(m => m.user_id).filter(Boolean);
+          
+          const { data: profiles, error: profileError } = await supabase
+            .from("profiles")
+            .select("user_id, first_name, last_name, email")
+            .in("user_id", userIds);
+            
+          if (profileError) throw profileError;
+          
+          return profiles?.map(profile => {
+            const firstName = profile.first_name || "";
+            const lastName = profile.last_name || "";
+            const fullName = `${firstName} ${lastName}`.trim();
+            return {
+              id: profile.user_id,
+              name: fullName || profile.email || "Unknown User",
+              email: profile.email || ""
+            };
+          }) || [];
+        },
+        enabled: !!groupId && !demoProfiles.isDemo,
+      });
 
   useEffect(() => {
     if (appointment) {
@@ -249,6 +259,8 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (blockOperation()) return;
     
     const submitData = {
       ...formData,
@@ -429,7 +441,8 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
             </Button>
             <Button 
               type="submit" 
-              disabled={createAppointment.isPending || updateAppointment.isPending}
+              disabled={createAppointment.isPending || updateAppointment.isPending || blockOperation()}
+              className={blockOperation() ? "opacity-50 cursor-not-allowed" : ""}
             >
               {appointment ? "Save Changes" : "Create Appointment"}
             </Button>
