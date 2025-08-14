@@ -75,7 +75,7 @@ const SearchPage = () => {
             entity_id: apt.id,
             title,
             snippet_html: `${apt.location || ''} • ${apt.category || 'Other'}`,
-            url_path: `/app/${groupId}/appointments/${apt.id}`,
+            url_path: `/app/${groupId}/calendar`,
             rank: searchText.indexOf(searchTerm) === 0 ? 1 : 0.8
           });
         }
@@ -92,7 +92,7 @@ const SearchPage = () => {
             entity_id: task.id,
             title: task.title,
             snippet_html: `${task.category || 'Other'} • ${task.status}`,
-            url_path: `/app/${groupId}/tasks/${task.id}`,
+            url_path: `/app/${groupId}/tasks`,
             rank: searchText.indexOf(searchTerm) === 0 ? 1 : 0.8
           });
         }
@@ -127,7 +127,7 @@ const SearchPage = () => {
             entity_id: doc.id,
             title: doc.title || 'Document',
             snippet_html: `${doc.category || 'Other'} • ${doc.original_filename || ''}`,
-            url_path: `/app/${groupId}/documents/${doc.id}`,
+            url_path: `/app/${groupId}/documents`,
             rank: searchText.indexOf(searchTerm) === 0 ? 1 : 0.8
           });
         }
@@ -144,7 +144,7 @@ const SearchPage = () => {
             entity_id: activity.id,
             title: activity.title || 'Activity',
             snippet_html: `${activity.type || 'Other'} • ${new Date(activity.date_time).toLocaleDateString()}`,
-            url_path: `/app/${groupId}/activities/${activity.id}`,
+            url_path: `/app/${groupId}/activity`,
             rank: searchText.indexOf(searchTerm) === 0 ? 1 : 0.8
           });
         }
