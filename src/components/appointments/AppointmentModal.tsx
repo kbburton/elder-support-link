@@ -53,8 +53,12 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
   });
 
   const [relatedContacts, setRelatedContacts] = useState<string[]>([]);
-  const { blockOperation } = useDemoOperations();
-  const demoProfiles = useDemoProfiles();
+  
+  // Temporarily comment out problematic hooks to isolate the issue
+  // const { blockOperation } = useDemoOperations();
+  // const demoProfiles = useDemoProfiles();
+  const blockOperation = () => false;
+  const demoProfiles = { data: null, isDemo: false };
   
   // Get linked contacts if editing existing appointment
   const { data: linkedContactsData = [] } = useLinkedContacts("appointment", appointment?.id || "");
