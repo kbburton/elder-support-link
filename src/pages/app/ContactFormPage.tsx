@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Save, User, Building2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useSimpleDemoState } from "@/hooks/useSimpleDemoState";
 
 const contactSchema = z.object({
   is_organization: z.boolean().default(false),
@@ -84,6 +85,7 @@ export default function ContactFormPage() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const { isDemo, blockOperation } = useSimpleDemoState();
   
   const isEditing = !!contactId;
 
@@ -168,6 +170,15 @@ export default function ContactFormPage() {
 
   const onSubmit = async (data: ContactFormData) => {
     if (!user || !groupId) return;
+    
+    if (blockOperation()) {
+      toast({
+        title: "Demo Mode",
+        description: "Cannot save contact in demo mode. This is read-only.",
+        variant: "default"
+      });
+      return;
+    }
     
     setLoading(true);
     try {
@@ -789,7 +800,11 @@ export default function ContactFormPage() {
                 Cancel
               </Link>
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button 
+              type="submit" 
+              disabled={loading || isDemo}
+              className={isDemo ? "opacity-50 cursor-not-allowed" : ""}
+            >
               <Save className="h-4 w-4 mr-2" />
               {loading ? "Saving..." : isEditing ? "Update Contact" : "Create Contact"}
             </Button>
