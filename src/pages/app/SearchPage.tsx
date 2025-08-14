@@ -10,6 +10,8 @@ import { Search, FileText, Calendar, CheckSquare, User, Activity } from "lucide-
 import { debounce } from "@/utils/debounce";
 import { useToast } from "@/hooks/use-toast";
 import ContactChips from "@/components/contacts/ContactChips";
+import { useDemo } from "@/hooks/useDemo";
+import { useDemoAppointments, useDemoTasks, useDemoContacts, useDemoDocuments, useDemoActivities } from "@/hooks/useDemoData";
 
 interface SearchResult {
   entity_type: string;
@@ -33,6 +35,14 @@ const SearchPage = () => {
   const { groupId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
+  const { isDemo } = useDemo();
+  
+  // Demo data hooks
+  const demoAppointments = useDemoAppointments(groupId);
+  const demoTasks = useDemoTasks(groupId);
+  const demoContacts = useDemoContacts(groupId);
+  const demoDocuments = useDemoDocuments(groupId);
+  const demoActivities = useDemoActivities(groupId);
   
   const [searchValue, setSearchValue] = useState(searchParams.get("q") || "");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -47,6 +57,104 @@ const SearchPage = () => {
     return html.replace(/<(?!\/?mark\b)[^>]*>/gi, "");
   };
 
+  // Demo search function
+  const searchDemoData = useCallback((query: string): SearchResult[] => {
+    if (!query.trim()) return [];
+    
+    const searchTerm = query.toLowerCase();
+    const results: SearchResult[] = [];
+
+    // Search appointments
+    if (demoAppointments.data) {
+      demoAppointments.data.forEach(apt => {
+        const title = apt.description || 'Appointment';
+        const searchText = `${title} ${apt.location || ''} ${apt.category || ''}`.toLowerCase();
+        if (searchText.includes(searchTerm)) {
+          results.push({
+            entity_type: 'appointment',
+            entity_id: apt.id,
+            title,
+            snippet_html: `${apt.location || ''} • ${apt.category || 'Other'}`,
+            url_path: `/app/${groupId}/appointments/${apt.id}`,
+            rank: searchText.indexOf(searchTerm) === 0 ? 1 : 0.8
+          });
+        }
+      });
+    }
+
+    // Search tasks
+    if (demoTasks.data) {
+      demoTasks.data.forEach(task => {
+        const searchText = `${task.title} ${task.description || ''} ${task.category || ''}`.toLowerCase();
+        if (searchText.includes(searchTerm)) {
+          results.push({
+            entity_type: 'task',
+            entity_id: task.id,
+            title: task.title,
+            snippet_html: `${task.category || 'Other'} • ${task.status}`,
+            url_path: `/app/${groupId}/tasks/${task.id}`,
+            rank: searchText.indexOf(searchTerm) === 0 ? 1 : 0.8
+          });
+        }
+      });
+    }
+
+    // Search contacts
+    if (demoContacts.data) {
+      demoContacts.data.forEach(contact => {
+        const name = contact.organization_name || `${contact.first_name || ''} ${contact.last_name || ''}`.trim();
+        const searchText = `${name} ${contact.email_personal || ''} ${contact.phone_primary || ''}`.toLowerCase();
+        if (searchText.includes(searchTerm)) {
+          results.push({
+            entity_type: 'contact',
+            entity_id: contact.id,
+            title: name || 'Contact',
+            snippet_html: `${contact.contact_type} • ${contact.phone_primary || 'No phone'}`,
+            url_path: `/app/${groupId}/contacts/${contact.id}`,
+            rank: searchText.indexOf(searchTerm) === 0 ? 1 : 0.8
+          });
+        }
+      });
+    }
+
+    // Search documents
+    if (demoDocuments.data) {
+      demoDocuments.data.forEach(doc => {
+        const searchText = `${doc.title || ''} ${doc.category || ''} ${doc.summary || ''}`.toLowerCase();
+        if (searchText.includes(searchTerm)) {
+          results.push({
+            entity_type: 'document',
+            entity_id: doc.id,
+            title: doc.title || 'Document',
+            snippet_html: `${doc.category || 'Other'} • ${doc.original_filename || ''}`,
+            url_path: `/app/${groupId}/documents/${doc.id}`,
+            rank: searchText.indexOf(searchTerm) === 0 ? 1 : 0.8
+          });
+        }
+      });
+    }
+
+    // Search activities
+    if (demoActivities.data) {
+      demoActivities.data.forEach(activity => {
+        const searchText = `${activity.title || ''} ${activity.notes || ''} ${activity.type || ''}`.toLowerCase();
+        if (searchText.includes(searchTerm)) {
+          results.push({
+            entity_type: 'activity',
+            entity_id: activity.id,
+            title: activity.title || 'Activity',
+            snippet_html: `${activity.type || 'Other'} • ${new Date(activity.date_time).toLocaleDateString()}`,
+            url_path: `/app/${groupId}/activities/${activity.id}`,
+            rank: searchText.indexOf(searchTerm) === 0 ? 1 : 0.8
+          });
+        }
+      });
+    }
+
+    // Sort by rank (relevance)
+    return results.sort((a, b) => b.rank - a.rank);
+  }, [demoAppointments.data, demoTasks.data, demoContacts.data, demoDocuments.data, demoActivities.data, groupId]);
+
   // Debounced search function
   const debouncedSearch = useCallback(
     debounce(async (query: string) => {
@@ -54,17 +162,24 @@ const SearchPage = () => {
       
       setLoading(true);
       try {
-        const { data, error } = await supabase.rpc("search_all", {
-          q: query.trim(),
-          group_id: groupId,
-          lim: 50
-        });
+        if (isDemo) {
+          // Use demo search
+          const demoResults = searchDemoData(query);
+          setResults(demoResults);
+        } else {
+          // Use database search
+          const { data, error } = await supabase.rpc("search_all", {
+            q: query.trim(),
+            group_id: groupId,
+            lim: 50
+          });
 
-        if (error) {
-          throw new Error(error.message);
+          if (error) {
+            throw new Error(error.message);
+          }
+
+          setResults(data || []);
         }
-
-        setResults(data || []);
       } catch (error) {
         console.error("Search error:", error);
         toast({
@@ -76,7 +191,7 @@ const SearchPage = () => {
         setLoading(false);
       }
     }, 250),
-    [groupId, toast]
+    [groupId, toast, isDemo, searchDemoData]
   );
 
   // Update URL when search or filters change
