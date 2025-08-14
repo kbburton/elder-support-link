@@ -155,7 +155,7 @@ const Login = () => {
       // >>> UPDATED: process invitation; only return early if we actually navigated
       try {
         const handled = await processPostLoginInvite();
-        if (handled) return; // we already navigated to the invited group
+        if (handled) return; // stop normal flow because we navigated to the invited group
       } catch (error) {
         console.error("❌ Error processing invitation:", error);
         // Continue with normal login flow on error
