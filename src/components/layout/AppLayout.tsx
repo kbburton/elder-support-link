@@ -1,14 +1,36 @@
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Outlet, useNavigate, useParams } from "react-router-dom";
 import AppHeader from "./AppHeader";
 import { AppSidebar } from "../navigation/AppSidebar";
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
+import { useDemo, useDemoAnalytics } from "@/hooks/useDemo";
+import { DemoBanner } from "@/components/demo/DemoBanner";
+import { DemoRedirectModal } from "@/components/demo/DemoRedirectModal";
+import { useState } from "react";
 const AppLayout = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { groupId } = useParams();
+  const { isDemo, demoGroupId } = useDemo();
+  const [showDemoRedirect, setShowDemoRedirect] = useState(false);
+  
+  // Track demo analytics
+  useDemoAnalytics();
   useEffect(() => {
+    // Handle demo mode
+    if (isDemo) {
+      // If user is trying to access a different group ID in demo mode, redirect to demo group
+      if (groupId !== demoGroupId) {
+        setShowDemoRedirect(true);
+        return;
+      }
+      // Demo mode - skip auth checks
+      return;
+    }
+
+    // Regular authentication checks for non-demo mode
     const checkAuth = async () => {
       const { data: { session }, error } = await supabase.auth.getSession();
       console.log('AppLayout session check:', { hasSession: !!session, error, userId: session?.user?.id });
@@ -34,19 +56,32 @@ const AppLayout = () => {
     return () => {
       subscription?.unsubscribe();
     };
-  }, [navigate, toast]);
+  }, [navigate, toast, isDemo, groupId, demoGroupId]);
+  const handleDemoRedirect = () => {
+    navigate(`/app/${demoGroupId}/calendar`);
+    setShowDemoRedirect(false);
+  };
+
   return (
-    <SidebarProvider>
-      <div className="min-h-screen flex w-full">
-        <AppSidebar />
-        <SidebarInset>
-          <AppHeader />
-          <div className="p-6 container">
-            <Outlet />
-          </div>
-        </SidebarInset>
-      </div>
-    </SidebarProvider>
+    <>
+      <SidebarProvider>
+        <div className="min-h-screen flex w-full">
+          <AppSidebar />
+          <SidebarInset>
+            {isDemo && <DemoBanner />}
+            <AppHeader />
+            <div className="p-6 container">
+              <Outlet />
+            </div>
+          </SidebarInset>
+        </div>
+      </SidebarProvider>
+      
+      <DemoRedirectModal 
+        isOpen={showDemoRedirect}
+        onStartDemo={handleDemoRedirect}
+      />
+    </>
   );
 };
 

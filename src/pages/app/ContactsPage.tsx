@@ -11,6 +11,9 @@ import { Users, Plus, Search, Filter, Phone, Mail, MapPin, Download } from "luci
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { generateVCardFile } from "@/utils/vcard";
+import { useDemoContacts } from "@/hooks/useDemoData";
+import { useDemoOperations } from "@/hooks/useDemoOperations";
+import SEO from "@/components/layout/SEO";
 
 interface Contact {
   id: string;
@@ -41,9 +44,19 @@ export default function ContactsPage() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [emergencyFilter, setEmergencyFilter] = useState(false);
 
+  const { blockCreate, blockUpload } = useDemoOperations();
+  const demoData = useDemoContacts(groupId);
+
   useEffect(() => {
+    // Use demo data if in demo mode
+    if (demoData.isDemo) {
+      setContacts(demoData.data || []);
+      setLoading(false);
+      return;
+    }
+    
     loadContacts();
-  }, [groupId]);
+  }, [groupId, demoData.isDemo]);
 
   const loadContacts = async () => {
     if (!groupId) return;
@@ -99,6 +112,16 @@ export default function ContactsPage() {
     });
   };
 
+  const handleAddContact = () => {
+    if (blockCreate()) return;
+    window.location.href = `/app/${groupId}/contacts/new`;
+  };
+
+  const handleImportContacts = () => {
+    if (blockUpload()) return;
+    window.location.href = `/app/${groupId}/contacts/import`;
+  };
+
   const getContactName = (contact: Contact) => {
     if (contact.organization_name) {
       return contact.organization_name;
@@ -129,7 +152,9 @@ export default function ContactsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <>
+      <SEO title="Contacts — DaveAssist" description="Manage care team contacts and emergency information" />
+      <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <Users className="h-6 w-6 text-primary" />
@@ -137,17 +162,13 @@ export default function ContactsPage() {
           <Badge variant="outline">{contacts.length} contacts</Badge>
         </div>
         <div className="flex items-center space-x-2">
-          <Button asChild>
-            <Link to={`/app/${groupId}/contacts/new`}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Contact
-            </Link>
+          <Button onClick={handleAddContact}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Contact
           </Button>
-          <Button variant="outline" asChild>
-            <Link to={`/app/${groupId}/contacts/import`}>
-              <Plus className="h-4 w-4 mr-2" />
-              Import CSV
-            </Link>
+          <Button variant="outline" onClick={handleImportContacts}>
+            <Plus className="h-4 w-4 mr-2" />
+            Import CSV
           </Button>
           <Button 
             variant="outline" 
@@ -279,6 +300,7 @@ export default function ContactsPage() {
           </Table>
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </>
   );
 }
