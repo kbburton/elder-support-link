@@ -711,6 +711,68 @@ export type Database = {
           },
         ]
       }
+      demo_analytics: {
+        Row: {
+          created_at: string
+          entered_at: string
+          id: string
+          left_at: string | null
+          page_path: string
+          session_id: string
+          time_spent_seconds: number | null
+        }
+        Insert: {
+          created_at?: string
+          entered_at?: string
+          id?: string
+          left_at?: string | null
+          page_path: string
+          session_id: string
+          time_spent_seconds?: number | null
+        }
+        Update: {
+          created_at?: string
+          entered_at?: string
+          id?: string
+          left_at?: string | null
+          page_path?: string
+          session_id?: string
+          time_spent_seconds?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demo_analytics_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "demo_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      demo_sessions: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          last_accessed: string
+          session_count: number
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          last_accessed?: string
+          session_count?: number
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          last_accessed?: string
+          session_count?: number
+        }
+        Relationships: []
+      }
       document_access_logs: {
         Row: {
           action: string

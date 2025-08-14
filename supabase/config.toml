@@ -1,5 +1,32 @@
 project_id = "yfwgegapmggwywrnzqvg"
 
+[functions.admin-rebuild-search]
+verify_jwt = true
+
+[functions.admin-reindex]
+verify_jwt = true
+
+[functions.admin-search-reindex]
+verify_jwt = true
+
+[functions.admin-user-management]
+verify_jwt = true
+
+[functions.create-next-recurring-task]
+verify_jwt = true
+
+[functions.demo-auth]
+verify_jwt = false
+
+[functions.demo-analytics]
+verify_jwt = false
+
+[functions.gmail-oauth]
+verify_jwt = false
+
+[functions.gmail-send]
+verify_jwt = true
+
 [functions.notify]
 verify_jwt = true
 
@@ -9,8 +36,5 @@ verify_jwt = true
 [functions.send-invitation]
 verify_jwt = true
 
-[functions.gmail-oauth]
-verify_jwt = false
-
-[functions.gmail-send]
+[functions.validate-document]
 verify_jwt = true
