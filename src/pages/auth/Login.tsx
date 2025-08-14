@@ -46,6 +46,7 @@ const Login = () => {
     // Both RPC names return group_id now; prefer the wrapper
     const { data: groupId, error } = await supabase.rpc("accept_invitation", {
       invitation_id: invite.invitationId,
+      user_id: user.id,
     });
     if (error) {
       console.error("accept_invitation failed", error);
