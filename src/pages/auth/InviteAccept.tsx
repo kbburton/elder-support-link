@@ -179,20 +179,34 @@ const InviteAccept = () => {
       console.log("👥 Existing member check result:", { existingMember, error: memberCheckError });
 
       if (existingMember) {
-        console.log("✅ User is already a member, redirecting to group");
+        console.log("✅ User is already a member, handling invitation status");
         
-        // Check invitation status
-        const { data: invitationStatus } = await supabase
-          .from('care_group_invitations')
-          .select('status')
-          .eq('id', invitation.id)
-          .single();
-          
-        if (invitationStatus?.status === 'pending') {
-          await supabase.rpc('accept_invitation', {
-            invitation_id: invitation.id,
-            user_id: session.user.id
-          });
+        try {
+          // Check invitation status
+          const { data: invitationStatus } = await supabase
+            .from('care_group_invitations')
+            .select('status')
+            .eq('id', invitation.id)
+            .single();
+            
+          if (invitationStatus?.status === 'pending') {
+            console.log("📝 Accepting pending invitation for existing member");
+            await supabase.rpc('accept_invitation', {
+              invitation_id: invitation.id,
+              user_id: session.user.id
+            });
+            
+            toast({
+              title: "Welcome!",
+              description: `You have successfully joined ${invitation.group_name}.`,
+            });
+          } else {
+            console.log("ℹ️ Invitation already accepted for existing member");
+            toast({
+              title: "Welcome back!",
+              description: "You have already accepted this invitation.",
+            });
+          }
           
           // Update user's last active group
           await supabase
@@ -200,23 +214,16 @@ const InviteAccept = () => {
             .update({ last_active_group_id: invitation.group_id })
             .eq('user_id', session.user.id);
             
-          toast({
-            title: "Welcome!",
-            description: `You have successfully joined ${invitation.group_name}.`,
-          });
-        } else {
-          // Already accepted
-          await supabase
-            .from('profiles')
-            .update({ last_active_group_id: invitation.group_id })
-            .eq('user_id', session.user.id);
-            
+        } catch (error) {
+          console.error("❌ Error handling existing member invitation:", error);
+          // Still redirect to group even if invitation update fails
           toast({
             title: "Welcome back!",
-            description: "You have already accepted this invitation.",
+            description: "You are already a member of this group.",
           });
         }
         
+        console.log("🏠 Redirecting existing member to group");
         navigate(`/app/${invitation.group_id}`, { replace: true });
         return;
       }
