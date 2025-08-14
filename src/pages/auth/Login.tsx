@@ -6,7 +6,19 @@ import SEO from "@/components/layout/SEO";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { getPendingInvite, clearPendingInvite } from '@/lib/invitations';
+// Helper functions for invitation handling
+function getPendingInvite() {
+  try {
+    const raw = localStorage.getItem('pendingInvitation');
+    return raw ? JSON.parse(raw) : null; // { invitationId, groupId, groupName }
+  } catch {
+    return null;
+  }
+}
+
+function clearPendingInvite() {
+  localStorage.removeItem('pendingInvitation');
+}
 
 const Login = () => {
   const navigate = useNavigate();
@@ -30,14 +42,12 @@ const Login = () => {
     }
   }, [searchParams]);
 
-  // Process pending invitations using the new utility functions
-  const processPostLoginInvite = async () => {
+  // Call this right after you confirm auth success in Login.tsx
+  async function processPostLoginInvite() {
     const invite = getPendingInvite();
     if (!invite?.invitationId) return;
 
-    console.log("🎯 Processing post-login invitation:", invite);
-
-    // Call SECURITY DEFINER function (created in Supabase)
+    // ✅ Use the SECURITY DEFINER RPC function 
     const { error } = await supabase.rpc('accept_invitation', {
       invitation_id: invite.invitationId,
       user_id: (await supabase.auth.getUser()).data.user?.id
@@ -61,7 +71,7 @@ const Login = () => {
 
     // Navigate to the group home
     navigate(`/app/${invite.groupId}`, { replace: true });
-  };
+  }
 
   const handleSignIn = async () => {
     console.log("🔄 Login started for:", email);
