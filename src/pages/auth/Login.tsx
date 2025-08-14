@@ -11,6 +11,19 @@ import { useToast } from "@/hooks/use-toast";
 function getPendingInvite():
   | { invitationId: string; groupId?: string; groupName?: string }
   | null {
+  
+  // First check for post-login invitation (from registration flow)
+  const postLoginRaw = localStorage.getItem("postLoginInvitation");
+  if (postLoginRaw) {
+    try {
+      const obj = JSON.parse(postLoginRaw);
+      if (obj && obj.invitationId) return obj;
+    } catch {
+      // ignore
+    }
+  }
+  
+  // Then check for pending invitation (direct link flow)
   try {
     const raw = localStorage.getItem("pendingInvitation");
     if (!raw) return null;
@@ -29,6 +42,7 @@ function getPendingInvite():
 
 function clearPendingInvite() {
   localStorage.removeItem("pendingInvitation");
+  localStorage.removeItem("postLoginInvitation");
 }
 
 const Login = () => {
