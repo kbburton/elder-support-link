@@ -13,7 +13,7 @@ interface DemoContextType {
   isDemo: boolean;
   demoSession: DemoSession | null;
   demoData: typeof demoData;
-  startDemoSession: (email: string) => Promise<{ success: boolean; error?: string }>;
+  startDemoSession: (email: string) => Promise<{ success: boolean; error?: string; redirectToLanding?: boolean }>;
   endDemoSession: () => void;
   trackPageVisit: (pagePath: string) => void;
   trackPageLeave: (pagePath: string, timeSpent?: number) => void;
@@ -70,7 +70,7 @@ export const DemoProvider: React.FC<DemoProviderProps> = ({ children }) => {
     }
   };
 
-  const startDemoSession = async (email: string): Promise<{ success: boolean; error?: string }> => {
+  const startDemoSession = async (email: string): Promise<{ success: boolean; error?: string; redirectToLanding?: boolean }> => {
     try {
       console.log('🎭 Starting demo session for:', email);
       
@@ -97,7 +97,13 @@ export const DemoProvider: React.FC<DemoProviderProps> = ({ children }) => {
         console.error('🚨 Demo auth failed:', data);
         
         // Handle specific error types
-        if (data?.error === 'frequent_user') {
+        if (data?.error === 'existing_user') {
+          return { 
+            success: false, 
+            error: data.message || 'You are already a user! Please sign in to access your account.',
+            redirectToLanding: true
+          };
+        } else if (data?.error === 'frequent_user') {
           return { 
             success: false, 
             error: data.message || 'You\'ve used the demo several times. Consider creating a real account!' 

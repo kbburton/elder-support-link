@@ -31,8 +31,15 @@ const Index = () => {
         setShowDemoModal(false);
         navigate(`/app/${demoData.demoGroupId}/calendar`);
       } else {
-        // Display the specific error message from the backend
-        setDemoError(result.error || "Failed to start demo");
+        // Check if we need to redirect to landing page
+        if (result.redirectToLanding) {
+          setShowDemoModal(false);
+          setDemoError(result.error || "Please sign in to access your account");
+          // The error will be displayed on the landing page
+        } else {
+          // Display the specific error message from the backend
+          setDemoError(result.error || "Failed to start demo");
+        }
       }
     } catch (error) {
       console.error('Demo session error:', error);
@@ -78,6 +85,11 @@ const Index = () => {
           <div>
             <h1 className="text-4xl md:text-5xl font-bold leading-tight">Coordinate care for your loved ones together</h1>
             <p className="mt-4 text-lg text-muted-foreground">Create secure care groups, share calendars and tasks, manage documents, and keep everyone in sync.</p>
+            {demoError && !showDemoModal && (
+              <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+                <p className="text-sm text-destructive">{demoError}</p>
+              </div>
+            )}
             <div className="mt-8 flex gap-3">
               <Button variant="hero" className="transition-smooth" onClick={() => navigate("/register")}>Create a care group</Button>
               <Button variant="outline" onClick={handleDemoStart}>Try demo</Button>

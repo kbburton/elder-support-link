@@ -64,9 +64,26 @@ serve(async (req) => {
       );
     }
 
-    console.log('🔍 Checking for existing session...');
+    console.log('🔍 Checking if email belongs to existing user...');
+    
+    // Check if email already exists as a real user
+    const { data: existingUser, error: userCheckError } = await supabase.auth.admin.listUsers();
+    
+    if (!userCheckError && existingUser?.users) {
+      const userExists = existingUser.users.some(user => user.email === email);
+      if (userExists) {
+        console.log('🚫 Email belongs to existing user, redirecting to login');
+        return new Response(
+          JSON.stringify({ 
+            error: 'existing_user',
+            message: 'You are already a user! Please sign in to access your account.'
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
 
-    // Check if email already exists
+    console.log('🔍 Checking for existing demo session...');
     const { data: existingSession, error: fetchError } = await supabase
       .from('demo_sessions')
       .select('*')
