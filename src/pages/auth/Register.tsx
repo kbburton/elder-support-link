@@ -10,6 +10,7 @@ import { PasswordInput } from "@/components/auth/PasswordInput";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { setPendingInvite } from "@/lib/invitations";
 import { Info } from "lucide-react";
 
 const Register = () => {
@@ -33,16 +34,21 @@ const Register = () => {
 
   // Check for prefilled email from URL params and invitation data on load
   useEffect(() => {
+    const token = searchParams.get("token");
     const emailParam = searchParams.get("email");
-    if (emailParam) {
-      setEmail(decodeURIComponent(emailParam));
-    }
+    const groupId = searchParams.get("groupId");
+    const groupName = searchParams.get("groupName");
 
-    // Check for pending invitation
-    const pendingInvitation = localStorage.getItem("pendingInvitation");
-    if (pendingInvitation) {
-      loadInvitationData(pendingInvitation);
+    if (token) {
+      setPendingInvite({
+        invitationId: token,
+        groupId: groupId || undefined,
+        groupName: groupName ? decodeURIComponent(groupName) : undefined,
+      });
+      console.log("Invite saved for post-login processing");
+      loadInvitationData(token);
     }
+    if (emailParam) setEmail(decodeURIComponent(emailParam));
   }, [searchParams]);
 
   const loadInvitationData = async (token: string) => {
