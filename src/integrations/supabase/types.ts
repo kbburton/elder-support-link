@@ -1530,6 +1530,7 @@ export type Database = {
           group_name: string
           id: string
           invited_by_email: string
+          invited_email: string
           message: string
         }[]
       }
