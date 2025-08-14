@@ -72,13 +72,15 @@ serve(async (req) => {
     if (!userCheckError && existingUser?.users) {
       const userExists = existingUser.users.some(user => user.email === email);
       if (userExists) {
-        console.log('🚫 Email belongs to existing user, redirecting to login');
+        console.log('🚫 Email belongs to existing registered user, denying demo access');
         return new Response(
           JSON.stringify({ 
+            success: false,
             error: 'existing_user',
-            message: 'You are already a user! Please sign in to access your account.'
+            message: 'You are already registered! Please sign in to access your account.',
+            redirectToLanding: true
           }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
     }
@@ -93,20 +95,8 @@ serve(async (req) => {
     let sessionData: DemoSession;
 
     if (existingSession && !fetchError) {
-      // Check if this is a frequent user (3+ sessions)
-      if (existingSession.session_count >= 3) {
-        console.log('🚫 Frequent demo user detected, suggesting real account');
-        return new Response(
-          JSON.stringify({ 
-            error: 'frequent_user',
-            message: 'You\'ve used the demo several times. Consider creating a real account for full access to DaveAssist features!'
-          }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      // Update existing session
-      console.log('📧 Existing demo session found, updating session count');
+      // Update existing session - don't create duplicate records
+      console.log('📧 Existing demo session found, updating last accessed time');
       
       const { data: updatedSession, error: updateError } = await supabase
         .from('demo_sessions')
@@ -120,13 +110,11 @@ serve(async (req) => {
 
       if (updateError) {
         console.error('❌ Error updating demo session:', updateError);
-        return new Response(
-          JSON.stringify({ error: 'Failed to update session' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        // Don't fail completely - use existing session data
+        sessionData = existingSession;
+      } else {
+        sessionData = updatedSession;
       }
-
-      sessionData = updatedSession;
     } else {
       // Create new session
       console.log('🆕 Creating new demo session');

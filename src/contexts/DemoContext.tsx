@@ -100,7 +100,7 @@ export const DemoProvider: React.FC<DemoProviderProps> = ({ children }) => {
         if (data?.error === 'existing_user') {
           return { 
             success: false, 
-            error: data.message || 'You are already a user! Please sign in to access your account.',
+            error: data.message || 'You are already registered! Please sign in to access your account.',
             redirectToLanding: true
           };
         } else if (data?.error === 'frequent_user') {

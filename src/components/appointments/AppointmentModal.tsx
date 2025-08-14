@@ -15,7 +15,7 @@ import { useLinkedContacts } from "@/hooks/useLinkedContacts";
 import { useContactLinkOperations } from "@/hooks/useContactLinkOperations";
 import { triggerReindex } from "@/utils/reindex";
 import { useDemoOperations } from "@/hooks/useDemoOperations";
-import { useDemoProfiles } from "@/hooks/useDemoData";
+import { useSimpleDemoState } from "@/hooks/useSimpleDemoState";
 
 interface Appointment {
   id: string;
@@ -54,11 +54,8 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
 
   const [relatedContacts, setRelatedContacts] = useState<string[]>([]);
   
-  // Temporarily comment out problematic hooks to isolate the issue
-  // const { blockOperation } = useDemoOperations();
-  // const demoProfiles = useDemoProfiles();
-  const blockOperation = () => false;
-  const demoProfiles = { data: null, isDemo: false };
+  // Use simplified demo state to prevent infinite loops
+  const { blockOperation, demoProfiles } = useSimpleDemoState();
   
   // Get linked contacts if editing existing appointment
   const { data: linkedContactsData = [] } = useLinkedContacts("appointment", appointment?.id || "");

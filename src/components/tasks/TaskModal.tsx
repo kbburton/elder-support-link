@@ -31,7 +31,7 @@ import { RecurrenceModal } from "./RecurrenceModal";
 import { useLinkedContacts } from "@/hooks/useLinkedContacts";
 import { useContactLinkOperations } from "@/hooks/useContactLinkOperations";
 import { useDemoOperations } from "@/hooks/useDemoOperations";
-import { useDemoProfiles } from "@/hooks/useDemoData";
+import { useSimpleDemoState } from "@/hooks/useSimpleDemoState";
 
 interface Task {
   id: string;
@@ -74,8 +74,8 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
   const [showRecurrenceModal, setShowRecurrenceModal] = useState(false);
   const queryClient = useQueryClient();
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const { blockOperation } = useDemoOperations();
-  const demoProfiles = useDemoProfiles();
+  // Use simplified demo state to prevent infinite loops
+  const { blockOperation, demoProfiles } = useSimpleDemoState();
 
   // Get task recurrence rule if editing existing task
   const { data: recurrenceRule } = useQuery({
