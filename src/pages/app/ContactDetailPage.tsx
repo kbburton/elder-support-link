@@ -64,9 +64,16 @@ export default function ContactDetailPage() {
         .from("contacts")
         .select("*")
         .eq("id", contactId)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
+      
+      if (!data) {
+        console.error("Contact not found:", contactId);
+        navigate(`/app/${groupId}/contacts`);
+        return;
+      }
+      
       setContact(data);
 
       // Load creator name
@@ -75,7 +82,7 @@ export default function ContactDetailPage() {
           .from("profiles")
           .select("first_name, last_name, email")
           .eq("user_id", data.created_by_user_id)
-          .single();
+          .maybeSingle();
         
         if (profile) {
           setCreatedByName(`${profile.first_name || ""} ${profile.last_name || ""}`.trim() || profile.email || "Unknown");
