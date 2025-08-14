@@ -82,14 +82,23 @@ const InviteAccept = () => {
   };
 
   const acceptInvitation = async () => {
-    if (!invitation) return;
+    console.log("🚀 Starting invitation acceptance process");
+    console.log("📧 Invitation data:", invitation);
+    
+    if (!invitation) {
+      console.log("❌ No invitation data available");
+      return;
+    }
 
     setAccepting(true);
     try {
+      console.log("🔐 Checking user authentication...");
       // Check if user is authenticated
       const { data: { session } } = await supabase.auth.getSession();
+      console.log("👤 Session data:", session ? { userId: session.user.id, email: session.user.email } : "No session");
       
       if (!session) {
+        console.log("❌ User not authenticated, redirecting to login/register");
         // Get the invited email from the invitation data
         const invitedEmail = invitation.invited_email || "";
         
@@ -121,15 +130,21 @@ const InviteAccept = () => {
         return;
       }
 
+      console.log("✅ User is authenticated, proceeding with invitation acceptance");
+      
       // Check if user is already a member
-      const { data: existingMember } = await supabase
+      console.log("🔍 Checking if user is already a group member...");
+      const { data: existingMember, error: memberCheckError } = await supabase
         .from("care_group_members")
         .select("id")
         .eq("user_id", session.user.id)
         .eq("group_id", invitation.group_id)
         .maybeSingle();
 
+      console.log("👥 Existing member check result:", { existingMember, error: memberCheckError });
+
       if (existingMember) {
+        console.log("✅ User is already a member, redirecting to group");
         toast({
           title: "Already a member",
           description: "You are already a member of this group.",
@@ -139,13 +154,17 @@ const InviteAccept = () => {
       }
 
       // Ensure user has a profile before adding to group
-      const { data: existingProfile } = await supabase
+      console.log("👤 Checking if user profile exists...");
+      const { data: existingProfile, error: profileCheckError } = await supabase
         .from("profiles")
         .select("user_id")
         .eq("user_id", session.user.id)
-        .single();
+        .maybeSingle();
+
+      console.log("📝 Profile check result:", { existingProfile, error: profileCheckError });
 
       if (!existingProfile) {
+        console.log("➕ Creating user profile...");
         // Create profile if it doesn't exist
         const { error: profileError } = await supabase
           .from("profiles")
@@ -156,8 +175,10 @@ const InviteAccept = () => {
             last_name: session.user.user_metadata?.last_name || "",
           });
 
+        console.log("📝 Profile creation result:", { error: profileError });
+
         if (profileError) {
-          console.error("Error creating profile:", profileError);
+          console.error("❌ Error creating profile:", profileError);
           toast({
             title: "Error",
             description: "Failed to create user profile. Please try again.",
@@ -165,9 +186,19 @@ const InviteAccept = () => {
           });
           return;
         }
+        console.log("✅ Profile created successfully");
+      } else {
+        console.log("✅ Profile already exists");
       }
 
       // Add user to group
+      console.log("➕ Adding user to group...");
+      console.log("📊 Group membership data:", {
+        user_id: session.user.id,
+        group_id: invitation.group_id,
+        is_admin: false
+      });
+
       const { error: memberError } = await supabase
         .from("care_group_members")
         .insert({
@@ -176,8 +207,10 @@ const InviteAccept = () => {
           is_admin: false,
         });
 
+      console.log("👥 Group membership insertion result:", { error: memberError });
+
       if (memberError) {
-        console.error("Error adding member:", memberError);
+        console.error("❌ Error adding member:", memberError);
         toast({
           title: "Error",
           description: "Failed to join the group. Please try again.",
@@ -186,11 +219,16 @@ const InviteAccept = () => {
         return;
       }
 
+      console.log("✅ Successfully added to group");
+
       // Update invitation status using RPC
-      await supabase.rpc('accept_invitation', {
+      console.log("📝 Updating invitation status...");
+      const { error: invitationUpdateError } = await supabase.rpc('accept_invitation', {
         invitation_id: invitation.id,
         user_id: session.user.id
       });
+
+      console.log("📧 Invitation update result:", { error: invitationUpdateError });
 
       toast({
         title: "Welcome!",
@@ -198,14 +236,18 @@ const InviteAccept = () => {
       });
 
       // Update user's last active group
-      await supabase
+      console.log("🔄 Updating user's last active group...");
+      const { error: profileUpdateError } = await supabase
         .from('profiles')
         .update({ last_active_group_id: invitation.group_id })
         .eq('user_id', session.user.id);
 
+      console.log("👤 Profile update result:", { error: profileUpdateError });
+
+      console.log("🎉 Invitation acceptance completed successfully!");
       navigate(`/app/${invitation.group_id}`);
     } catch (error) {
-      console.error("Error accepting invitation:", error);
+      console.error("💥 Unexpected error accepting invitation:", error);
       toast({
         title: "Error",
         description: "Failed to accept invitation. Please try again.",
