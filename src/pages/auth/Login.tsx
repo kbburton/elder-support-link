@@ -40,7 +40,7 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // >>> UPDATED: capture token + optional groupId/groupName as JSON
+  // Replace the existing token/email handling with this:
   useEffect(() => {
     const token = searchParams.get("token");
     const emailParam = searchParams.get("email");
@@ -54,11 +54,9 @@ const Login = () => {
         groupName: groupName ? decodeURIComponent(groupName) : undefined,
       };
       localStorage.setItem("pendingInvitation", JSON.stringify(payload));
+      console.log("Stored invitation data for post-login processing (will be cleared after first login)");
     }
-
-    if (emailParam) {
-      setEmail(decodeURIComponent(emailParam));
-    }
+    if (emailParam) setEmail(decodeURIComponent(emailParam));
   }, [searchParams]);
 
   // >>> UPDATED: return boolean indicating if we navigated (so caller knows to short-circuit)
