@@ -1087,6 +1087,38 @@ export type Database = {
           },
         ]
       }
+      group_access_logs: {
+        Row: {
+          created_at: string
+          first_accessed_at: string
+          group_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          first_accessed_at?: string
+          group_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          first_accessed_at?: string
+          group_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_access_logs_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "care_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notification_preferences: {
         Row: {
           created_at: string
@@ -1141,6 +1173,7 @@ export type Database = {
           created_at: string
           email: string | null
           first_name: string | null
+          last_active_group_id: string | null
           last_name: string | null
           phone: string | null
           state: string | null
@@ -1153,6 +1186,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           first_name?: string | null
+          last_active_group_id?: string | null
           last_name?: string | null
           phone?: string | null
           state?: string | null
@@ -1165,6 +1199,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           first_name?: string | null
+          last_active_group_id?: string | null
           last_name?: string | null
           phone?: string | null
           state?: string | null
@@ -1172,7 +1207,15 @@ export type Database = {
           user_id?: string
           zip?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_last_active_group_id_fkey"
+            columns: ["last_active_group_id"]
+            isOneToOne: false
+            referencedRelation: "care_groups"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       search_index: {
         Row: {
@@ -1523,6 +1566,10 @@ export type Database = {
         Args: { "": unknown }
         Returns: unknown
       }
+      has_accessed_group_before: {
+        Args: { p_group_id: string; p_user_id: string }
+        Returns: boolean
+      }
       is_platform_admin: {
         Args: { user_uuid?: string }
         Returns: boolean
@@ -1556,6 +1603,10 @@ export type Database = {
           p_resource_id: string
           p_resource_type: string
         }
+        Returns: undefined
+      }
+      log_group_access: {
+        Args: { p_group_id: string }
         Returns: undefined
       }
       rebuild_search_index: {

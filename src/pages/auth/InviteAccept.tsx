@@ -70,13 +70,34 @@ const InviteAccept = () => {
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
-        // Store invitation token and redirect to login with token in URL
+        // Get the invited email from the invitation data
+        const invitedEmail = invitation.invited_email || "";
+        
+        // Check if user exists in profiles (has account)
+        const { data: existingUser } = await supabase
+          .from("profiles")
+          .select("email")
+          .eq("email", invitedEmail)
+          .single();
+
+        // Store invitation token for after login/registration
         localStorage.setItem("pendingInvitation", token!);
-        toast({
-          title: "Please log in",
-          description: "You need to log in to accept this invitation.",
-        });
-        navigate(`/login?token=${token}`, { replace: true });
+        
+        if (existingUser) {
+          // User exists, redirect to login with prefilled email
+          toast({
+            title: "Please log in",
+            description: "You need to log in to accept this invitation.",
+          });
+          navigate(`/login?token=${token}&email=${encodeURIComponent(invitedEmail)}`, { replace: true });
+        } else {
+          // New user, redirect to registration with prefilled email
+          toast({
+            title: "Create your account",
+            description: "Please create an account to accept this invitation.",
+          });
+          navigate(`/register?token=${token}&email=${encodeURIComponent(invitedEmail)}`, { replace: true });
+        }
         return;
       }
 
@@ -126,6 +147,12 @@ const InviteAccept = () => {
         title: "Welcome!",
         description: `You have successfully joined ${invitation.group_name}.`,
       });
+
+      // Update user's last active group
+      await supabase
+        .from('profiles')
+        .update({ last_active_group_id: invitation.group_id })
+        .eq('user_id', session.user.id);
 
       navigate(`/app/${invitation.group_id}`);
     } catch (error) {

@@ -125,6 +125,32 @@ serve(async (req) => {
 
     const groupName = group?.name || "Care Group";
 
+    // Check if the invited email belongs to an existing user
+    const { data: existingUser } = await supabaseClient
+      .from('profiles')
+      .select('user_id')
+      .eq('email', email)
+      .single();
+
+    if (existingUser && !resendId) {
+      // Check if this user is already a member
+      const { data: userMember } = await supabaseClient
+        .from('care_group_members')
+        .select('id')
+        .eq('user_id', existingUser.user_id)
+        .eq('group_id', actualGroupId)
+        .single();
+
+      if (userMember) {
+        return new Response(JSON.stringify({ 
+          error: "This person is already a member of this care group." 
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     let invitationData;
     let isResend = false;
 
@@ -175,7 +201,7 @@ serve(async (req) => {
         .single();
 
       if (existingInvitation) {
-        return new Response(JSON.stringify({ error: "Email already has a pending invitation" }), {
+        return new Response(JSON.stringify({ error: "The invitation was already sent and is pending." }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import SEO from "@/components/layout/SEO";
 import { Button } from "@/components/ui/button";
@@ -7,14 +7,48 @@ import { Plus } from "lucide-react";
 import SharedCalendar from "@/components/calendar/SharedCalendar";
 import { AppointmentModal } from "@/components/appointments/AppointmentModal";
 import { useDemoOperations } from "@/hooks/useDemoOperations";
+import { GroupWelcomeModal } from "@/components/welcome/GroupWelcomeModal";
+import { useGroupWelcome } from "@/hooks/useGroupWelcome";
+import { useLastActiveGroup } from "@/hooks/useLastActiveGroup";
+import { supabase } from "@/integrations/supabase/client";
 
 const CalendarPage = () => {
   const { groupId } = useParams<{ groupId: string }>();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [activeView, setActiveView] = useState<'month' | 'week' | 'day' | 'list'>('month');
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
+  const [groupName, setGroupName] = useState("");
   
   const { blockCreate } = useDemoOperations();
+  
+  // Use the last active group hook to update when user navigates to this page
+  useLastActiveGroup();
+  
+  // Use the welcome modal hook
+  const { showWelcome, closeWelcome } = useGroupWelcome(groupId || "", groupName);
+
+  // Fetch group name for welcome modal
+  useEffect(() => {
+    const fetchGroupName = async () => {
+      if (!groupId) return;
+      
+      try {
+        const { data: group } = await supabase
+          .from('care_groups')
+          .select('name')
+          .eq('id', groupId)
+          .single();
+        
+        if (group) {
+          setGroupName(group.name);
+        }
+      } catch (error) {
+        console.error('Error fetching group name:', error);
+      }
+    };
+
+    fetchGroupName();
+  }, [groupId]);
 
   if (!groupId) {
     return <div>Group ID not found</div>;
@@ -88,6 +122,13 @@ const CalendarPage = () => {
           />
         </TabsContent>
       </Tabs>
+      
+      <GroupWelcomeModal
+        groupId={groupId}
+        groupName={groupName}
+        isOpen={showWelcome}
+        onClose={closeWelcome}
+      />
       
       {/* New Appointment Modal - Handled by SharedCalendar component */}
     </div>

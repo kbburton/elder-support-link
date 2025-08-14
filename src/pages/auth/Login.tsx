@@ -15,11 +15,17 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Check for invitation token in URL params on load
+  // Check for invitation token and prefilled email in URL params on load
   useEffect(() => {
     const token = searchParams.get("token");
+    const emailParam = searchParams.get("email");
+    
     if (token) {
       localStorage.setItem("pendingInvitation", token);
+    }
+    
+    if (emailParam) {
+      setEmail(decodeURIComponent(emailParam));
     }
   }, [searchParams]);
 
@@ -42,6 +48,13 @@ const Login = () => {
         return;
       }
       
+      // Get user profile to check last active group
+      const { data: userProfile } = await supabase
+        .from('profiles')
+        .select('last_active_group_id')
+        .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
+        .single();
+
       // Check if user has existing care groups
       const { data: userGroups, error: groupsError } = await supabase
         .from('care_group_members')
@@ -58,9 +71,26 @@ const Login = () => {
           toast({ title: "Welcome back", description: "Signed in successfully." });
           navigate(`/app/${groupId}`, { replace: true });
         } else {
-          // Multiple groups - show selection in onboarding
-          toast({ title: "Welcome back", description: "Choose your care group." });
-          navigate("/onboarding", { replace: true });
+          // Multiple groups - check for last active group
+          let targetGroupId = userProfile?.last_active_group_id;
+          
+          // Verify the last active group is still accessible
+          if (targetGroupId) {
+            const isGroupAccessible = userGroups.some(group => group.group_id === targetGroupId);
+            if (!isGroupAccessible) {
+              targetGroupId = null;
+            }
+          }
+          
+          if (targetGroupId) {
+            // Go to last active group
+            toast({ title: "Welcome back", description: "Signed in successfully." });
+            navigate(`/app/${targetGroupId}`, { replace: true });
+          } else {
+            // Multiple groups but no last active - show selection
+            toast({ title: "Welcome back", description: "Choose your care group." });
+            navigate("/onboarding", { replace: true });
+          }
         }
       } else {
         // No groups - go to onboarding to create one
