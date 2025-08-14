@@ -38,11 +38,27 @@ const AdminEmailPage = () => {
 
   const checkConnection = async () => {
     try {
-      // This would typically check if we have a valid refresh token
-      // For now, we'll just assume it's connected if the user sees a success message
-      setIsConnected(false); // Will be updated by actual check
+      console.log('Checking Gmail connection...');
+      
+      // Check if we have a valid refresh token stored
+      const { data, error } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'GMAIL_REFRESH_TOKEN')
+        .single();
+
+      console.log('Gmail token check result:', { hasData: !!data, error: error?.message });
+      
+      if (data && data.value && !error) {
+        console.log('Gmail is connected');
+        setIsConnected(true);
+      } else {
+        console.log('Gmail not connected');
+        setIsConnected(false);
+      }
     } catch (error) {
-      console.error('Error checking connection:', error);
+      console.error('Error checking Gmail connection:', error);
+      setIsConnected(false);
     } finally {
       setIsLoading(false);
     }
