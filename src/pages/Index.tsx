@@ -96,7 +96,7 @@ const Index = () => {
             </div>
           </div>
           <div className="rounded-lg border bg-card p-6 shadow-glow">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div className="rounded-md border p-4">
                 <p className="font-medium">Shared Calendar</p>
                 <p className="text-sm text-muted-foreground">Appointments with reminders</p>
@@ -112,6 +112,14 @@ const Index = () => {
               <div className="rounded-md border p-4">
                 <p className="font-medium">Activity Log</p>
                 <p className="text-sm text-muted-foreground">Phone/video/in-person notes</p>
+              </div>
+              <div className="rounded-md border p-4">
+                <p className="font-medium">Contacts</p>
+                <p className="text-sm text-muted-foreground">Manage care team and providers</p>
+              </div>
+              <div className="rounded-md border p-4">
+                <p className="font-medium">Universal Search</p>
+                <p className="text-sm text-muted-foreground">Find anything across all data</p>
               </div>
             </div>
           </div>
