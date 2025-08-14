@@ -19,30 +19,37 @@ const AppLayout = () => {
   // Track demo analytics
   useDemoAnalytics();
   useEffect(() => {
-    // Handle demo mode
-    if (isDemo) {
-      // If user is trying to access a different group ID in demo mode, redirect to demo group
-      if (groupId !== demoGroupId) {
-        setShowDemoRedirect(true);
+    // First check if we have a real authenticated session
+    const checkAuthFirst = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      // If we have a real authenticated session, we should NOT be in demo mode
+      if (session?.user) {
+        console.log('Real authenticated user detected:', session.user.email);
+        // Don't show demo redirect for real users
         return;
       }
-      // Demo mode - skip auth checks
-      return;
-    }
-
-    // Regular authentication checks for non-demo mode
-    const checkAuth = async () => {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      console.log('AppLayout session check:', { hasSession: !!session, error, userId: session?.user?.id });
       
-      if (!session && !error) {
+      // Handle demo mode only if no real session exists
+      if (isDemo) {
+        // If user is trying to access a different group ID in demo mode, redirect to demo group
+        if (groupId !== demoGroupId) {
+          setShowDemoRedirect(true);
+          return;
+        }
+        // Demo mode - skip auth checks
+        return;
+      }
+
+      // Regular authentication checks for non-demo mode
+      if (!session) {
         console.log('No session found, redirecting to login');
         toast({ title: "Session required", description: "Please log in again." });
         navigate("/login", { replace: true });
       }
     };
 
-    checkAuth();
+    checkAuthFirst();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log('Auth state change:', { event, hasSession: !!session, userId: session?.user?.id });

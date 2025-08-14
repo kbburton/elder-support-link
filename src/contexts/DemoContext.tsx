@@ -37,23 +37,59 @@ export const DemoProvider: React.FC<DemoProviderProps> = ({ children }) => {
   const [demoSession, setDemoSession] = useState<DemoSession | null>(null);
   const [currentPage, setCurrentPage] = useState<string>('');
   const [pageStartTime, setPageStartTime] = useState<number>(0);
+  const [hasRealAuth, setHasRealAuth] = useState<boolean>(false);
+  
+  // Check for real authentication
+  const checkForRealAuth = useCallback(() => {
+    return hasRealAuth;
+  }, [hasRealAuth]);
 
-  // Check for existing demo session on mount
+  // Check for existing demo session on mount and monitor real auth
   useEffect(() => {
-    const storedSession = localStorage.getItem('demo-session');
-    if (storedSession) {
-      try {
-        const session = JSON.parse(storedSession);
-        if (session.token && isValidDemoToken(session.token)) {
-          setDemoSession(session);
-        } else {
+    // Check for real Supabase session first
+    const checkRealAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        console.log('Real authenticated user found, disabling demo mode');
+        setHasRealAuth(true);
+        setDemoSession(null);
+        localStorage.removeItem('demo-session');
+        return;
+      }
+      
+      // Only check for demo session if no real auth
+      const storedSession = localStorage.getItem('demo-session');
+      if (storedSession) {
+        try {
+          const session = JSON.parse(storedSession);
+          if (session.token && isValidDemoToken(session.token)) {
+            setDemoSession(session);
+          } else {
+            localStorage.removeItem('demo-session');
+          }
+        } catch (error) {
+          console.error('Error parsing stored demo session:', error);
           localStorage.removeItem('demo-session');
         }
-      } catch (error) {
-        console.error('Error parsing stored demo session:', error);
-        localStorage.removeItem('demo-session');
       }
-    }
+    };
+
+    checkRealAuth();
+
+    // Monitor auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user) {
+        console.log('Real user logged in, ending demo session');
+        setHasRealAuth(true);
+        setDemoSession(null);
+        localStorage.removeItem('demo-session');
+      } else if (event === 'SIGNED_OUT') {
+        console.log('User signed out, allowing demo mode');
+        setHasRealAuth(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const isValidDemoToken = (token: string): boolean => {
@@ -198,7 +234,7 @@ export const DemoProvider: React.FC<DemoProviderProps> = ({ children }) => {
   }, [currentPage]); // Remove demoSession from dependencies to prevent infinite loop
 
   const value: DemoContextType = useMemo(() => ({
-    isDemo: !!demoSession,
+    isDemo: !!demoSession && !checkForRealAuth(), // Only demo if we have demo session AND no real auth
     demoSession,
     demoData,
     startDemoSession,
