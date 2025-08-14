@@ -294,7 +294,7 @@ export const useDemoProfiles = () => {
       created_at: stableBaseDate,
       updated_at: stableBaseDate
     }));
-  }, [isDemo, demoData.familyMembers, stableBaseDate]);
+  }, [isDemo, demoData, stableBaseDate]);
 
   if (!isDemo) {
     return { data: null, isDemo: false };

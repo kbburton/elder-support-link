@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import demoData from '@/data/demo-data.json';
 
@@ -70,7 +70,7 @@ export const DemoProvider: React.FC<DemoProviderProps> = ({ children }) => {
     }
   };
 
-  const startDemoSession = async (email: string): Promise<{ success: boolean; error?: string; redirectToLanding?: boolean }> => {
+  const startDemoSession = useCallback(async (email: string): Promise<{ success: boolean; error?: string; redirectToLanding?: boolean }> => {
     try {
       console.log('🎭 Starting demo session for:', email);
       
@@ -139,15 +139,15 @@ export const DemoProvider: React.FC<DemoProviderProps> = ({ children }) => {
       
       return { success: false, error: errorMessage };
     }
-  };
+  }, []);
 
-  const endDemoSession = () => {
+  const endDemoSession = useCallback(() => {
     setDemoSession(null);
     localStorage.removeItem('demo-session');
     console.log('🔚 Demo session ended');
-  };
+  }, []);
 
-  const trackPageVisit = async (pagePath: string) => {
+  const trackPageVisit = useCallback(async (pagePath: string) => {
     if (!demoSession) return;
 
     setCurrentPage(pagePath);
@@ -164,9 +164,9 @@ export const DemoProvider: React.FC<DemoProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('Error tracking page visit:', error);
     }
-  };
+  }, [demoSession]);
 
-  const trackPageLeave = async (pagePath: string, timeSpent?: number) => {
+  const trackPageLeave = useCallback(async (pagePath: string, timeSpent?: number) => {
     if (!demoSession) return;
 
     const calculatedTimeSpent = timeSpent || (pageStartTime ? Math.floor((Date.now() - pageStartTime) / 1000) : 0);
@@ -183,7 +183,7 @@ export const DemoProvider: React.FC<DemoProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('Error tracking page leave:', error);
     }
-  };
+  }, [demoSession, pageStartTime]);
 
   // Track page changes automatically
   useEffect(() => {
@@ -197,7 +197,7 @@ export const DemoProvider: React.FC<DemoProviderProps> = ({ children }) => {
     };
   }, [currentPage]); // Remove demoSession from dependencies to prevent infinite loop
 
-  const value: DemoContextType = {
+  const value: DemoContextType = useMemo(() => ({
     isDemo: !!demoSession,
     demoSession,
     demoData,
@@ -205,7 +205,7 @@ export const DemoProvider: React.FC<DemoProviderProps> = ({ children }) => {
     endDemoSession,
     trackPageVisit,
     trackPageLeave
-  };
+  }), [demoSession, startDemoSession, endDemoSession, trackPageVisit, trackPageLeave]);
 
   return (
     <DemoContext.Provider value={value}>
