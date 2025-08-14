@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -106,13 +106,15 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
   });
 
   // Use demo data if in demo mode, otherwise use fetched data
-  const groupMembers = demoProfiles.isDemo 
-    ? demoProfiles.data?.map(profile => ({
-        id: profile.user_id,
-        name: `${profile.first_name} ${profile.last_name}`.trim() || profile.email,
-        email: profile.email || ""
-      })) || []
-    : fetchedGroupMembers || [];
+  const groupMembers = useMemo(() => {
+    return demoProfiles.isDemo 
+      ? demoProfiles.data?.map(profile => ({
+          id: profile.user_id,
+          name: `${profile.first_name} ${profile.last_name}`.trim() || profile.email,
+          email: profile.email || ""
+        })) || []
+      : fetchedGroupMembers || [];
+  }, [demoProfiles.isDemo, demoProfiles.data, fetchedGroupMembers]);
 
   useEffect(() => {
     if (appointment) {
