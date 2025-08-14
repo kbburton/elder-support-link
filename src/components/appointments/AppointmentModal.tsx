@@ -107,14 +107,15 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
 
   // Use demo data if in demo mode, otherwise use fetched data
   const groupMembers = useMemo(() => {
-    return demoProfiles.isDemo 
-      ? demoProfiles.data?.map(profile => ({
-          id: profile.user_id,
-          name: `${profile.first_name} ${profile.last_name}`.trim() || profile.email,
-          email: profile.email || ""
-        })) || []
-      : fetchedGroupMembers || [];
-  }, [demoProfiles.isDemo, demoProfiles.data, fetchedGroupMembers]);
+    if (demoProfiles.isDemo && demoProfiles.data) {
+      return demoProfiles.data.map(profile => ({
+        id: profile.user_id,
+        name: `${profile.first_name} ${profile.last_name}`.trim() || profile.email,
+        email: profile.email || ""
+      }));
+    }
+    return fetchedGroupMembers || [];
+  }, [demoProfiles.isDemo, fetchedGroupMembers]);
 
   useEffect(() => {
     if (appointment) {

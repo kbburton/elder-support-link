@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays, isSameDay, isToday, isBefore, parseISO } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -90,7 +90,7 @@ export default function SharedCalendar({
   });
 
   // Use demo data if in demo mode, otherwise use fetched data
-  const appointments = demoAppointments.isDemo ? demoAppointments.data || [] : fetchedAppointments;
+  const appointments = useMemo(() => demoAppointments.isDemo ? demoAppointments.data || [] : fetchedAppointments, [demoAppointments.isDemo, demoAppointments.data, fetchedAppointments]);
 
   // Fetch tasks with recurrence rules and owner names
   const { data: fetchedTasks = [] } = useQuery({
@@ -117,10 +117,10 @@ export default function SharedCalendar({
   });
 
   // Use demo data if in demo mode, otherwise use fetched data
-  const tasks = demoTasks.isDemo ? demoTasks.data || [] : fetchedTasks;
+  const tasks = useMemo(() => demoTasks.isDemo ? demoTasks.data || [] : fetchedTasks, [demoTasks.isDemo, demoTasks.data, fetchedTasks]);
 
   // Transform data into calendar events
-  const calendarEvents: CalendarEvent[] = [
+  const calendarEvents: CalendarEvent[] = useMemo(() => [
     ...appointments.map(apt => ({
       id: apt.id,
       entityType: 'appointment' as const,
@@ -148,16 +148,16 @@ export default function SharedCalendar({
       primaryOwnerName: task.primary_owner ? `${task.primary_owner.first_name || ''} ${task.primary_owner.last_name || ''}`.trim() : undefined,
       secondaryOwnerName: task.secondary_owner ? `${task.secondary_owner.first_name || ''} ${task.secondary_owner.last_name || ''}`.trim() : undefined
     }))
-  ];
+  ], [appointments, tasks]);
 
   // Apply filters
-  const filteredEvents = calendarEvents.filter(event => {
+  const filteredEvents = useMemo(() => calendarEvents.filter(event => {
     if (filters.category && event.category !== filters.category) return false;
     if (filters.status && event.status !== filters.status) return false;
     if (!filters.showCompleted && event.isCompleted) return false;
     if (filters.showOverdueOnly && !event.isOverdue) return false;
     return true;
-  });
+  }), [calendarEvents, filters]);
 
 
   const handleDateSelect = (date: Date | undefined) => {
