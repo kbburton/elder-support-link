@@ -65,51 +65,28 @@ const Login = () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
 
-    // Call the SECURITY DEFINER RPC.
-    // If the function in DB is named accept_invite(p_invite_id uuid), switch to:
-    // const { error } = await supabase.rpc("accept_invite", { p_invite_id: invite.invitationId });
-    const { error } = await supabase.rpc("accept_invitation", {
+    // after successful login
+    const { data: groupId, error } = await (supabase.rpc as any)('accept_invitation', {
       invitation_id: invite.invitationId,
-      user_id: user.id,
     });
 
     if (error) {
-      console.error("accept_invitation failed", error);
+      console.error('accept_invitation failed', error);
       toast({
         title: "Error joining group",
         description: error.message ?? "Could not join the care group",
         variant: "destructive",
       });
       return false;
-    }
-
-    clearPendingInvite();
-    toast({
-      title: "Welcome!",
-      description: `Joined ${invite.groupName ?? "care group"} successfully!`,
-    });
-
-    // Decide group to open
-    let targetGroupId = invite.groupId;
-    if (!targetGroupId) {
-      const { data: memberships, error: mErr } = await supabase
-        .from("care_group_members")
-        .select("group_id")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(1);
-      if (!mErr && memberships?.length) {
-        targetGroupId = memberships[0].group_id as string;
-      }
-    }
-
-    if (targetGroupId) {
-      await supabase
-        .from("profiles")
-        .update({ last_active_group_id: targetGroupId })
-        .eq("user_id", user.id);
-      // route to the group
-      navigate(`/app/${targetGroupId}`, { replace: true });
+    } 
+    
+    if (groupId) {
+      clearPendingInvite();
+      toast({
+        title: "Welcome!",
+        description: `Joined ${invite.groupName ?? "care group"} successfully!`,
+      });
+      navigate(`/app/${groupId}`, { replace: true });
       return true;
     }
 
