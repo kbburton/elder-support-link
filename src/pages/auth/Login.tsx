@@ -37,50 +37,41 @@ const Login = () => {
 
   async function processPostLoginInvite(): Promise<boolean> {
     const invite = getPendingInvite();
-    console.log("🔍 Processing invitation:", invite);
-    if (!invite?.invitationId) {
-      console.log("❌ No pending invitation found");
-      return false;
-    }
+    console.log("Processing invitation:", invite);
+    if (!invite?.invitationId) return false;
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      console.log("❌ No authenticated user found");
-      return false;
-    }
+    if (!user) return false;
 
-    console.log("🚀 Calling accept_invitation RPC with:", { invitation_id: invite.invitationId });
-    
-    // after successful login
-    const { data: groupId, error } = await (supabase.rpc as any)('accept_invitation', {
+    // Both RPC names return group_id now; prefer the wrapper
+    const { data: groupId, error } = await supabase.rpc("accept_invitation", {
       invitation_id: invite.invitationId,
     });
-
-    console.log("📥 RPC Response - data:", groupId, "error:", error);
-
     if (error) {
-      console.error('❌ accept_invitation failed', error);
-      toast({
-        title: "Error joining group",
-        description: error.message ?? "Could not join the care group",
-        variant: "destructive",
-      });
+      console.error("accept_invitation failed", error);
       return false;
-    } 
-    
-    if (groupId) {
-      console.log("✅ Successfully joined group:", groupId);
-      clearPendingInvite();
-      toast({
-        title: "Welcome!",
-        description: `Joined ${invite.groupName ?? "care group"} successfully!`,
-      });
-      navigate(`/app/${groupId}`, { replace: true });
-      return true;
     }
 
-    console.log("⚠️ No groupId returned from RPC");
-    return false; // let normal flow continue
+    clearPendingInvite();
+
+    let target = groupId as string | null;
+    if (!target) {
+      const { data: memberships } = await supabase
+        .from("care_group_members")
+        .select("group_id")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(1);
+      target = memberships?.[0]?.group_id ?? null;
+    }
+    if (target) {
+      await supabase.from("profiles")
+        .update({ last_active_group_id: target })
+        .eq("user_id", user.id);
+      navigate(`/app/${target}`, { replace: true });
+      return true;
+    }
+    return false;
   }
 
   const handleSignIn = async () => {
