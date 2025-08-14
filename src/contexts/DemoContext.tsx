@@ -72,17 +72,30 @@ export const DemoProvider: React.FC<DemoProviderProps> = ({ children }) => {
 
   const startDemoSession = async (email: string): Promise<{ success: boolean; error?: string }> => {
     try {
+      console.log('🎭 Starting demo session for:', email);
+      
       const { data, error } = await supabase.functions.invoke('demo-auth', {
         body: { email }
       });
 
+      console.log('📡 Demo auth response:', { data, error });
+
       if (error) {
-        console.error('Demo auth error:', error);
-        return { success: false, error: 'Authentication failed' };
+        console.error('🚨 Demo auth error:', error);
+        let errorMessage = 'Authentication failed';
+        
+        if (error.message?.includes('fetch')) {
+          errorMessage = 'Demo service is temporarily unavailable. Please try again.';
+        } else if (error.message?.includes('email')) {
+          errorMessage = 'Please enter a valid email address';
+        }
+        
+        return { success: false, error: errorMessage };
       }
 
-      if (!data.success) {
-        return { success: false, error: data.error || 'Authentication failed' };
+      if (!data || !data.success) {
+        console.error('🚨 Demo auth failed:', data);
+        return { success: false, error: data?.error || 'Authentication failed' };
       }
 
       const session: DemoSession = {
@@ -98,8 +111,18 @@ export const DemoProvider: React.FC<DemoProviderProps> = ({ children }) => {
       console.log('✅ Demo session started for:', email);
       return { success: true };
     } catch (error) {
-      console.error('Error starting demo session:', error);
-      return { success: false, error: 'Failed to start demo session' };
+      console.error('🚨 Error starting demo session:', error);
+      
+      let errorMessage = 'Failed to start demo session';
+      if (error instanceof Error) {
+        if (error.message.includes('fetch')) {
+          errorMessage = 'Demo service is temporarily unavailable. Please try again in a moment.';
+        } else if (error.message.includes('email')) {
+          errorMessage = 'Please check your email format and try again.';
+        }
+      }
+      
+      return { success: false, error: errorMessage };
     }
   };
 
