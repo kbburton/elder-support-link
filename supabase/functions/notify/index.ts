@@ -51,7 +51,7 @@ serve(async (req) => {
     });
 
     if (body.type === "immediate") {
-      return await handleImmediateNotification(body, supabase);
+      return await handleImmediateNotification(body, supabase, req);
     } else if (body.type === "feedback-new") {
       return await handleFeedbackNewNotification(body, supabase);
     } else if (body.type === "feedback-update") {
@@ -71,7 +71,7 @@ serve(async (req) => {
   }
 });
 
-async function handleImmediateNotification(body: ImmediatePayload, supabase: any) {
+async function handleImmediateNotification(body: ImmediatePayload, supabase: any, req: Request) {
   console.log('🔔 Starting immediate notification process:', {
     entity: body.entity,
     group_id: body.group_id,
@@ -220,11 +220,12 @@ async function handleImmediateNotification(body: ImmediatePayload, supabase: any
     emails.map(async (e) => {
       console.log(`📤 Sending email to: ${e.email}`);
       
-      // Call Gmail send function
+      // Call Gmail send function with user's auth token
+      const authHeader = req.headers.get('Authorization');
       const response = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/gmail-send`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+          'Authorization': authHeader || `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
