@@ -58,19 +58,16 @@ const Login = () => {
     if (emailParam) setEmail(decodeURIComponent(emailParam));
   }, [searchParams]);
 
-  // >>> UPDATED: return boolean indicating if we navigated (so caller knows to short-circuit)
   async function processPostLoginInvite(): Promise<boolean> {
     const invite = getPendingInvite();
     if (!invite?.invitationId) return false;
 
-    // ensure we are authenticated
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
 
-    // ✅ Use the RPC Lovable wired (accept_invitation). If your DB uses accept_invite(p_invite_id uuid),
-    // you can switch to: supabase.rpc('accept_invite', { p_invite_id: invite.invitationId })
+    // Call the SECURITY DEFINER RPC.
+    // If the function in DB is named accept_invite(p_invite_id uuid), switch to:
+    // const { error } = await supabase.rpc("accept_invite", { p_invite_id: invite.invitationId });
     const { error } = await supabase.rpc("accept_invitation", {
       invitation_id: invite.invitationId,
       user_id: user.id,
@@ -92,14 +89,31 @@ const Login = () => {
       description: `Joined ${invite.groupName ?? "care group"} successfully!`,
     });
 
-    // If the invite carried the target group, navigate now and tell caller we handled it.
-    if (invite.groupId) {
-      navigate(`/app/${invite.groupId}`, { replace: true });
+    // Decide group to open
+    let targetGroupId = invite.groupId;
+    if (!targetGroupId) {
+      const { data: memberships, error: mErr } = await supabase
+        .from("care_group_members")
+        .select("group_id")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (!mErr && memberships?.length) {
+        targetGroupId = memberships[0].group_id as string;
+      }
+    }
+
+    if (targetGroupId) {
+      await supabase
+        .from("profiles")
+        .update({ last_active_group_id: targetGroupId })
+        .eq("user_id", user.id);
+      // route to the group
+      navigate(`/app/${targetGroupId}`, { replace: true });
       return true;
     }
 
-    // Otherwise let the normal login flow decide where to send the user.
-    return false;
+    return false; // let normal flow continue
   }
 
   const handleSignIn = async () => {
