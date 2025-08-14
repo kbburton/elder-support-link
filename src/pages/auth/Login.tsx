@@ -45,29 +45,86 @@ const Login = () => {
       // Get current user info first
       const { data: { user: currentUser } } = await supabase.auth.getUser();
       
-      // Check if user has existing care groups
+      if (pendingInvitation && currentUser) {
+        // Try to auto-accept the invitation directly instead of redirecting
+        try {
+          // Get invitation details
+          const { data: invitation } = await supabase.rpc('get_invitation_by_token', {
+            invitation_token: pendingInvitation
+          });
+          
+          if (invitation && invitation.length > 0) {
+            const invitationData = invitation[0];
+            
+            // Check if user's email matches invitation email
+            const { data: userProfile } = await supabase
+              .from('profiles')
+              .select('email')
+              .eq('user_id', currentUser.id)
+              .single();
+            
+            if (userProfile?.email === invitationData.invited_email) {
+              // Check if user is already a member
+              const { data: existingMember } = await supabase
+                .from('care_group_members')
+                .select('id')
+                .eq('user_id', currentUser.id)
+                .eq('group_id', invitationData.group_id)
+                .single();
+              
+              if (!existingMember) {
+                // Add user to group
+                const { error: memberError } = await supabase
+                  .from('care_group_members')
+                  .insert({
+                    user_id: currentUser.id,
+                    group_id: invitationData.group_id,
+                    relationship_to_recipient: 'family' // default value
+                  });
+                
+                if (memberError) throw memberError;
+                
+                // Accept the invitation
+                await supabase.rpc('accept_invitation', {
+                  invitation_id: invitationData.id,
+                  user_id: currentUser.id
+                });
+                
+                // Update last active group
+                await supabase
+                  .from('profiles')
+                  .update({ last_active_group_id: invitationData.group_id })
+                  .eq('user_id', currentUser.id);
+                
+                // Clear pending invitation
+                localStorage.removeItem("pendingInvitation");
+                
+                toast({ title: "Welcome!", description: "Successfully joined the care group." });
+                navigate(`/app/${invitationData.group_id}`, { replace: true });
+                return;
+              } else {
+                // User is already a member, just clear token and go to group
+                localStorage.removeItem("pendingInvitation");
+                toast({ title: "Welcome back", description: "You're already a member of this group." });
+                navigate(`/app/${invitationData.group_id}`, { replace: true });
+                return;
+              }
+            }
+          }
+        } catch (inviteError) {
+          console.error('Error processing invitation:', inviteError);
+          // Clear invalid token
+          localStorage.removeItem("pendingInvitation");
+        }
+      }
+      
+      // Check if user has existing care groups (normal login flow)
       const { data: userGroups, error: groupsError } = await supabase
         .from('care_group_members')
         .select('group_id, care_groups(id, name)')
         .eq('user_id', currentUser?.id);
       
       if (groupsError) throw groupsError;
-      
-      if (pendingInvitation) {
-        localStorage.removeItem("pendingInvitation");
-        
-        // If user already has groups, try to auto-accept the invitation
-        if (userGroups && userGroups.length > 0) {
-          // Auto-accept invitation and go to group
-          navigate(`/invite/accept?token=${pendingInvitation}&auto=true`, { replace: true });
-          return;
-        } else {
-          // New user without groups, go to accept invitation normally
-          toast({ title: "Welcome!", description: "Successfully signed in. You can now accept the invitation." });
-          navigate(`/invite/accept?token=${pendingInvitation}`, { replace: true });
-          return;
-        }
-      }
       
       // Get user profile to check last active group
       const { data: userProfile } = await supabase
