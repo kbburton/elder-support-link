@@ -56,6 +56,27 @@ serve(async (req) => {
     const { email, groupId, resendId } = await req.json();
     console.log("Request data:", { email, groupId, resendId });
 
+    let actualGroupId = groupId;
+
+    // If resending, get the groupId from the existing invitation
+    if (resendId && !groupId) {
+      const { data: existingInvitation, error: fetchError } = await supabaseClient
+        .from('care_group_invitations')
+        .select('group_id')
+        .eq('id', resendId)
+        .single();
+
+      if (fetchError || !existingInvitation) {
+        return new Response(JSON.stringify({ error: "Invitation not found for resend" }), {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      actualGroupId = existingInvitation.group_id;
+      console.log("Retrieved groupId from existing invitation:", actualGroupId);
+    }
+
     // Get user profile using service role (bypassing RLS)
     const { data: profile } = await supabaseClient
       .from('profiles')
@@ -69,11 +90,11 @@ serve(async (req) => {
       : senderEmail;
 
     // Check if user is admin of the group using direct query (since service role doesn't have auth.uid())
-    console.log("Checking if user is admin of group:", groupId);
+    console.log("Checking if user is admin of group:", actualGroupId);
     const { data: adminCheck, error: adminError } = await supabaseClient
       .from('care_group_members')
       .select('is_admin')
-      .eq('group_id', groupId)
+      .eq('group_id', actualGroupId)
       .eq('user_id', user.id)
       .single();
 
@@ -88,7 +109,7 @@ serve(async (req) => {
         details: adminError?.message,
         isAdmin,
         userId: user.id,
-        groupId 
+        groupId: actualGroupId 
       }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -99,7 +120,7 @@ serve(async (req) => {
     const { data: group } = await supabaseClient
       .from('care_groups')
       .select('name')
-      .eq('id', groupId)
+      .eq('id', actualGroupId)
       .single();
 
     const groupName = group?.name || "Care Group";
@@ -148,7 +169,7 @@ serve(async (req) => {
       const { data: existingInvitation } = await supabaseClient
         .from('care_group_invitations')
         .select('*')
-        .eq('group_id', groupId)
+        .eq('group_id', actualGroupId)
         .eq('invited_email', email)
         .eq('status', 'pending')
         .single();
@@ -164,7 +185,7 @@ serve(async (req) => {
       const { data: newInvitation, error: insertError } = await supabaseClient
         .from('care_group_invitations')
         .insert({
-          group_id: groupId,
+          group_id: actualGroupId,
           invited_email: email,
           invited_by_user_id: user.id,
           message: `${senderName} has invited you to join the ${groupName} care group.`,
@@ -237,7 +258,7 @@ serve(async (req) => {
           to: invitationData.invited_email,
           subject: `${isResend ? 'Reminder: ' : ''}You're invited to join ${groupName}`,
           html: emailHtml,
-          groupId: groupId
+          groupId: actualGroupId
         }),
       });
 
