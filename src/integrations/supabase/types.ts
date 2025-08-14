@@ -132,6 +132,45 @@ export type Database = {
           },
         ]
       }
+      admin_audit_logs: {
+        Row: {
+          action: string
+          admin_email: string
+          admin_user_id: string
+          created_at: string
+          details: Json | null
+          id: string
+          ip_address: unknown | null
+          target_id: string | null
+          target_type: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          action: string
+          admin_email: string
+          admin_user_id: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          ip_address?: unknown | null
+          target_id?: string | null
+          target_type?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          action?: string
+          admin_email?: string
+          admin_user_id?: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          ip_address?: unknown | null
+          target_id?: string | null
+          target_type?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       admin_roles: {
         Row: {
           created_at: string
@@ -903,6 +942,48 @@ export type Database = {
           },
         ]
       }
+      enhanced_audit_logs: {
+        Row: {
+          action: string
+          created_at: string
+          details: Json | null
+          group_id: string
+          id: string
+          ip_address: unknown | null
+          resource_id: string
+          resource_type: string
+          user_agent: string | null
+          user_email: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: Json | null
+          group_id: string
+          id?: string
+          ip_address?: unknown | null
+          resource_id: string
+          resource_type: string
+          user_agent?: string | null
+          user_email: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: Json | null
+          group_id?: string
+          id?: string
+          ip_address?: unknown | null
+          resource_id?: string
+          resource_type?: string
+          user_agent?: string | null
+          user_email?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       feedback_comments: {
         Row: {
           body: string
@@ -1458,6 +1539,25 @@ export type Database = {
         Args: { group_uuid: string }
         Returns: boolean
       }
+      log_admin_action: {
+        Args: {
+          p_action: string
+          p_details?: Json
+          p_target_id?: string
+          p_target_type?: string
+        }
+        Returns: undefined
+      }
+      log_audit_event: {
+        Args: {
+          p_action: string
+          p_details?: Json
+          p_group_id: string
+          p_resource_id: string
+          p_resource_type: string
+        }
+        Returns: undefined
+      }
       rebuild_search_index: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -1473,6 +1573,10 @@ export type Database = {
       retry_search_job: {
         Args: { p_job_id: string }
         Returns: undefined
+      }
+      sanitize_input: {
+        Args: { input_text: string }
+        Returns: string
       }
       search_all: {
         Args: { group_id: string; lim?: number; q: string }
