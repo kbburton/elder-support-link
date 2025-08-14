@@ -179,8 +179,8 @@ const Register = () => {
           localStorage.removeItem("pendingInvitation");
           console.log("🧹 Cleared pending invitation from localStorage");
           
-          // Store success message for login redirect
-          localStorage.setItem("welcomeMessage", `Welcome to ${invitationData.group_name}!`);
+          // Store success message for login redirect  
+          localStorage.setItem("welcomeMessage", `You have been successfully added to the ${invitationData.group_name} care group!`);
           console.log("💾 Stored welcome message for login");
           
         } catch (inviteError: any) {
@@ -194,7 +194,9 @@ const Register = () => {
       
       toast({ 
         title: "Registration successful", 
-        description: invitationData ? "Please log in to access your care group." : "Please log in to continue." 
+        description: invitationData 
+          ? `You've been successfully added to the ${invitationData.group_name} care group. Please log in to continue.`
+          : "Please log in to continue." 
       });
       console.log("🔄 Redirecting to login...");
       navigate("/login", { replace: true });
