@@ -37,6 +37,15 @@ const SearchPage = () => {
   const { toast } = useToast();
   const { isDemo } = useDemo();
   
+  // Validate groupId 
+  if (!groupId || groupId === ":groupId") {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Invalid group ID. Please navigate from a valid group page.</p>
+      </div>
+    );
+  }
+  
   // Demo data hooks
   const demoAppointments = useDemoAppointments(groupId);
   const demoTasks = useDemoTasks(groupId);
