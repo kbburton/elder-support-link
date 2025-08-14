@@ -45,7 +45,7 @@ const AdminEmailPage = () => {
         .from('app_settings')
         .select('value')
         .eq('key', 'GMAIL_REFRESH_TOKEN')
-        .single();
+        .maybeSingle(); // Use maybeSingle() instead of single() to handle 0 rows
 
       console.log('Gmail token check result:', { hasData: !!data, error: error?.message });
       
