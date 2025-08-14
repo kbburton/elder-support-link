@@ -107,6 +107,7 @@ const Login = () => {
 
   const handleSignIn = async () => {
     console.log("🔄 Login started for:", email);
+    console.log("🔘 Button clicked, loading state:", loading);
 
     if (!email || !password) {
       toast({
