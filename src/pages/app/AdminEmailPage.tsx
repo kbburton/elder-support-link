@@ -118,11 +118,14 @@ const AdminEmailPage = () => {
         throw new Error('Not authenticated');
       }
 
+      const subject = `DA API Test 2 — ${new Date().toISOString()}`;
+      const html = `<p>This is a unique test from DaveAssist.</p>`;
+
       const { data, error } = await supabase.functions.invoke('gmail-send', {
         body: {
-          to: session.user.email,
-          subject: 'DaveAssist Test Email',
-          html: '<p>This is a test email from DaveAssist using Gmail API.</p><p>If you received this, the integration is working correctly!</p>'
+          to: 'kbburton3@gmail.com',
+          subject,
+          html
         },
         headers: {
           'Authorization': `Bearer ${session.access_token}`
@@ -134,7 +137,7 @@ const AdminEmailPage = () => {
       if (data.success) {
         toast({
           title: "Test Email Sent",
-          description: `Successfully sent test email to ${session.user.email}`,
+          description: `Successfully sent test email to kbburton3@gmail.com`,
         });
       } else {
         throw new Error(data.error || 'Failed to send email');
