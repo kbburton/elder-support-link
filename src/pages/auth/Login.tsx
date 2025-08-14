@@ -60,18 +60,29 @@ const Login = () => {
 
   async function processPostLoginInvite(): Promise<boolean> {
     const invite = getPendingInvite();
-    if (!invite?.invitationId) return false;
+    console.log("🔍 Processing invitation:", invite);
+    if (!invite?.invitationId) {
+      console.log("❌ No pending invitation found");
+      return false;
+    }
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return false;
+    if (!user) {
+      console.log("❌ No authenticated user found");
+      return false;
+    }
 
+    console.log("🚀 Calling accept_invitation RPC with:", { invitation_id: invite.invitationId });
+    
     // after successful login
     const { data: groupId, error } = await (supabase.rpc as any)('accept_invitation', {
       invitation_id: invite.invitationId,
     });
 
+    console.log("📥 RPC Response - data:", groupId, "error:", error);
+
     if (error) {
-      console.error('accept_invitation failed', error);
+      console.error('❌ accept_invitation failed', error);
       toast({
         title: "Error joining group",
         description: error.message ?? "Could not join the care group",
@@ -81,6 +92,7 @@ const Login = () => {
     } 
     
     if (groupId) {
+      console.log("✅ Successfully joined group:", groupId);
       clearPendingInvite();
       toast({
         title: "Welcome!",
@@ -90,6 +102,7 @@ const Login = () => {
       return true;
     }
 
+    console.log("⚠️ No groupId returned from RPC");
     return false; // let normal flow continue
   }
 
