@@ -6,6 +6,7 @@ import SEO from "@/components/layout/SEO";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { getPendingInvite, clearPendingInvite } from '@/lib/invitations';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -29,79 +30,37 @@ const Login = () => {
     }
   }, [searchParams]);
 
-  const processPostLoginInvitation = async (invitationData: any, currentUser: any) => {
-    console.log("🎯 Processing post-login invitation for:", invitationData);
-    
-    try {
-      // Check if user is already a member
-      const { data: existingMember } = await supabase
-        .from('care_group_members')
-        .select('id')
-        .eq('user_id', currentUser.id)
-        .eq('group_id', invitationData.groupId)
-        .maybeSingle();
-      
-      console.log("👥 Existing membership:", existingMember?.id || "none");
-      
-      if (!existingMember) {
-        console.log("➕ Adding user to care group...");
-        // Add user to group
-        const { error: memberError } = await supabase
-          .from('care_group_members')
-          .insert({
-            user_id: currentUser.id,
-            group_id: invitationData.groupId,
-            relationship_to_recipient: 'family'
-          });
-        
-        if (memberError) {
-          console.error("❌ Error adding to group:", memberError);
-          throw memberError;
-        } else {
-          console.log("✅ User added to group successfully");
-        }
-        
-        // Accept the invitation
-        console.log("📝 Accepting invitation...");
-        const { error: acceptError } = await supabase.rpc('accept_invitation', {
-          invitation_id: invitationData.invitationId,
-          user_id: currentUser.id
-        });
-        
-        if (acceptError) {
-          console.error("❌ Error accepting invitation:", acceptError);
-        } else {
-          console.log("✅ Invitation accepted");
-        }
-      } else {
-        console.log("ℹ️  User already member of group");
-      }
-      
-      // Update last active group
-      console.log("📌 Updating last active group...");
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ last_active_group_id: invitationData.groupId })
-        .eq('user_id', currentUser.id);
-      
-      if (profileError) {
-        console.error("❌ Error updating profile:", profileError);
-      } else {
-        console.log("✅ Last active group updated");
-      }
-      
-      // Navigate to the group
-      console.log("🗓️  Redirecting to group:", invitationData.groupId);
-      toast({ 
-        title: "Welcome!", 
-        description: `You have been successfully added to the ${invitationData.groupName} care group!` 
+  // Process pending invitations using the new utility functions
+  const processPostLoginInvite = async () => {
+    const invite = getPendingInvite();
+    if (!invite?.invitationId) return;
+
+    console.log("🎯 Processing post-login invitation:", invite);
+
+    // Call SECURITY DEFINER function (created in Supabase)
+    const { error } = await supabase.rpc('accept_invitation', {
+      invitation_id: invite.invitationId,
+      user_id: (await supabase.auth.getUser()).data.user?.id
+    });
+
+    if (error) {
+      console.error('accept_invite failed', error);
+      toast({
+        title: "Error joining group",
+        description: error.message ?? 'Could not join the care group',
+        variant: "destructive"
       });
-      navigate(`/app/${invitationData.groupId}`, { replace: true });
-      
-    } catch (error) {
-      console.error("❌ Error in post-login invitation processing:", error);
-      throw error;
+      return;
     }
+
+    clearPendingInvite();
+    toast({
+      title: "Welcome!",
+      description: `Joined ${invite.groupName ?? 'care group'} successfully!`
+    });
+
+    // Navigate to the group home
+    navigate(`/app/${invite.groupId}`, { replace: true });
   };
 
   const handleSignIn = async () => {
@@ -134,145 +93,13 @@ const Login = () => {
       const { data: { user: currentUser } } = await supabase.auth.getUser();
       console.log("👤 Current user ID:", currentUser?.id);
       
-      // Check for post-login invitation (from registration)
-      const postLoginInvitation = localStorage.getItem("postLoginInvitation");
-      if (postLoginInvitation && currentUser) {
-        console.log("🎯 Found post-login invitation data:", postLoginInvitation);
-        try {
-          const invitationData = JSON.parse(postLoginInvitation);
-          await processPostLoginInvitation(invitationData, currentUser);
-          localStorage.removeItem("postLoginInvitation");
-          return; // Exit early since we handled the invitation
-        } catch (error) {
-          console.error("❌ Error processing post-login invitation:", error);
-          localStorage.removeItem("postLoginInvitation");
-        }
-      }
-      
-      // Check for pending invitation (legacy flow)
-      const pendingInvitation = localStorage.getItem("pendingInvitation");
-      console.log("🎫 Pending invitation token:", pendingInvitation || "none");
-      
-      if (pendingInvitation && currentUser) {
-        // Try to auto-accept the invitation directly
-        console.log("🔄 Processing pending invitation...");
-        try {
-          // Get invitation details
-          const { data: invitation, error: inviteError } = await supabase.rpc('get_invitation_by_token', {
-            invitation_token: pendingInvitation
-          });
-          
-          if (inviteError) {
-            console.error("❌ Error getting invitation:", inviteError);
-            throw inviteError;
-          }
-          
-          console.log("✅ Invitation details:", invitation);
-          
-          if (invitation && invitation.length > 0) {
-            const invitationData = invitation[0];
-            console.log("📋 Processing invitation for group:", invitationData.group_id);
-            
-            // Check if user's email matches invitation email
-            const { data: userProfile } = await supabase
-              .from('profiles')
-              .select('email')
-              .eq('user_id', currentUser.id)
-              .maybeSingle();
-            
-            console.log("👤 User profile email:", userProfile?.email);
-            console.log("📧 Invitation email:", invitationData.invited_email);
-            
-            if (userProfile?.email === invitationData.invited_email) {
-              // Check if user is already a member
-              const { data: existingMember } = await supabase
-                .from('care_group_members')
-                .select('id')
-                .eq('user_id', currentUser.id)
-                .eq('group_id', invitationData.group_id)
-                .maybeSingle();
-              
-              console.log("👥 Existing membership:", existingMember?.id || "none");
-              
-              if (!existingMember) {
-                console.log("➕ Adding user to care group...");
-                // Add user to group
-                const { error: memberError } = await supabase
-                  .from('care_group_members')
-                  .insert({
-                    user_id: currentUser.id,
-                    group_id: invitationData.group_id,
-                    relationship_to_recipient: 'family'
-                  });
-                
-                if (memberError) {
-                  console.error("❌ Error adding to group:", memberError);
-                  // Check if it's a duplicate key error
-                  if (memberError.code === '23505') {
-                    console.log("ℹ️  User already member (duplicate key)");
-                    toast({ title: "Welcome back", description: "You already have access to this care group." });
-                  } else {
-                    throw memberError;
-                  }
-                } else {
-                  console.log("✅ User added to group successfully");
-                  toast({ title: "Welcome!", description: "Successfully joined the care group." });
-                }
-                
-                // Accept the invitation
-                console.log("📝 Accepting invitation...");
-                const { error: acceptError } = await supabase.rpc('accept_invitation', {
-                  invitation_id: invitationData.id,
-                  user_id: currentUser.id
-                });
-                
-                if (acceptError) {
-                  console.error("❌ Error accepting invitation:", acceptError);
-                } else {
-                  console.log("✅ Invitation accepted");
-                }
-              } else {
-                console.log("ℹ️  User already member of group");
-                toast({ title: "Welcome back", description: "You already have access to this care group." });
-              }
-              
-              // Update last active group
-              console.log("📌 Updating last active group...");
-              const { error: profileError } = await supabase
-                .from('profiles')
-                .update({ last_active_group_id: invitationData.group_id })
-                .eq('user_id', currentUser.id);
-              
-              if (profileError) {
-                console.error("❌ Error updating profile:", profileError);
-              } else {
-                console.log("✅ Last active group updated");
-              }
-              
-              // Clear pending invitation
-              localStorage.removeItem("pendingInvitation");
-              console.log("🧹 Cleared pending invitation");
-              
-              // Navigate to monthly calendar view with welcome message
-              console.log("🗓️  Redirecting to calendar for group:", invitationData.group_id);
-              toast({ title: "Welcome!", description: `Welcome to ${invitationData.group_name}!` });
-              navigate(`/app/${invitationData.group_id}/calendar`, { replace: true });
-              return;
-            } else {
-              console.log("❌ Email mismatch - invitation not for this user");
-            }
-          } else {
-            console.log("❌ No invitation data found");
-          }
-        } catch (inviteError) {
-          console.error('❌ Error processing invitation:', inviteError);
-          localStorage.removeItem("pendingInvitation");
-          toast({ 
-            title: "Error", 
-            description: "Failed to process invitation. Please try again.",
-            variant: "destructive"
-          });
-        }
+      // Process invitation using the new utility functions
+      try {
+        await processPostLoginInvite();
+        return; // Exit early if invitation was processed
+      } catch (error) {
+        console.error("❌ Error processing invitation:", error);
+        // Continue with normal login flow on error
       }
       
       console.log("🔄 Processing normal login flow...");
