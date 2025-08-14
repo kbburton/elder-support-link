@@ -7,7 +7,7 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "13.0.4"
@@ -1396,15 +1396,15 @@ export type Database = {
         Returns: undefined
       }
       build_weighted_tsv: {
-        Args: { title_text?: string; snippet_text?: string; body_text?: string }
+        Args: { body_text?: string; snippet_text?: string; title_text?: string }
         Returns: unknown
       }
       get_invitation_by_token: {
         Args: { invitation_token: string }
         Returns: {
-          id: string
           group_id: string
           group_name: string
+          id: string
           invited_by_email: string
           message: string
         }[]
@@ -1412,13 +1412,13 @@ export type Database = {
       get_search_jobs: {
         Args: Record<PropertyKey, never>
         Returns: {
-          id: string
-          entity_type: string
+          created_at: string
           entity_id: string
+          entity_type: string
+          error_message: string
+          id: string
           operation: string
           status: string
-          error_message: string
-          created_at: string
           updated_at: string
         }[]
       }
@@ -1463,11 +1463,11 @@ export type Database = {
         Returns: undefined
       }
       reindex_row: {
-        Args: { p_entity_type: string; p_entity_id: string }
+        Args: { p_entity_id: string; p_entity_type: string }
         Returns: undefined
       }
       remove_from_index: {
-        Args: { p_entity_type: string; p_entity_id: string }
+        Args: { p_entity_id: string; p_entity_type: string }
         Returns: undefined
       }
       retry_search_job: {
@@ -1475,14 +1475,14 @@ export type Database = {
         Returns: undefined
       }
       search_all: {
-        Args: { q: string; group_id: string; lim?: number }
+        Args: { group_id: string; lim?: number; q: string }
         Returns: {
-          entity_type: string
           entity_id: string
-          title: string
-          snippet_html: string
-          url_path: string
+          entity_type: string
           rank: number
+          snippet_html: string
+          title: string
+          url_path: string
         }[]
       }
       set_limit: {
