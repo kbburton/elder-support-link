@@ -178,6 +178,10 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
         // Send notifications for new document
         try {
           console.log('Sending notification for new document:', { documentId: documentData.id, groupId });
+          
+          // Get current session for authentication
+          const { data: { session } } = await supabase.auth.getSession();
+          
           const notifyResponse = await supabase.functions.invoke("notify", {
             body: {
               type: "immediate",
@@ -186,6 +190,9 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
               item_id: documentData.id,
               baseUrl: typeof window !== "undefined" ? window.location.origin : undefined,
             },
+            headers: session?.access_token ? {
+              'Authorization': `Bearer ${session.access_token}`
+            } : {},
           });
           console.log('Document notification response:', notifyResponse);
           

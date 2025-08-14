@@ -351,6 +351,9 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
       // Immediate notifications on create
       if (action === "created" && config.notifyOnCreateEntity && groupId && row?.[idField]) {
         try {
+          // Get current session for authentication
+          const { data: { session } } = await supabase.auth.getSession();
+          
           await supabase.functions.invoke("notify", {
             body: {
               type: "immediate",
@@ -359,6 +362,9 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
               item_id: row[idField],
               baseUrl: typeof window !== "undefined" ? window.location.origin : undefined,
             },
+            headers: session?.access_token ? {
+              'Authorization': `Bearer ${session.access_token}`
+            } : {},
           });
         } catch (e) {
           console.warn("Notification send failed", e);

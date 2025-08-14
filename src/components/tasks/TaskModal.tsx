@@ -261,6 +261,10 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
       // Send notifications for new task
       try {
         console.log('Sending notification for new task:', { taskId: newTask.id, groupId });
+        
+        // Get current session for authentication
+        const { data: { session } } = await supabase.auth.getSession();
+        
         const notifyResponse = await supabase.functions.invoke("notify", {
           body: {
             type: "immediate",
@@ -269,6 +273,9 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
             item_id: newTask.id,
             baseUrl: typeof window !== "undefined" ? window.location.origin : undefined,
           },
+          headers: session?.access_token ? {
+            'Authorization': `Bearer ${session.access_token}`
+          } : {},
         });
         console.log('Notification response:', notifyResponse);
         

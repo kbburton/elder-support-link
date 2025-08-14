@@ -192,6 +192,9 @@ const ActivityLogForm = ({ editingEntry, onSave, onCancel }: ActivityLogFormProp
       // Send notifications for new entries
       if (!editingEntry && groupId) {
         try {
+          // Get current session for authentication
+          const { data: { session } } = await supabase.auth.getSession();
+          
           await supabase.functions.invoke("notify", {
             body: {
               type: "immediate",
@@ -200,6 +203,9 @@ const ActivityLogForm = ({ editingEntry, onSave, onCancel }: ActivityLogFormProp
               item_id: data.id,
               baseUrl: typeof window !== "undefined" ? window.location.origin : undefined,
             },
+            headers: session?.access_token ? {
+              'Authorization': `Bearer ${session.access_token}`
+            } : {},
           });
         } catch (error) {
           console.warn("Notification send failed:", error);
