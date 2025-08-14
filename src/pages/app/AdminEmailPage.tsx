@@ -47,9 +47,9 @@ const AdminEmailPage = () => {
         .eq('key', 'GMAIL_REFRESH_TOKEN')
         .maybeSingle(); // Use maybeSingle() instead of single() to handle 0 rows
 
-      console.log('Gmail token check result:', { hasData: !!data, error: error?.message });
+      console.log('Gmail token check result:', { hasData: !!data, error: error?.message, dataValue: data?.value });
       
-      if (data && data.value && !error) {
+      if (data?.value && !error) {
         console.log('Gmail is connected');
         setIsConnected(true);
       } else {
