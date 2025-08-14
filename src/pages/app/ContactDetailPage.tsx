@@ -11,6 +11,8 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import ReverseLinkedItems from "@/components/contacts/ReverseLinkedItems";
 import { generateVCardFile } from "@/utils/vcard";
+import { useDemoContacts } from "@/hooks/useDemoData";
+import { useDemo } from "@/hooks/useDemo";
 
 interface Contact {
   id: string;
@@ -52,9 +54,76 @@ export default function ContactDetailPage() {
   const [loading, setLoading] = useState(true);
   const [createdByName, setCreatedByName] = useState<string>("");
 
+  const { isDemo } = useDemo();
+  const demoData = useDemoContacts(groupId);
+
   useEffect(() => {
-    loadContact();
-  }, [contactId]);
+    if (isDemo && demoData.data) {
+      loadDemoContact();
+    } else {
+      loadContact();
+    }
+  }, [contactId, isDemo, demoData.data]);
+
+  const loadDemoContact = () => {
+    if (!contactId || !demoData.data) return;
+    
+    try {
+      const demoContact = demoData.data.find(c => c.id === contactId);
+      
+      if (!demoContact) {
+        console.error("Demo contact not found:", contactId);
+        navigate(`/app/${groupId}/contacts`);
+        return;
+      }
+      
+      // Transform demo contact to match interface
+      const transformedContact: Contact = {
+        id: demoContact.id,
+        first_name: demoContact.first_name || demoContact.firstName || null,
+        last_name: demoContact.last_name || demoContact.lastName || null,
+        organization_name: demoContact.organization_name || demoContact.organizationName || null,
+        contact_type: demoContact.contact_type || demoContact.contactType,
+        gender: null,
+        phone_primary: demoContact.phone_primary || demoContact.phoneNumber || null,
+        phone_secondary: null,
+        email_personal: demoContact.email_personal || demoContact.emailPersonal || null,
+        email_work: null,
+        address_line1: demoContact.address || null,
+        address_line2: null,
+        city: null,
+        state: null,
+        postal_code: null,
+        photo_url: null,
+        preferred_contact_method: null,
+        preferred_contact_start_local: null,
+        preferred_contact_end_local: null,
+        preferred_contact_start_weekend_local: null,
+        preferred_contact_end_weekend_local: null,
+        preferred_contact_timezone: null,
+        is_emergency_contact: demoContact.is_emergency_contact || demoContact.isEmergencyContact || false,
+        emergency_type: demoContact.emergency_type || demoContact.emergencyType || null,
+        emergency_notes: null,
+        notes: demoContact.notes || null,
+        created_by_user_id: demoContact.created_by_user_id || "22222222-2222-2222-2222-222222222222",
+        created_at: demoContact.created_at || "2024-01-01T00:00:00Z",
+        updated_at: demoContact.updated_at || "2024-01-01T00:00:00Z"
+      };
+      
+      setContact(transformedContact);
+      setCreatedByName("Mary Williams"); // Demo data
+    } catch (error) {
+      console.error("Error loading demo contact:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load contact details",
+        variant: "destructive",
+      });
+      navigate(`/app/${groupId}/contacts`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadContact = async () => {
     if (!contactId) return;
@@ -203,9 +272,9 @@ export default function ContactDetailPage() {
             Export vCard
           </Button>
           <Button asChild>
-            <Link to={`/app/${groupId}/contacts/${contact.id}/edit`}>
+            <Link to={isDemo ? `/app/${groupId}/contacts` : `/app/${groupId}/contacts/${contact.id}/edit`}>
               <Edit className="h-4 w-4 mr-2" />
-              Edit
+              {isDemo ? "View Only (Demo)" : "Edit"}
             </Link>
           </Button>
         </div>
