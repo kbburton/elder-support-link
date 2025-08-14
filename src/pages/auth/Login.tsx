@@ -6,44 +6,7 @@ import SEO from "@/components/layout/SEO";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-
-// Invitation helpers
-function getPendingInvite():
-  | { invitationId: string; groupId?: string; groupName?: string }
-  | null {
-  
-  // First check for post-login invitation (from registration flow)
-  const postLoginRaw = localStorage.getItem("postLoginInvitation");
-  if (postLoginRaw) {
-    try {
-      const obj = JSON.parse(postLoginRaw);
-      if (obj && obj.invitationId) return obj;
-    } catch {
-      // ignore
-    }
-  }
-  
-  // Then check for pending invitation (direct link flow)
-  try {
-    const raw = localStorage.getItem("pendingInvitation");
-    if (!raw) return null;
-    try {
-      const obj = JSON.parse(raw);
-      if (obj && obj.invitationId) return obj;
-    } catch {
-      // legacy string format
-      return { invitationId: raw };
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
-
-function clearPendingInvite() {
-  localStorage.removeItem("pendingInvitation");
-  localStorage.removeItem("postLoginInvitation");
-}
+import { getPendingInvite, clearPendingInvite } from "@/lib/invitations";
 
 const Login = () => {
   const navigate = useNavigate();
