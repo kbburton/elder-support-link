@@ -142,7 +142,7 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
         outcome_notes: "",
       });
     }
-  }, [appointment?.id, appointment?.date_time, appointment?.location, appointment?.category, appointment?.description, appointment?.attending_user_id, appointment?.reminder_days_before, appointment?.outcome_notes]);
+  }, [appointment]);
 
   // Separate effect for linked contacts to avoid infinite loop
   useEffect(() => {
