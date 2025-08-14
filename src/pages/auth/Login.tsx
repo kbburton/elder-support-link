@@ -29,7 +29,7 @@ function getPendingInvite():
 }
 
 function clearPendingInvite() {
-  localStorage.removeItem("pendingInvitation");
+  // Invitation data kept for potential reuse
 }
 
 const Login = () => {
