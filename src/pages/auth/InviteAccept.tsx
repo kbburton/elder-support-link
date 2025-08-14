@@ -33,21 +33,38 @@ const InviteAccept = () => {
   // Auto-accept invitation after successful login/registration
   useEffect(() => {
     const autoAcceptInvitation = async () => {
-      if (!invitation) return;
+      console.log("🔄 Auto-acceptance check started", { hasInvitation: !!invitation, token });
+      
+      if (!invitation) {
+        console.log("❌ No invitation data yet, waiting...");
+        return;
+      }
       
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      console.log("👤 Current session:", session ? { userId: session.user.id, email: session.user.email } : "No session");
+      
+      if (!session) {
+        console.log("❌ No session found, skipping auto-acceptance");
+        return;
+      }
 
       // Check if this is a return from login/registration by checking for pending invitation
       const pendingInvitation = localStorage.getItem("pendingInvitation");
+      console.log("💾 Pending invitation from localStorage:", pendingInvitation);
+      
       if (pendingInvitation === token) {
+        console.log("✅ Found matching pending invitation, auto-accepting...");
         localStorage.removeItem("pendingInvitation");
         // Auto-accept the invitation
         acceptInvitation();
+      } else {
+        console.log("❓ No matching pending invitation found", { pendingInvitation, currentToken: token });
       }
     };
 
-    autoAcceptInvitation();
+    // Add a small delay to ensure invitation data is loaded
+    const timeoutId = setTimeout(autoAcceptInvitation, 500);
+    return () => clearTimeout(timeoutId);
   }, [invitation, token]);
 
   const fetchInvitation = async () => {
