@@ -29,6 +29,81 @@ const Login = () => {
     }
   }, [searchParams]);
 
+  const processPostLoginInvitation = async (invitationData: any, currentUser: any) => {
+    console.log("🎯 Processing post-login invitation for:", invitationData);
+    
+    try {
+      // Check if user is already a member
+      const { data: existingMember } = await supabase
+        .from('care_group_members')
+        .select('id')
+        .eq('user_id', currentUser.id)
+        .eq('group_id', invitationData.groupId)
+        .maybeSingle();
+      
+      console.log("👥 Existing membership:", existingMember?.id || "none");
+      
+      if (!existingMember) {
+        console.log("➕ Adding user to care group...");
+        // Add user to group
+        const { error: memberError } = await supabase
+          .from('care_group_members')
+          .insert({
+            user_id: currentUser.id,
+            group_id: invitationData.groupId,
+            relationship_to_recipient: 'family'
+          });
+        
+        if (memberError) {
+          console.error("❌ Error adding to group:", memberError);
+          throw memberError;
+        } else {
+          console.log("✅ User added to group successfully");
+        }
+        
+        // Accept the invitation
+        console.log("📝 Accepting invitation...");
+        const { error: acceptError } = await supabase.rpc('accept_invitation', {
+          invitation_id: invitationData.invitationId,
+          user_id: currentUser.id
+        });
+        
+        if (acceptError) {
+          console.error("❌ Error accepting invitation:", acceptError);
+        } else {
+          console.log("✅ Invitation accepted");
+        }
+      } else {
+        console.log("ℹ️  User already member of group");
+      }
+      
+      // Update last active group
+      console.log("📌 Updating last active group...");
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ last_active_group_id: invitationData.groupId })
+        .eq('user_id', currentUser.id);
+      
+      if (profileError) {
+        console.error("❌ Error updating profile:", profileError);
+      } else {
+        console.log("✅ Last active group updated");
+      }
+      
+      // Navigate to the group
+      console.log("🗓️  Redirecting to group:", invitationData.groupId);
+      toast({ 
+        title: "Welcome!", 
+        description: `You have been successfully added to the ${invitationData.groupName} care group!` 
+      });
+      navigate(`/app/${invitationData.groupId}`, { replace: true });
+      
+    } catch (error) {
+      console.error("❌ Error in post-login invitation processing:", error);
+      throw error;
+    }
+  };
+
   const handleSignIn = async () => {
     console.log("🔄 Login started for:", email);
     
@@ -55,13 +130,28 @@ const Login = () => {
         toast({ title: "Welcome!", description: welcomeMessage });
       }
       
-      // Check for pending invitation first
-      const pendingInvitation = localStorage.getItem("pendingInvitation");
-      console.log("🎫 Pending invitation token:", pendingInvitation || "none");
-      
       // Get current user info first
       const { data: { user: currentUser } } = await supabase.auth.getUser();
       console.log("👤 Current user ID:", currentUser?.id);
+      
+      // Check for post-login invitation (from registration)
+      const postLoginInvitation = localStorage.getItem("postLoginInvitation");
+      if (postLoginInvitation && currentUser) {
+        console.log("🎯 Found post-login invitation data:", postLoginInvitation);
+        try {
+          const invitationData = JSON.parse(postLoginInvitation);
+          await processPostLoginInvitation(invitationData, currentUser);
+          localStorage.removeItem("postLoginInvitation");
+          return; // Exit early since we handled the invitation
+        } catch (error) {
+          console.error("❌ Error processing post-login invitation:", error);
+          localStorage.removeItem("postLoginInvitation");
+        }
+      }
+      
+      // Check for pending invitation (legacy flow)
+      const pendingInvitation = localStorage.getItem("pendingInvitation");
+      console.log("🎫 Pending invitation token:", pendingInvitation || "none");
       
       if (pendingInvitation && currentUser) {
         // Try to auto-accept the invitation directly

@@ -123,9 +123,9 @@ const Register = () => {
       console.log("✅ User created successfully:", authData.user?.id);
       console.log("📋 Invitation data:", invitationData);
 
-      // If user was created and there's an invitation, auto-add them to the group
+      // If user was created and there's an invitation, process it after login
       if (authData.user && invitationData) {
-        console.log("🎯 Starting invitation processing for:", {
+        console.log("🎯 User created with invitation data:", {
           userId: authData.user.id,
           userEmail: authData.user.email,
           invitationId: invitationData.id,
@@ -134,126 +134,18 @@ const Register = () => {
           invitedEmail: invitationData.invited_email
         });
         
-        try {
-          // Step 1: Add user to care group
-          console.log("👥 Step 1: Adding user to care group...");
-          const { data: memberData, error: memberError } = await supabase
-            .from('care_group_members')
-            .insert({
-              user_id: authData.user.id,
-              group_id: invitationData.group_id,
-              relationship_to_recipient: 'family'
-            })
-            .select();
-          
-          if (memberError) {
-            console.error("❌ Step 1 FAILED - Care group member insert error:", {
-              error: memberError,
-              code: memberError.code,
-              message: memberError.message,
-              details: memberError.details,
-              hint: memberError.hint
-            });
-            if (memberError.code !== '23505') { // Ignore duplicate key errors
-              throw memberError;
-            } else {
-              console.log("ℹ️  User already member of group (duplicate key ignored)");
-            }
-          } else {
-            console.log("✅ Step 1 SUCCESS - User added to care group:", memberData);
-          }
-          
-          // Step 2: Accept the invitation
-          console.log("📝 Step 2: Accepting invitation...");
-          const { data: acceptData, error: acceptError } = await supabase.rpc('accept_invitation', {
-            invitation_id: invitationData.id,
-            user_id: authData.user.id
-          });
-          
-          if (acceptError) {
-            console.error("❌ Step 2 FAILED - Accept invitation error:", {
-              error: acceptError,
-              code: acceptError.code,
-              message: acceptError.message,
-              details: acceptError.details,
-              hint: acceptError.hint
-            });
-            // Don't throw here, continue with other steps
-          } else {
-            console.log("✅ Step 2 SUCCESS - Invitation accepted:", acceptData);
-          }
-
-          // Step 3: Update user's last active group
-          console.log("📌 Step 3: Setting last active group...");
-          const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .update({ last_active_group_id: invitationData.group_id })
-            .eq('user_id', authData.user.id)
-            .select();
-            
-          if (profileError) {
-            console.error("❌ Step 3 FAILED - Profile update error:", {
-              error: profileError,
-              code: profileError.code,
-              message: profileError.message,
-              details: profileError.details,
-              hint: profileError.hint
-            });
-          } else {
-            console.log("✅ Step 3 SUCCESS - Last active group set:", profileData);
-          }
-
-          // Step 4: Verify membership was created
-          console.log("🔍 Step 4: Verifying care group membership...");
-          const { data: verifyData, error: verifyError } = await supabase
-            .from('care_group_members')
-            .select('*')
-            .eq('user_id', authData.user.id)
-            .eq('group_id', invitationData.group_id);
-            
-          if (verifyError) {
-            console.error("❌ Step 4 FAILED - Verification error:", verifyError);
-          } else if (!verifyData || verifyData.length === 0) {
-            console.error("❌ Step 4 FAILED - No membership found after insert!");
-          } else {
-            console.log("✅ Step 4 SUCCESS - Membership verified:", verifyData);
-          }
-
-          // Step 5: Check invitation status
-          console.log("🔍 Step 5: Checking invitation status...");
-          const { data: inviteCheck, error: inviteCheckError } = await supabase
-            .from('care_group_invitations')
-            .select('*')
-            .eq('id', invitationData.id);
-            
-          if (inviteCheckError) {
-            console.error("❌ Step 5 FAILED - Invitation check error:", inviteCheckError);
-          } else {
-            console.log("✅ Step 5 SUCCESS - Invitation status:", inviteCheck);
-          }
-
-          // Clear the pending invitation
-          localStorage.removeItem("pendingInvitation");
-          console.log("🧹 Cleared pending invitation from localStorage");
-          
-          // Store success message for login redirect  
-          localStorage.setItem("welcomeMessage", `You have been successfully added to the ${invitationData.group_name} care group!`);
-          console.log("💾 Stored welcome message for login");
-          
-          console.log("🎉 Invitation processing completed!");
-          
-        } catch (inviteError: any) {
-          console.error('🚨 INVITATION PROCESSING FAILED:', {
-            error: inviteError,
-            code: inviteError?.code,
-            message: inviteError?.message,
-            details: inviteError?.details,
-            hint: inviteError?.hint,
-            stack: inviteError?.stack
-          });
-          setErrorMessage(`Registration successful but failed to join care group: ${inviteError.message || 'Unknown error'}`);
-          setShowErrorModal(true);
-        }
+        // Store invitation data for processing after login
+        localStorage.setItem("postLoginInvitation", JSON.stringify({
+          invitationId: invitationData.id,
+          groupId: invitationData.group_id,
+          groupName: invitationData.group_name
+        }));
+        
+        console.log("💾 Stored invitation data for post-login processing");
+        
+        // Clear the pending invitation since we've processed it
+        localStorage.removeItem("pendingInvitation");
+        console.log("🧹 Cleared pending invitation from localStorage");
       } else {
         console.log("ℹ️  No invitation data found, skipping group assignment");
         console.log("Debug info:", {
