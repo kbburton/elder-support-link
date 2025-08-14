@@ -179,16 +179,31 @@ const InviteAccept = () => {
 
       if (existingMember) {
         console.log("✅ User is already a member, redirecting to group");
-        // Update invitation status to accepted
-        await supabase.rpc('accept_invitation', {
-          invitation_id: invitation.id,
-          user_id: session.user.id
-        });
+        // Update invitation status to accepted if not already
+        const { data: invitationStatus } = await supabase
+          .from('care_group_invitations')
+          .select('status')
+          .eq('id', invitation.id)
+          .single();
+          
+        if (invitationStatus?.status === 'pending') {
+          await supabase.rpc('accept_invitation', {
+            invitation_id: invitation.id,
+            user_id: session.user.id
+          });
+        }
+        
+        // Update user's last active group
+        await supabase
+          .from('profiles')
+          .update({ last_active_group_id: invitation.group_id })
+          .eq('user_id', session.user.id);
+          
         toast({
-          title: "Already a member",
+          title: "Welcome back!",
           description: "You are already a member of this group.",
         });
-        navigate(`/app/${invitation.group_id}`);
+        navigate(`/app/${invitation.group_id}`, { replace: true });
         return;
       }
 

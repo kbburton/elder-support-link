@@ -28,14 +28,45 @@ const Onboarding = () => {
           .eq('user_id', user.id);
         
         if (userGroups && userGroups.length > 0) {
+          // Check for last active group first
+          const { data: userProfile } = await supabase
+            .from('profiles')
+            .select('last_active_group_id')
+            .eq('user_id', user.id)
+            .single();
+          
+          let targetGroupId = userProfile?.last_active_group_id;
+          
+          // Verify the last active group is still accessible
+          if (targetGroupId) {
+            const isGroupAccessible = userGroups.some(group => group.group_id === targetGroupId);
+            if (!isGroupAccessible) {
+              targetGroupId = null;
+            }
+          }
+          
           if (userGroups.length === 1) {
             // Single group - redirect directly
             const groupId = userGroups[0].group_id;
+            
+            // Update last active group if needed
+            if (targetGroupId !== groupId) {
+              await supabase
+                .from('profiles')
+                .update({ last_active_group_id: groupId })
+                .eq('user_id', user.id);
+            }
+            
             toast({ title: "Welcome back", description: "Redirecting to your care group." });
             navigate(`/app/${groupId}`, { replace: true });
             return;
+          } else if (targetGroupId) {
+            // Has valid last active group - redirect there
+            toast({ title: "Welcome back", description: "Redirecting to your care group." });
+            navigate(`/app/${targetGroupId}`, { replace: true });
+            return;
           } else {
-            // Multiple groups - show selection
+            // Multiple groups but no valid last active - show selection
             setExistingGroups(userGroups);
             setShowGroupSelection(true);
           }

@@ -48,18 +48,21 @@ const Login = () => {
         return;
       }
       
+      // Get current user info
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      
       // Get user profile to check last active group
       const { data: userProfile } = await supabase
         .from('profiles')
         .select('last_active_group_id')
-        .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
+        .eq('user_id', currentUser?.id)
         .single();
 
       // Check if user has existing care groups
       const { data: userGroups, error: groupsError } = await supabase
         .from('care_group_members')
         .select('group_id, care_groups(id, name)')
-        .eq('user_id', (await supabase.auth.getUser()).data.user?.id);
+        .eq('user_id', currentUser?.id);
       
       if (groupsError) throw groupsError;
       
@@ -68,6 +71,13 @@ const Login = () => {
         if (userGroups.length === 1) {
           // Single group - redirect directly
           const groupId = userGroups[0].group_id;
+          
+          // Update last active group
+          await supabase
+            .from('profiles')
+            .update({ last_active_group_id: groupId })
+            .eq('user_id', currentUser?.id);
+            
           toast({ title: "Welcome back", description: "Signed in successfully." });
           navigate(`/app/${groupId}`, { replace: true });
         } else {
@@ -87,9 +97,17 @@ const Login = () => {
             toast({ title: "Welcome back", description: "Signed in successfully." });
             navigate(`/app/${targetGroupId}`, { replace: true });
           } else {
-            // Multiple groups but no last active - show selection
-            toast({ title: "Welcome back", description: "Choose your care group." });
-            navigate("/onboarding", { replace: true });
+            // Multiple groups but no valid last active - use first group
+            const firstGroupId = userGroups[0].group_id;
+            
+            // Update last active group to first group
+            await supabase
+              .from('profiles')
+              .update({ last_active_group_id: firstGroupId })
+              .eq('user_id', currentUser?.id);
+              
+            toast({ title: "Welcome back", description: "Signed in successfully." });
+            navigate(`/app/${firstGroupId}`, { replace: true });
           }
         }
       } else {
