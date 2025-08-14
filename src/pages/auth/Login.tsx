@@ -97,6 +97,9 @@ const Login = () => {
       }
       console.log("✅ Authentication successful");
 
+      const handled = await processPostLoginInvite();
+      if (handled) return;
+
       // Check for welcome message first (from registration)
       const welcomeMessage = localStorage.getItem("welcomeMessage");
       if (welcomeMessage) {
@@ -110,15 +113,6 @@ const Login = () => {
         data: { user: currentUser },
       } = await supabase.auth.getUser();
       console.log("👤 Current user ID:", currentUser?.id);
-
-      // >>> UPDATED: process invitation; only return early if we actually navigated
-      try {
-        const handled = await processPostLoginInvite();
-        if (handled) return; // stop normal flow because we navigated to the invited group
-      } catch (error) {
-        console.error("❌ Error processing invitation:", error);
-        // Continue with normal login flow on error
-      }
 
       console.log("🔄 Processing normal login flow...");
       // Check if user has existing care groups (normal login flow)
