@@ -140,18 +140,7 @@ const Register = () => {
           invitedEmail: invitationData.invited_email
         });
         
-        // Store invitation data for processing after login
-        localStorage.setItem("postLoginInvitation", JSON.stringify({
-          invitationId: invitationData.id,
-          groupId: invitationData.group_id,
-          groupName: invitationData.group_name
-        }));
-        
-        console.log("💾 Stored invitation data for post-login processing");
-        
-        // Clear the pending invitation since we've processed it
-        localStorage.removeItem("pendingInvitation");
-        console.log("🧹 Cleared pending invitation from localStorage");
+        console.log("💾 Invitation data preserved for post-login processing");
       } else {
         console.log("ℹ️  No invitation data found, skipping group assignment");
         console.log("Debug info:", {
