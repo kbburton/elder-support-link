@@ -118,8 +118,6 @@ export default function SharedCalendar({
       });
 
   // Transform data into calendar events
-  console.log('📅 Demo appointments:', appointments.length, appointments);
-  console.log('📅 Demo tasks:', tasks.length, tasks);
   const calendarEvents: CalendarEvent[] = [
     ...appointments.map(apt => ({
       id: apt.id,
@@ -150,8 +148,6 @@ export default function SharedCalendar({
     }))
   ];
 
-  console.log('📅 Calendar events created:', calendarEvents.length, calendarEvents);
-
   // Apply filters
   const filteredEvents = calendarEvents.filter(event => {
     if (filters.category && event.category !== filters.category) return false;
@@ -160,8 +156,6 @@ export default function SharedCalendar({
     if (filters.showOverdueOnly && !event.isOverdue) return false;
     return true;
   });
-
-  console.log('📅 Filtered events:', filteredEvents.length, filteredEvents);
 
 
   const handleDateSelect = (date: Date | undefined) => {
