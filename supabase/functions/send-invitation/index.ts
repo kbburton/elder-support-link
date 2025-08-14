@@ -1,13 +1,10 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { Resend } from "npm:resend@2.0.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -191,50 +188,65 @@ serve(async (req) => {
     const baseUrl = 'https://0e4bac8e-3ee0-4c82-ba54-2cfbf09a1df6.lovableproject.com';
     const inviteLink = `${baseUrl}/invite/accept?token=${invitationData.token}`;
 
-    // Send email
+    // Send email using Gmail API
     try {
-      const emailResponse = await resend.emails.send({
-        from: "Care Group <onboarding@resend.dev>",
-        to: [invitationData.invited_email],
-        subject: `${isResend ? 'Reminder: ' : ''}You're invited to join ${groupName}`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h1 style="color: #333; text-align: center;">Care Group Invitation</h1>
-            
-            <p>Hello!</p>
-            
-            <p>${senderName} has ${isResend ? 'resent an' : 'sent you an'} invitation to join the <strong>${groupName}</strong> care group.</p>
-            
-            <div style="background-color: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
-              <p style="margin: 0; font-style: italic;">"${invitationData.message}"</p>
-            </div>
-            
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${inviteLink}" 
-                 style="background-color: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
-                Accept Invitation
-              </a>
-            </div>
-            
-            <p style="color: #666; font-size: 14px;">
-              This invitation will expire on ${new Date(invitationData.expires_at).toLocaleDateString()}.
-            </p>
-            
-            <p style="color: #666; font-size: 14px;">
-              If you can't click the button above, copy and paste this link into your browser:<br>
-              <a href="${inviteLink}" style="color: #007bff; word-break: break-all;">${inviteLink}</a>
-            </p>
-            
-            <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
-            
-            <p style="color: #888; font-size: 12px; text-align: center;">
-              If you didn't expect this invitation, you can safely ignore this email.
-            </p>
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h1 style="color: #333; text-align: center;">Care Group Invitation</h1>
+          
+          <p>Hello!</p>
+          
+          <p>${senderName} has ${isResend ? 'resent an' : 'sent you an'} invitation to join the <strong>${groupName}</strong> care group.</p>
+          
+          <div style="background-color: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <p style="margin: 0; font-style: italic;">"${invitationData.message}"</p>
           </div>
-        `,
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${inviteLink}" 
+               style="background-color: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
+              Accept Invitation
+            </a>
+          </div>
+          
+          <p style="color: #666; font-size: 14px;">
+            This invitation will expire on ${new Date(invitationData.expires_at).toLocaleDateString()}.
+          </p>
+          
+          <p style="color: #666; font-size: 14px;">
+            If you can't click the button above, copy and paste this link into your browser:<br>
+            <a href="${inviteLink}" style="color: #007bff; word-break: break-all;">${inviteLink}</a>
+          </p>
+          
+          <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+          
+          <p style="color: #888; font-size: 12px; text-align: center;">
+            If you didn't expect this invitation, you can safely ignore this email.
+          </p>
+        </div>
+      `;
+
+      // Call Gmail send function
+      const emailResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/gmail-send`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${jwt}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: invitationData.invited_email,
+          subject: `${isResend ? 'Reminder: ' : ''}You're invited to join ${groupName}`,
+          html: emailHtml,
+          groupId: groupId
+        }),
       });
 
-      console.log("Email sent successfully:", emailResponse);
+      const emailResult = await emailResponse.json();
+      console.log("Email sent successfully:", emailResult);
+
+      if (!emailResponse.ok || !emailResult.success) {
+        throw new Error(emailResult.error || 'Failed to send email via Gmail');
+      }
 
       return new Response(JSON.stringify({ 
         success: true, 
@@ -254,7 +266,7 @@ serve(async (req) => {
         .update({ status: 'failed' })
         .eq('id', invitationData.id);
 
-      return new Response(JSON.stringify({ error: "Failed to send email" }), {
+      return new Response(JSON.stringify({ error: "Failed to send email", details: emailError.message }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
