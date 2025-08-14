@@ -30,6 +30,26 @@ const InviteAccept = () => {
     fetchInvitation();
   }, [token]);
 
+  // Auto-accept invitation after successful login/registration
+  useEffect(() => {
+    const autoAcceptInvitation = async () => {
+      if (!invitation) return;
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      // Check if this is a return from login/registration by checking for pending invitation
+      const pendingInvitation = localStorage.getItem("pendingInvitation");
+      if (pendingInvitation === token) {
+        localStorage.removeItem("pendingInvitation");
+        // Auto-accept the invitation
+        acceptInvitation();
+      }
+    };
+
+    autoAcceptInvitation();
+  }, [invitation, token]);
+
   const fetchInvitation = async () => {
     try {
       // Use RPC function to get invitation by token
