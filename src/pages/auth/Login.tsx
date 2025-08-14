@@ -41,23 +41,10 @@ const Login = () => {
       
       // Check for pending invitation first
       const pendingInvitation = localStorage.getItem("pendingInvitation");
-      if (pendingInvitation) {
-        localStorage.removeItem("pendingInvitation");
-        toast({ title: "Welcome!", description: "Successfully signed in. You can now accept the invitation." });
-        navigate(`/invite/accept?token=${pendingInvitation}`, { replace: true });
-        return;
-      }
       
-      // Get current user info
+      // Get current user info first
       const { data: { user: currentUser } } = await supabase.auth.getUser();
       
-      // Get user profile to check last active group
-      const { data: userProfile } = await supabase
-        .from('profiles')
-        .select('last_active_group_id')
-        .eq('user_id', currentUser?.id)
-        .single();
-
       // Check if user has existing care groups
       const { data: userGroups, error: groupsError } = await supabase
         .from('care_group_members')
@@ -65,6 +52,29 @@ const Login = () => {
         .eq('user_id', currentUser?.id);
       
       if (groupsError) throw groupsError;
+      
+      if (pendingInvitation) {
+        localStorage.removeItem("pendingInvitation");
+        
+        // If user already has groups, try to auto-accept the invitation
+        if (userGroups && userGroups.length > 0) {
+          // Auto-accept invitation and go to group
+          navigate(`/invite/accept?token=${pendingInvitation}&auto=true`, { replace: true });
+          return;
+        } else {
+          // New user without groups, go to accept invitation normally
+          toast({ title: "Welcome!", description: "Successfully signed in. You can now accept the invitation." });
+          navigate(`/invite/accept?token=${pendingInvitation}`, { replace: true });
+          return;
+        }
+      }
+      
+      // Get user profile to check last active group
+      const { data: userProfile } = await supabase
+        .from('profiles')
+        .select('last_active_group_id')
+        .eq('user_id', currentUser?.id)
+        .single();
       
       if (userGroups && userGroups.length > 0) {
         // User has care groups

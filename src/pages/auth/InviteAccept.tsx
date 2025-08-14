@@ -15,6 +15,7 @@ const InviteAccept = () => {
   const [accepting, setAccepting] = useState(false);
 
   const token = searchParams.get("token");
+  const autoAccept = searchParams.get("auto") === "true";
 
   useEffect(() => {
     if (!token) {
@@ -33,7 +34,7 @@ const InviteAccept = () => {
   // Auto-accept invitation after successful login/registration
   useEffect(() => {
     const autoAcceptInvitation = async () => {
-      console.log("🔄 Auto-acceptance check started", { hasInvitation: !!invitation, token });
+      console.log("🔄 Auto-acceptance check started", { hasInvitation: !!invitation, token, autoAccept });
       
       if (!invitation) {
         console.log("❌ No invitation data yet, waiting...");
@@ -48,24 +49,24 @@ const InviteAccept = () => {
         return;
       }
 
-      // Check if this is a return from login/registration by checking for pending invitation
+      // Check if this is an auto-accept request from login or pending invitation
       const pendingInvitation = localStorage.getItem("pendingInvitation");
       console.log("💾 Pending invitation from localStorage:", pendingInvitation);
       
-      if (pendingInvitation === token) {
-        console.log("✅ Found matching pending invitation, auto-accepting...");
+      if (autoAccept || pendingInvitation === token) {
+        console.log("✅ Auto-accepting invitation...");
         localStorage.removeItem("pendingInvitation");
         // Auto-accept the invitation
         acceptInvitation();
       } else {
-        console.log("❓ No matching pending invitation found", { pendingInvitation, currentToken: token });
+        console.log("❓ No auto-accept conditions met", { autoAccept, pendingInvitation, currentToken: token });
       }
     };
 
     // Add a small delay to ensure invitation data is loaded
     const timeoutId = setTimeout(autoAcceptInvitation, 500);
     return () => clearTimeout(timeoutId);
-  }, [invitation, token]);
+  }, [invitation, token, autoAccept]);
 
   const fetchInvitation = async () => {
     try {
@@ -179,7 +180,8 @@ const InviteAccept = () => {
 
       if (existingMember) {
         console.log("✅ User is already a member, redirecting to group");
-        // Update invitation status to accepted if not already
+        
+        // Check invitation status
         const { data: invitationStatus } = await supabase
           .from('care_group_invitations')
           .select('status')
@@ -191,18 +193,30 @@ const InviteAccept = () => {
             invitation_id: invitation.id,
             user_id: session.user.id
           });
+          
+          // Update user's last active group
+          await supabase
+            .from('profiles')
+            .update({ last_active_group_id: invitation.group_id })
+            .eq('user_id', session.user.id);
+            
+          toast({
+            title: "Welcome!",
+            description: `You have successfully joined ${invitation.group_name}.`,
+          });
+        } else {
+          // Already accepted
+          await supabase
+            .from('profiles')
+            .update({ last_active_group_id: invitation.group_id })
+            .eq('user_id', session.user.id);
+            
+          toast({
+            title: "Welcome back!",
+            description: "You have already accepted this invitation.",
+          });
         }
         
-        // Update user's last active group
-        await supabase
-          .from('profiles')
-          .update({ last_active_group_id: invitation.group_id })
-          .eq('user_id', session.user.id);
-          
-        toast({
-          title: "Welcome back!",
-          description: "You are already a member of this group.",
-        });
         navigate(`/app/${invitation.group_id}`, { replace: true });
         return;
       }
