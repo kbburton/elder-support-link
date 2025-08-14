@@ -41,21 +41,29 @@ export const useDemoAppointments = (groupId?: string) => {
     return { data: null, isDemo: false };
   }
 
-  const appointments = demoData.appointments.map(appointment => ({
-    ...appointment,
-    group_id: demoData.demoGroupId,
-    date_time: appointment.dateTime,
-    duration_minutes: appointment.duration,
-    created_by_user_id: appointment.createdByUserId,
-    created_by_email: appointment.createdByEmail,
-    attending_user_id: appointment.attendingUserId,
-    outcome_notes: appointment.outcomeNotes,
-    created_at: new Date().toISOString(),
-    // Map demo fields to database fields
-    description: appointment.description,
-    location: appointment.location,
-    category: appointment.category
-  }));
+  const appointments = demoData.appointments.map((appointment, index) => {
+    // Generate current dates for demo appointments
+    const today = new Date();
+    const appointmentDate = new Date(today);
+    appointmentDate.setDate(today.getDate() + index - 1); // Spread across today and next few days
+    appointmentDate.setHours(10 + index * 2, 0, 0, 0); // Different times
+    
+    return {
+      ...appointment,
+      group_id: demoData.demoGroupId,
+      date_time: appointmentDate.toISOString(),
+      duration_minutes: appointment.duration,
+      created_by_user_id: appointment.createdByUserId,
+      created_by_email: appointment.createdByEmail,
+      attending_user_id: appointment.attendingUserId,
+      outcome_notes: appointment.outcomeNotes,
+      created_at: new Date().toISOString(),
+      // Map demo fields to database fields
+      description: appointment.description,
+      location: appointment.location,
+      category: appointment.category
+    };
+  });
 
   return {
     data: appointments,
@@ -73,20 +81,27 @@ export const useDemoTasks = (groupId?: string) => {
     return { data: null, isDemo: false };
   }
 
-  const tasks = demoData.tasks.map(task => ({
-    ...task,
-    group_id: demoData.demoGroupId,
-    due_date: task.dueDate,
-    primary_owner_id: task.primaryOwnerId,
-    secondary_owner_id: (task as any).secondaryOwnerId || null,
-    created_by_user_id: task.createdByUserId,
-    created_by_email: task.createdByEmail,
-    completed_by_user_id: (task as any).completedByUserId || null,
-    completed_by_email: (task as any).completedByEmail || null,
-    completed_at: (task as any).completedAt || null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  }));
+  const tasks = demoData.tasks.map((task, index) => {
+    // Generate current dates for demo tasks
+    const today = new Date();
+    const dueDate = new Date(today);
+    dueDate.setDate(today.getDate() + index + 1); // Due in next few days
+    
+    return {
+      ...task,
+      group_id: demoData.demoGroupId,
+      due_date: dueDate.toISOString().split('T')[0], // YYYY-MM-DD format
+      primary_owner_id: task.primaryOwnerId,
+      secondary_owner_id: (task as any).secondaryOwnerId || null,
+      created_by_user_id: task.createdByUserId,
+      created_by_email: task.createdByEmail,
+      completed_by_user_id: (task as any).completedByUserId || null,
+      completed_by_email: (task as any).completedByEmail || null,
+      completed_at: (task as any).completedAt || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+  });
 
   return {
     data: tasks,
@@ -104,16 +119,24 @@ export const useDemoActivities = (groupId?: string) => {
     return { data: null, isDemo: false };
   }
 
-  const activities = demoData.activities.map(activity => ({
-    ...activity,
-    group_id: demoData.demoGroupId,
-    date_time: activity.dateTime,
-    created_by_user_id: activity.createdByUserId,
-    created_by_email: activity.createdByEmail,
-    linked_appointment_id: (activity as any).linkedAppointments?.[0] || null,
-    linked_task_id: (activity as any).linkedTasks?.[0] || null,
-    created_at: new Date().toISOString()
-  }));
+  const activities = demoData.activities.map((activity, index) => {
+    // Generate current dates for demo activities  
+    const today = new Date();
+    const activityDate = new Date(today);
+    activityDate.setDate(today.getDate() - index - 1); // Recent past activities
+    activityDate.setHours(14 + index, 0, 0, 0);
+    
+    return {
+      ...activity,
+      group_id: demoData.demoGroupId,
+      date_time: activityDate.toISOString(),
+      created_by_user_id: activity.createdByUserId,
+      created_by_email: activity.createdByEmail,
+      linked_appointment_id: (activity as any).linkedAppointments?.[0] || null,
+      linked_task_id: (activity as any).linkedTasks?.[0] || null,
+      created_at: new Date().toISOString()
+    };
+  });
 
   return {
     data: activities,
