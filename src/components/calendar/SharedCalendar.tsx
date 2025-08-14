@@ -255,21 +255,25 @@ export default function SharedCalendar({
         />
       )}
 
-      {/* Task Modal */}
-      <TaskModal
-        task={selectedTask}
-        isOpen={isTaskModalOpen}
-        onClose={handleTaskModalClose}
-        groupId={groupId}
-      />
+      {/* Task Modal - Temporarily disabled to debug infinite loop */}
+      {false && (
+        <TaskModal
+          task={selectedTask}
+          isOpen={isTaskModalOpen}
+          onClose={handleTaskModalClose}
+          groupId={groupId}
+        />
+      )}
 
-      {/* Appointment Modal */}
-      <AppointmentModal
-        appointment={selectedAppointment}
-        isOpen={isAppointmentModalOpen}
-        onClose={handleAppointmentModalClose}
-        groupId={groupId}
-      />
+      {/* Appointment Modal - Temporarily disabled to debug infinite loop */}
+      {false && (
+        <AppointmentModal
+          appointment={selectedAppointment}
+          isOpen={isAppointmentModalOpen}
+          onClose={handleAppointmentModalClose}
+          groupId={groupId}
+        />
+      )}
     </div>
   );
 }
