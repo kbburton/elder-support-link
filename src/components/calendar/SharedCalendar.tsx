@@ -74,48 +74,50 @@ export default function SharedCalendar({
   }, [view]);
 
   // Use demo data if in demo mode, otherwise use real queries
-  const { data: appointments = [] } = demoAppointments.isDemo 
-    ? demoAppointments 
-    : useQuery({
-        queryKey: ['appointments', groupId],
-        queryFn: async () => {
-          const { data, error } = await supabase
-            .from('appointments')
-            .select('*')
-            .eq('group_id', groupId)
-            .order('date_time', { ascending: true });
-          
-          if (error) throw error;
-          return data || [];
-        },
-        enabled: !!groupId && !isDemo,
-      });
+  const { data: fetchedAppointments = [] } = useQuery({
+    queryKey: ['appointments', groupId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('group_id', groupId)
+        .order('date_time', { ascending: true });
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!groupId && !isDemo,
+  });
+
+  // Use demo data if in demo mode, otherwise use fetched data
+  const appointments = demoAppointments.isDemo ? demoAppointments.data || [] : fetchedAppointments;
 
   // Fetch tasks with recurrence rules and owner names
-  const { data: tasks = [] } = demoTasks.isDemo 
-    ? demoTasks 
-    : useQuery({
-        queryKey: ['tasks', groupId],
-        queryFn: async () => {
-          const { data, error } = await supabase
-            .from('tasks')
-            .select(`
-              *,
-              task_recurrence_rules (
-                id,
-                pattern_type
-              ),
-              primary_owner:profiles!tasks_primary_owner_id_fkey(first_name, last_name),
-              secondary_owner:profiles!tasks_secondary_owner_id_fkey(first_name, last_name)
-            `)
-            .eq('group_id', groupId)
-            .order('created_at', { ascending: false });
-          
-          if (error) throw error;
-          return data || [];
-        },
-        enabled: !!groupId && !isDemo,
-      });
+  const { data: fetchedTasks = [] } = useQuery({
+    queryKey: ['tasks', groupId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select(`
+          *,
+          task_recurrence_rules (
+            id,
+            pattern_type
+          ),
+          primary_owner:profiles!tasks_primary_owner_id_fkey(first_name, last_name),
+          secondary_owner:profiles!tasks_secondary_owner_id_fkey(first_name, last_name)
+        `)
+        .eq('group_id', groupId)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!groupId && !isDemo,
+  });
+
+  // Use demo data if in demo mode, otherwise use fetched data
+  const tasks = demoTasks.isDemo ? demoTasks.data || [] : fetchedTasks;
 
   // Transform data into calendar events
   const calendarEvents: CalendarEvent[] = [
