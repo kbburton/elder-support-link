@@ -3,10 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import SEO from "@/components/layout/SEO";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { Info } from "lucide-react";
 
 const Register = () => {
   const navigate = useNavigate();
@@ -22,14 +25,40 @@ const Register = () => {
   const [zip, setZip] = useState("");
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
+  const [invitationData, setInvitationData] = useState<any>(null);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
-  // Check for prefilled email from URL params on load
+  // Check for prefilled email from URL params and invitation data on load
   useEffect(() => {
     const emailParam = searchParams.get("email");
     if (emailParam) {
       setEmail(decodeURIComponent(emailParam));
     }
+
+    // Check for pending invitation
+    const pendingInvitation = localStorage.getItem("pendingInvitation");
+    if (pendingInvitation) {
+      loadInvitationData(pendingInvitation);
+    }
   }, [searchParams]);
+
+  const loadInvitationData = async (token: string) => {
+    try {
+      const { data: invitation, error } = await supabase.rpc('get_invitation_by_token', {
+        invitation_token: token
+      });
+
+      if (error || !invitation || invitation.length === 0) {
+        console.error("Failed to load invitation data:", error);
+        return;
+      }
+
+      setInvitationData(invitation[0]);
+    } catch (error) {
+      console.error("Error loading invitation data:", error);
+    }
+  };
 
   const handleSignUp = async () => {
     if (!email || !password || !address1 || !city || !stateProv || !zip || !phone) {
@@ -42,7 +71,7 @@ const Register = () => {
       // Always redirect to login after registration for invitation flow
       const redirectUrl = `${window.location.origin}/login`;
         
-      const { error } = await supabase.auth.signUp({
+      const { data: authData, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -58,15 +87,57 @@ const Register = () => {
         },
       });
       if (error) throw error;
+
+      // If user was created and there's an invitation, auto-add them to the group
+      if (authData.user && invitationData) {
+        try {
+          // Add user to care group
+          const { error: memberError } = await supabase
+            .from('care_group_members')
+            .insert({
+              user_id: authData.user.id,
+              group_id: invitationData.group_id,
+              relationship_to_recipient: 'family'
+            });
+          
+          if (memberError && memberError.code !== '23505') { // Ignore duplicate key errors
+            throw memberError;
+          }
+          
+          // Accept the invitation
+          await supabase.rpc('accept_invitation', {
+            invitation_id: invitationData.id,
+            user_id: authData.user.id
+          });
+
+          // Update user's last active group
+          await supabase
+            .from('profiles')
+            .update({ last_active_group_id: invitationData.group_id })
+            .eq('user_id', authData.user.id);
+
+          // Clear the pending invitation
+          localStorage.removeItem("pendingInvitation");
+          
+          // Store success message for login redirect
+          localStorage.setItem("welcomeMessage", `Welcome to ${invitationData.group_name}!`);
+          
+        } catch (inviteError: any) {
+          console.error('Error processing invitation during registration:', inviteError);
+          setErrorMessage(`Registration successful but failed to join care group: ${inviteError.message || 'Unknown error'}`);
+          setShowErrorModal(true);
+        }
+      }
       
       toast({ 
-        title: "Check your email", 
-        description: "Confirm your email to complete registration." 
+        title: "Registration successful", 
+        description: invitationData ? "Please log in to access your care group." : "Please log in to continue." 
       });
       navigate("/login", { replace: true });
     } catch (err: any) {
       console.error('Registration error:', err);
-      toast({ title: "Registration failed", description: err?.message || "Please try again." });
+      setErrorMessage(`Registration failed: ${err?.message || 'Please try again.'}`);
+      setShowErrorModal(true);
     } finally {
       setLoading(false);
     }
@@ -80,6 +151,14 @@ const Register = () => {
           <CardTitle>Create account</CardTitle>
         </CardHeader>
           <CardContent className="space-y-4">
+            {invitationData && (
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  You're being invited to join <strong>{invitationData.group_name}</strong>
+                </AlertDescription>
+              </Alert>
+            )}
             <div className="space-y-4">
               <div>
                 <Label htmlFor="email">Email *</Label>
@@ -124,6 +203,22 @@ const Register = () => {
             </div>
           </CardContent>
       </Card>
+
+      <AlertDialog open={showErrorModal} onOpenChange={setShowErrorModal}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Registration Error</AlertDialogTitle>
+            <AlertDialogDescription>
+              {errorMessage}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setShowErrorModal(false)}>
+              OK
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

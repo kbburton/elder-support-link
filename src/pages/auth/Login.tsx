@@ -39,6 +39,13 @@ const Login = () => {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       
+      // Check for welcome message first (from registration)
+      const welcomeMessage = localStorage.getItem("welcomeMessage");
+      if (welcomeMessage) {
+        localStorage.removeItem("welcomeMessage");
+        toast({ title: "Welcome!", description: welcomeMessage });
+      }
+      
       // Check for pending invitation first
       const pendingInvitation = localStorage.getItem("pendingInvitation");
       
@@ -111,7 +118,8 @@ const Login = () => {
               // Clear pending invitation
               localStorage.removeItem("pendingInvitation");
               
-              // Navigate to monthly calendar view
+              // Navigate to monthly calendar view with welcome message
+              toast({ title: "Welcome!", description: `Welcome to ${invitationData.group_name}!` });
               navigate(`/app/${invitationData.group_id}/calendar`, { replace: true });
               return;
             }
