@@ -120,35 +120,48 @@ export default function SharedCalendar({
   const tasks = useMemo(() => demoTasks.isDemo ? demoTasks.data || [] : fetchedTasks, [demoTasks.isDemo, demoTasks.data, fetchedTasks]);
 
   // Transform data into calendar events
-  const calendarEvents: CalendarEvent[] = useMemo(() => [
-    ...appointments.map(apt => ({
-      id: apt.id,
-      entityType: 'appointment' as const,
-      title: apt.description || 'Appointment',
-      startTime: new Date(apt.date_time),
-      category: apt.category || 'Other',
-      isCompleted: false,
-      isOverdue: isBefore(new Date(apt.date_time), new Date()) && !apt.outcome_notes,
-      location: apt.location,
-      description: apt.description,
-      createdBy: apt.created_by_email
-    })),
-    ...tasks.map(task => ({
-      id: task.id,
-      entityType: 'task' as const,
-      title: task.title,
-      dueDate: task.due_date ? new Date(task.due_date) : undefined,
-      category: task.category || 'Other',
-      status: task.status,
-      isCompleted: task.status === 'Completed',
-      isOverdue: task.due_date && task.status !== 'Completed' ? isBefore(new Date(task.due_date), new Date()) : false,
-      description: task.description,
-      createdBy: task.created_by_email,
-      isRecurring: task.task_recurrence_rules && task.task_recurrence_rules.length > 0,
-      primaryOwnerName: task.primary_owner ? `${task.primary_owner.first_name || ''} ${task.primary_owner.last_name || ''}`.trim() : undefined,
-      secondaryOwnerName: task.secondary_owner ? `${task.secondary_owner.first_name || ''} ${task.secondary_owner.last_name || ''}`.trim() : undefined
-    }))
-  ], [appointments, tasks]);
+  const calendarEvents: CalendarEvent[] = useMemo(() => {
+    console.log('🗓️ Building calendar events:', { 
+      isDemo, 
+      appointmentsCount: appointments.length, 
+      tasksCount: tasks.length,
+      appointments: appointments.slice(0, 2), // Log first 2 for debugging
+      tasks: tasks.slice(0, 2)
+    });
+
+    const events = [
+      ...appointments.map(apt => ({
+        id: apt.id,
+        entityType: 'appointment' as const,
+        title: apt.description || 'Appointment',
+        startTime: new Date(apt.date_time),
+        category: apt.category || 'Other',
+        isCompleted: false,
+        isOverdue: isBefore(new Date(apt.date_time), new Date()) && !apt.outcome_notes,
+        location: apt.location,
+        description: apt.description,
+        createdBy: apt.created_by_email
+      })),
+      ...tasks.map(task => ({
+        id: task.id,
+        entityType: 'task' as const,
+        title: task.title,
+        dueDate: task.due_date ? new Date(task.due_date) : undefined,
+        category: task.category || 'Other',
+        status: task.status,
+        isCompleted: task.status === 'Completed',
+        isOverdue: task.due_date && task.status !== 'Completed' ? isBefore(new Date(task.due_date), new Date()) : false,
+        description: task.description,
+        createdBy: task.created_by_email,
+        isRecurring: task.task_recurrence_rules && task.task_recurrence_rules.length > 0,
+        primaryOwnerName: task.primary_owner ? `${task.primary_owner.first_name || ''} ${task.primary_owner.last_name || ''}`.trim() : undefined,
+        secondaryOwnerName: task.secondary_owner ? `${task.secondary_owner.first_name || ''} ${task.secondary_owner.last_name || ''}`.trim() : undefined
+      }))
+    ];
+
+    console.log('🗓️ Calendar events built:', { eventsCount: events.length, events: events.slice(0, 3) });
+    return events;
+  }, [appointments, tasks, isDemo]);
 
   // Apply filters
   const filteredEvents = useMemo(() => calendarEvents.filter(event => {

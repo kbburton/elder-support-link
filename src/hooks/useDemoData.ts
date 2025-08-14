@@ -126,7 +126,14 @@ export const useDemoTasks = (groupId?: string) => {
         completed_by_email: (task as any).completedByEmail || null,
         completed_at: (task as any).completedAt || null,
         created_at: stableTimestamp,
-        updated_at: stableTimestamp
+        updated_at: stableTimestamp,
+        // Add proper primary and secondary owner data for calendar display
+        primary_owner: { 
+          first_name: demoData.familyMembers.find(m => m.id === task.primaryOwnerId)?.firstName || "Unknown",
+          last_name: demoData.familyMembers.find(m => m.id === task.primaryOwnerId)?.lastName || "User"
+        },
+        secondary_owner: null,
+        task_recurrence_rules: (task as any).isRecurring ? [{ id: `rule_${task.id}`, pattern_type: (task as any).recurrencePattern }] : []
       };
     });
   }, [isDemo, groupId, demoData.demoGroupId, demoData.tasks, stableBaseDate, stableTimestamp]);
