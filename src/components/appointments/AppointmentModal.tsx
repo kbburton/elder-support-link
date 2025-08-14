@@ -115,7 +115,7 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
       }));
     }
     return fetchedGroupMembers || [];
-  }, [demoProfiles.isDemo, fetchedGroupMembers]);
+  }, [demoProfiles.isDemo, demoProfiles.data, fetchedGroupMembers]);
 
   useEffect(() => {
     if (appointment) {
