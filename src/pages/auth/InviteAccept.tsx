@@ -69,12 +69,28 @@ const InviteAccept = () => {
 
   const fetchInvitation = async () => {
     try {
+      console.log("🔍 Fetching invitation with token:", token);
+      
       // Use RPC function to get invitation by token
       const { data: invitation, error } = await supabase.rpc('get_invitation_by_token', {
         invitation_token: token
       });
 
-      if (error || !invitation || invitation.length === 0) {
+      console.log("📧 Invitation RPC result:", { invitation, error });
+
+      if (error) {
+        console.error("❌ RPC Error:", error);
+        toast({
+          title: "Database Error",
+          description: `Failed to fetch invitation: ${error.message}`,
+          variant: "destructive",
+        });
+        navigate("/login");
+        return;
+      }
+
+      if (!invitation || invitation.length === 0) {
+        console.log("❌ No invitation found for token:", token);
         toast({
           title: "Invalid invitation",
           description: "This invitation is invalid or has expired.",
@@ -84,9 +100,10 @@ const InviteAccept = () => {
         return;
       }
 
+      console.log("✅ Invitation found:", invitation[0]);
       setInvitation(invitation[0]);
     } catch (error) {
-      console.error("Error fetching invitation:", error);
+      console.error("❌ Error fetching invitation:", error);
       toast({
         title: "Error",
         description: "Failed to load invitation details.",
