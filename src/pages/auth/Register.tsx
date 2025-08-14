@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import SEO from "@/components/layout/SEO";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 
 const Register = () => {
   const navigate = useNavigate();
@@ -39,11 +39,8 @@ const Register = () => {
     try {
       setLoading(true);
       
-      // Check if there's a pending invitation
-      const pendingInvitation = localStorage.getItem("pendingInvitation");
-      const redirectUrl = pendingInvitation 
-        ? `${window.location.origin}/invite/accept?token=${pendingInvitation}`
-        : `${window.location.origin}/onboarding`;
+      // Always redirect to login after registration for invitation flow
+      const redirectUrl = `${window.location.origin}/login`;
         
       const { error } = await supabase.auth.signUp({
         email,
@@ -62,17 +59,10 @@ const Register = () => {
       });
       if (error) throw error;
       
-      if (pendingInvitation) {
-        toast({ 
-          title: "Check your email", 
-          description: "Confirm your email to complete signup and join the group." 
-        });
-      } else {
-        toast({ 
-          title: "Check your email", 
-          description: "Confirm your email to finish sign up." 
-        });
-      }
+      toast({ 
+        title: "Check your email", 
+        description: "Confirm your email to complete registration." 
+      });
       navigate("/login", { replace: true });
     } catch (err: any) {
       console.error('Registration error:', err);

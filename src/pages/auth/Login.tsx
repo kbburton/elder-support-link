@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import SEO from "@/components/layout/SEO";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -46,7 +46,7 @@ const Login = () => {
       const { data: { user: currentUser } } = await supabase.auth.getUser();
       
       if (pendingInvitation && currentUser) {
-        // Try to auto-accept the invitation directly instead of redirecting
+        // Try to auto-accept the invitation directly
         try {
           // Get invitation details
           const { data: invitation } = await supabase.rpc('get_invitation_by_token', {
@@ -61,7 +61,7 @@ const Login = () => {
               .from('profiles')
               .select('email')
               .eq('user_id', currentUser.id)
-              .single();
+              .maybeSingle();
             
             if (userProfile?.email === invitationData.invited_email) {
               // Check if user is already a member
@@ -70,7 +70,7 @@ const Login = () => {
                 .select('id')
                 .eq('user_id', currentUser.id)
                 .eq('group_id', invitationData.group_id)
-                .single();
+                .maybeSingle();
               
               if (!existingMember) {
                 // Add user to group
@@ -79,42 +79,51 @@ const Login = () => {
                   .insert({
                     user_id: currentUser.id,
                     group_id: invitationData.group_id,
-                    relationship_to_recipient: 'family' // default value
+                    relationship_to_recipient: 'family'
                   });
                 
-                if (memberError) throw memberError;
+                if (memberError) {
+                  // Check if it's a duplicate key error
+                  if (memberError.code === '23505') {
+                    toast({ title: "Welcome back", description: "You already have access to this care group." });
+                  } else {
+                    throw memberError;
+                  }
+                } else {
+                  toast({ title: "Welcome!", description: "Successfully joined the care group." });
+                }
                 
                 // Accept the invitation
                 await supabase.rpc('accept_invitation', {
                   invitation_id: invitationData.id,
                   user_id: currentUser.id
                 });
-                
-                // Update last active group
-                await supabase
-                  .from('profiles')
-                  .update({ last_active_group_id: invitationData.group_id })
-                  .eq('user_id', currentUser.id);
-                
-                // Clear pending invitation
-                localStorage.removeItem("pendingInvitation");
-                
-                toast({ title: "Welcome!", description: "Successfully joined the care group." });
-                navigate(`/app/${invitationData.group_id}`, { replace: true });
-                return;
               } else {
-                // User is already a member, just clear token and go to group
-                localStorage.removeItem("pendingInvitation");
-                toast({ title: "Welcome back", description: "You're already a member of this group." });
-                navigate(`/app/${invitationData.group_id}`, { replace: true });
-                return;
+                toast({ title: "Welcome back", description: "You already have access to this care group." });
               }
+              
+              // Update last active group
+              await supabase
+                .from('profiles')
+                .update({ last_active_group_id: invitationData.group_id })
+                .eq('user_id', currentUser.id);
+              
+              // Clear pending invitation
+              localStorage.removeItem("pendingInvitation");
+              
+              // Navigate to monthly calendar view
+              navigate(`/app/${invitationData.group_id}/calendar`, { replace: true });
+              return;
             }
           }
         } catch (inviteError) {
           console.error('Error processing invitation:', inviteError);
-          // Clear invalid token
           localStorage.removeItem("pendingInvitation");
+          toast({ 
+            title: "Error", 
+            description: "Failed to process invitation. Please try again.",
+            variant: "destructive"
+          });
         }
       }
       
