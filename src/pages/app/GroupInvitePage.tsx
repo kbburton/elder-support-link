@@ -80,21 +80,39 @@ export default function GroupInvitePage() {
 
   const fetchGroupMembers = async () => {
     try {
-      const { data, error } = await supabase
+      // First get the group members
+      const { data: members, error: membersError } = await supabase
         .from('care_group_members')
-        .select(`
-          user_id,
-          is_admin,
-          profiles (
-            email,
-            first_name,
-            last_name
-          )
-        `)
+        .select('user_id, is_admin')
         .eq('group_id', groupId);
 
-      if (error) throw error;
-      setGroupMembers(data || []);
+      if (membersError) throw membersError;
+
+      if (!members || members.length === 0) {
+        setGroupMembers([]);
+        return;
+      }
+
+      // Then get the profiles for those users
+      const userIds = members.map(m => m.user_id);
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('user_id, email, first_name, last_name')
+        .in('user_id', userIds);
+
+      if (profilesError) throw profilesError;
+
+      // Combine the data
+      const memberData = members.map(member => {
+        const profile = profiles?.find(p => p.user_id === member.user_id);
+        return {
+          user_id: member.user_id,
+          is_admin: member.is_admin,
+          profiles: profile
+        };
+      });
+
+      setGroupMembers(memberData || []);
     } catch (error) {
       console.error('Error fetching group members:', error);
     }
