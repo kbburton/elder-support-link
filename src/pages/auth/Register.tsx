@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import SEO from "@/components/layout/SEO";
+import { PasswordInput } from "@/components/auth/PasswordInput";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -18,6 +19,7 @@ const Register = () => {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [address1, setAddress1] = useState("");
   const [address2, setAddress2] = useState("");
   const [city, setCity] = useState("");
@@ -65,8 +67,28 @@ const Register = () => {
   const handleSignUp = async () => {
     console.log("🔄 Registration started for:", email);
     
-    if (!email || !password || !address1 || !city || !stateProv || !zip || !phone) {
+    if (!email || !password || !confirmPassword || !address1 || !city || !stateProv || !zip || !phone) {
       toast({ title: "Missing info", description: "Please complete all required fields." });
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      toast({ title: "Password mismatch", description: "Passwords do not match." });
+      return;
+    }
+
+    // Validate password strength
+    const hasMinLength = password.length >= 8;
+    const hasLettersAndNumbers = /[a-zA-Z]/.test(password) && /[0-9]/.test(password);
+    const hasUppercase = /[A-Z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+
+    if (!hasMinLength || !hasLettersAndNumbers || !hasUppercase || !hasNumber) {
+      toast({
+        title: "Password requirements not met",
+        description: "Please ensure your password meets all the requirements.",
+        variant: "destructive",
+      });
       return;
     }
     
@@ -206,10 +228,16 @@ const Register = () => {
                 <Label htmlFor="email">Email *</Label>
                 <Input id="email" placeholder="Email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
               </div>
-              <div>
-                <Label htmlFor="password">Password *</Label>
-                <Input id="password" placeholder="Password" type="password" autoComplete="new-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
-              </div>
+              <PasswordInput
+                id="password"
+                label="Password"
+                value={password}
+                onChange={setPassword}
+                confirmValue={confirmPassword}
+                onConfirmChange={setConfirmPassword}
+                showConfirm={true}
+                required
+              />
               <div>
                 <Label htmlFor="address1">Street address *</Label>
                 <Input id="address1" placeholder="Street address" autoComplete="address-line1" required value={address1} onChange={(e) => setAddress1(e.target.value)} />

@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
+import PasswordReset from "./pages/auth/PasswordReset";
 import Onboarding from "./pages/auth/Onboarding";
 import AppLayout from "./components/layout/AppLayout";
 import CalendarPage from "./pages/app/CalendarPage";
@@ -49,6 +50,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/password-reset" element={<PasswordReset />} />
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/invite/accept" element={<InviteAccept />} />
             <Route path="/app/groups/new" element={<CreateGroupPage />} />

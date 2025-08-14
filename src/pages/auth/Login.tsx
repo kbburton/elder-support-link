@@ -311,7 +311,14 @@ const Login = () => {
           <Button variant="outline" className="w-full" onClick={handleResendConfirmation} disabled={!email || loading}>
             Resend confirmation email
           </Button>
-          <Button variant="outline" className="w-full" onClick={() => navigate("/register")}>Create account</Button>
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => navigate("/password-reset")}>
+              Forgot Password?
+            </Button>
+            <Button variant="outline" className="flex-1" onClick={() => navigate("/register")}>
+              Create account
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>
