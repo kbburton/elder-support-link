@@ -13,6 +13,8 @@ import { CalendarLegend } from "./CalendarLegend";
 import { CalendarViews } from "./CalendarViews";
 import { TaskModal } from "@/components/tasks/TaskModal";
 import { AppointmentModal } from "@/components/appointments/AppointmentModal";
+import { useDemoAppointments, useDemoTasks } from "@/hooks/useDemoData";
+import { useDemo } from "@/hooks/useDemo";
 
 export interface SharedCalendarProps {
   view: 'month' | 'week' | 'day' | 'list';
@@ -63,48 +65,57 @@ export default function SharedCalendar({
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
   const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
   const queryClient = useQueryClient();
+  const { isDemo } = useDemo();
+  const demoAppointments = useDemoAppointments(groupId);
+  const demoTasks = useDemoTasks(groupId);
 
   useEffect(() => {
     setActiveView(view);
   }, [view]);
 
-  // Fetch appointments
-  const { data: appointments = [] } = useQuery({
-    queryKey: ['appointments', groupId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('appointments')
-        .select('*')
-        .eq('group_id', groupId)
-        .order('date_time', { ascending: true });
-      
-      if (error) throw error;
-      return data || [];
-    }
-  });
+  // Use demo data if in demo mode, otherwise use real queries
+  const { data: appointments = [] } = demoAppointments.isDemo 
+    ? demoAppointments 
+    : useQuery({
+        queryKey: ['appointments', groupId],
+        queryFn: async () => {
+          const { data, error } = await supabase
+            .from('appointments')
+            .select('*')
+            .eq('group_id', groupId)
+            .order('date_time', { ascending: true });
+          
+          if (error) throw error;
+          return data || [];
+        },
+        enabled: !!groupId && !isDemo,
+      });
 
   // Fetch tasks with recurrence rules and owner names
-  const { data: tasks = [] } = useQuery({
-    queryKey: ['tasks', groupId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('tasks')
-        .select(`
-          *,
-          task_recurrence_rules (
-            id,
-            pattern_type
-          ),
-          primary_owner:profiles!tasks_primary_owner_id_fkey(first_name, last_name),
-          secondary_owner:profiles!tasks_secondary_owner_id_fkey(first_name, last_name)
-        `)
-        .eq('group_id', groupId)
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      return data || [];
-    }
-  });
+  const { data: tasks = [] } = demoTasks.isDemo 
+    ? demoTasks 
+    : useQuery({
+        queryKey: ['tasks', groupId],
+        queryFn: async () => {
+          const { data, error } = await supabase
+            .from('tasks')
+            .select(`
+              *,
+              task_recurrence_rules (
+                id,
+                pattern_type
+              ),
+              primary_owner:profiles!tasks_primary_owner_id_fkey(first_name, last_name),
+              secondary_owner:profiles!tasks_secondary_owner_id_fkey(first_name, last_name)
+            `)
+            .eq('group_id', groupId)
+            .order('created_at', { ascending: false });
+          
+          if (error) throw error;
+          return data || [];
+        },
+        enabled: !!groupId && !isDemo,
+      });
 
   // Transform data into calendar events
   const calendarEvents: CalendarEvent[] = [

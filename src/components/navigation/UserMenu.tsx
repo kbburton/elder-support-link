@@ -13,6 +13,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
+import { useDemo } from "@/hooks/useDemo";
+import { useDemoContext } from "@/contexts/DemoContext";
 
 interface UserMenuProps {
   onSwitchGroup?: () => void;
@@ -25,8 +27,19 @@ export function UserMenu({ onSwitchGroup, variant = "desktop", className }: User
   const { groupId } = useParams();
   const { toast } = useToast();
   const [user, setUser] = useState<{ email: string; name: string } | null>(null);
+  const { isDemo, demoSession } = useDemo();
+  const { endDemoSession } = useDemoContext();
 
   useEffect(() => {
+    // Set demo user info if in demo mode
+    if (isDemo) {
+      setUser({
+        email: demoSession?.email || "demo@example.com",
+        name: "Demo User"
+      });
+      return;
+    }
+
     const loadUser = async () => {
       try {
         const { data: auth } = await supabase.auth.getUser();
@@ -53,10 +66,17 @@ export function UserMenu({ onSwitchGroup, variant = "desktop", className }: User
     };
 
     loadUser();
-  }, []);
+  }, [isDemo, demoSession]);
 
   const handleSignOut = async () => {
     try {
+      // Handle demo logout
+      if (isDemo) {
+        endDemoSession();
+        navigate("/");
+        return;
+      }
+
       await supabase.auth.signOut();
       
       // Clear any localStorage auth tokens
@@ -129,32 +149,36 @@ export function UserMenu({ onSwitchGroup, variant = "desktop", className }: User
         </div>
         
         <div className="p-2 space-y-1">
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-2"
-            onClick={onSwitchGroup}
-          >
-            <Users className="h-4 w-4" />
-            Switch care group
-          </Button>
-          
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-2"
-            onClick={() => navigate("/app/groups/new")}
-          >
-            <Plus className="h-4 w-4" />
-            Create care group
-          </Button>
-          
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-2"
-            onClick={() => navigate(`/app/${groupId}/settings`)}
-          >
-            <Settings className="h-4 w-4" />
-            Group settings
-          </Button>
+          {!isDemo && (
+            <>
+              <Button
+                variant="ghost"
+                className="w-full justify-start gap-2"
+                onClick={onSwitchGroup}
+              >
+                <Users className="h-4 w-4" />
+                Switch care group
+              </Button>
+              
+              <Button
+                variant="ghost"
+                className="w-full justify-start gap-2"
+                onClick={() => navigate("/app/groups/new")}
+              >
+                <Plus className="h-4 w-4" />
+                Create care group
+              </Button>
+              
+              <Button
+                variant="ghost"
+                className="w-full justify-start gap-2"
+                onClick={() => navigate(`/app/${groupId}/settings`)}
+              >
+                <Settings className="h-4 w-4" />
+                Group settings
+              </Button>
+            </>
+          )}
           
           <div className="border-t pt-2 mt-2 space-y-1">
             <Button
@@ -163,17 +187,19 @@ export function UserMenu({ onSwitchGroup, variant = "desktop", className }: User
               onClick={handleSignOut}
             >
               <LogOut className="h-4 w-4" />
-              Sign out
+              {isDemo ? "Exit Demo" : "Sign out"}
             </Button>
             
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-2 text-destructive hover:text-destructive text-xs"
-              onClick={handleSignOutAllDevices}
-            >
-              <LogOut className="h-4 w-4" />
-              Sign out all devices
-            </Button>
+            {!isDemo && (
+              <Button
+                variant="ghost"
+                className="w-full justify-start gap-2 text-destructive hover:text-destructive text-xs"
+                onClick={handleSignOutAllDevices}
+              >
+                <LogOut className="h-4 w-4" />
+                Sign out all devices
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -201,32 +227,38 @@ export function UserMenu({ onSwitchGroup, variant = "desktop", className }: User
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         
-        <DropdownMenuItem onClick={onSwitchGroup}>
-          <Users className="mr-2 h-4 w-4" />
-          Switch care group
-        </DropdownMenuItem>
-        
-        <DropdownMenuItem onClick={() => navigate("/app/groups/new")}>
-          <Plus className="mr-2 h-4 w-4" />
-          Create care group
-        </DropdownMenuItem>
-        
-        <DropdownMenuItem onClick={() => navigate(`/app/${groupId}/settings`)}>
-          <Settings className="mr-2 h-4 w-4" />
-          Group settings
-        </DropdownMenuItem>
+        {!isDemo && (
+          <>
+            <DropdownMenuItem onClick={onSwitchGroup}>
+              <Users className="mr-2 h-4 w-4" />
+              Switch care group
+            </DropdownMenuItem>
+            
+            <DropdownMenuItem onClick={() => navigate("/app/groups/new")}>
+              <Plus className="mr-2 h-4 w-4" />
+              Create care group
+            </DropdownMenuItem>
+            
+            <DropdownMenuItem onClick={() => navigate(`/app/${groupId}/settings`)}>
+              <Settings className="mr-2 h-4 w-4" />
+              Group settings
+            </DropdownMenuItem>
+          </>
+        )}
         
         <DropdownMenuSeparator />
         
         <DropdownMenuItem onClick={handleSignOut}>
           <LogOut className="mr-2 h-4 w-4" />
-          Sign out
+          {isDemo ? "Exit Demo" : "Sign out"}
         </DropdownMenuItem>
         
-        <DropdownMenuItem onClick={handleSignOutAllDevices} className="text-destructive focus:text-destructive">
-          <LogOut className="mr-2 h-4 w-4" />
-          Sign out all devices
-        </DropdownMenuItem>
+        {!isDemo && (
+          <DropdownMenuItem onClick={handleSignOutAllDevices} className="text-destructive focus:text-destructive">
+            <LogOut className="mr-2 h-4 w-4" />
+            Sign out all devices
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

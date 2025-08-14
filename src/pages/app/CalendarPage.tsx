@@ -6,16 +6,24 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus } from "lucide-react";
 import SharedCalendar from "@/components/calendar/SharedCalendar";
 import { AppointmentModal } from "@/components/appointments/AppointmentModal";
+import { useDemoOperations } from "@/hooks/useDemoOperations";
 
 const CalendarPage = () => {
   const { groupId } = useParams<{ groupId: string }>();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [activeView, setActiveView] = useState<'month' | 'week' | 'day' | 'list'>('month');
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
+  
+  const { blockCreate } = useDemoOperations();
 
   if (!groupId) {
     return <div>Group ID not found</div>;
   }
+
+  const handleNewAppointment = () => {
+    if (blockCreate()) return;
+    setShowAppointmentModal(true);
+  };
 
   return (
     <div className="space-y-6">
@@ -25,7 +33,7 @@ const CalendarPage = () => {
         <h2 className="text-xl font-semibold">Calendar</h2>
         <Button 
           variant="hero" 
-          onClick={() => setShowAppointmentModal(true)}
+          onClick={handleNewAppointment}
         >
           <Plus className="h-4 w-4 mr-2" />
           New Appointment
