@@ -228,32 +228,15 @@ const InviteAccept = () => {
         return;
       }
 
-      // Check if another user with the same email is already a member
-      console.log("📧 Checking if email is already associated with a group member...");
-      const { data: emailMembers, error: emailCheckError } = await supabase
-        .from("care_group_members")
-        .select(`
-          id,
-          user_id,
-          profiles!inner(email)
-        `)
-        .eq("group_id", invitation.group_id)
-        .eq("profiles.email", invitation.invited_email);
-
-      console.log("📧 Email check result:", { emailMembers, error: emailCheckError });
-
-      if (emailMembers && emailMembers.length > 0) {
-        console.log("⚠️ Email already associated with a group member");
-        // Update invitation status to accepted
-        await supabase.rpc('accept_invitation', {
-          invitation_id: invitation.id,
-          user_id: session.user.id
-        });
+      // Check if user's email matches invitation email to prevent mismatched invitations
+      console.log("📧 Verifying invitation email matches user email...");
+      if (session.user.email !== invitation.invited_email) {
+        console.log("❌ Email mismatch:", { userEmail: session.user.email, invitedEmail: invitation.invited_email });
         toast({
-          title: "Welcome back!",
-          description: "Your email is already associated with this group.",
+          title: "Email Mismatch",
+          description: "This invitation was sent to a different email address.",
+          variant: "destructive",
         });
-        navigate(`/app/${invitation.group_id}`);
         return;
       }
 
