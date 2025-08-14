@@ -7,8 +7,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
-// Helper functions for invitation handling
-// >>> UPDATED: return JSON if available; if legacy string, treat it as an invitationId
+// Invitation helpers
 function getPendingInvite():
   | { invitationId: string; groupId?: string; groupName?: string }
   | null {
@@ -19,7 +18,7 @@ function getPendingInvite():
       const obj = JSON.parse(raw);
       if (obj && obj.invitationId) return obj;
     } catch {
-      // legacy string format → interpret as invitationId only
+      // legacy string format
       return { invitationId: raw };
     }
   } catch {
@@ -29,7 +28,7 @@ function getPendingInvite():
 }
 
 function clearPendingInvite() {
-  // Invitation data kept for potential reuse
+  localStorage.removeItem("pendingInvitation");
 }
 
 const Login = () => {
