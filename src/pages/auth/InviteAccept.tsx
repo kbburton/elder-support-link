@@ -138,6 +138,35 @@ const InviteAccept = () => {
         return;
       }
 
+      // Ensure user has a profile before adding to group
+      const { data: existingProfile } = await supabase
+        .from("profiles")
+        .select("user_id")
+        .eq("user_id", session.user.id)
+        .single();
+
+      if (!existingProfile) {
+        // Create profile if it doesn't exist
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .insert({
+            user_id: session.user.id,
+            email: session.user.email,
+            first_name: session.user.user_metadata?.first_name || "",
+            last_name: session.user.user_metadata?.last_name || "",
+          });
+
+        if (profileError) {
+          console.error("Error creating profile:", profileError);
+          toast({
+            title: "Error",
+            description: "Failed to create user profile. Please try again.",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
       // Add user to group
       const { error: memberError } = await supabase
         .from("care_group_members")
