@@ -24,16 +24,22 @@ const Index = () => {
     setDemoLoading(true);
     setDemoError("");
     
-    const result = await startDemoSession(email);
-    
-    if (result.success) {
-      // Navigate to demo calendar page
-      navigate(`/app/${demoData.demoGroupId}/calendar`);
-    } else {
-      setDemoError(result.error || "Failed to start demo");
+    try {
+      const result = await startDemoSession(email);
+      
+      if (result.success) {
+        setShowDemoModal(false);
+        navigate(`/app/${demoData.demoGroupId}/calendar`);
+      } else {
+        // Display the specific error message from the backend
+        setDemoError(result.error || "Failed to start demo");
+      }
+    } catch (error) {
+      console.error('Demo session error:', error);
+      setDemoError('Something went wrong. Please try again.');
+    } finally {
+      setDemoLoading(false);
     }
-    
-    setDemoLoading(false);
   };
 
   const handleDemoCancel = () => {

@@ -95,6 +95,15 @@ export const DemoProvider: React.FC<DemoProviderProps> = ({ children }) => {
 
       if (!data || !data.success) {
         console.error('🚨 Demo auth failed:', data);
+        
+        // Handle specific error types
+        if (data?.error === 'frequent_user') {
+          return { 
+            success: false, 
+            error: data.message || 'You\'ve used the demo several times. Consider creating a real account!' 
+          };
+        }
+        
         return { success: false, error: data?.error || 'Authentication failed' };
       }
 

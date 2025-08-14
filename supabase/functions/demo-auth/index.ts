@@ -76,6 +76,18 @@ serve(async (req) => {
     let sessionData: DemoSession;
 
     if (existingSession && !fetchError) {
+      // Check if this is a frequent user (3+ sessions)
+      if (existingSession.session_count >= 3) {
+        console.log('🚫 Frequent demo user detected, suggesting real account');
+        return new Response(
+          JSON.stringify({ 
+            error: 'frequent_user',
+            message: 'You\'ve used the demo several times. Consider creating a real account for full access to DaveAssist features!'
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
       // Update existing session
       console.log('📧 Existing demo session found, updating session count');
       
