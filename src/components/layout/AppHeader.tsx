@@ -8,11 +8,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { Search } from "lucide-react";
 import { debounce } from "@/utils/debounce";
 import { UserMenu } from "@/components/navigation/UserMenu";
+import { useDemo } from "@/hooks/useDemo";
 
 const AppHeader = () => {
   const navigate = useNavigate();
   const { groupId } = useParams();
   const currentId = groupId || "demo";
+  const { isDemo } = useDemo();
 
   const [groups, setGroups] = useState<{ id: string; name: string; memberCount: number; taskCount: number }[]>([]);
   const [userName, setUserName] = useState<string>("");
@@ -52,6 +54,20 @@ const AppHeader = () => {
   useEffect(() => {
     const load = async () => {
       try {
+        // Set demo user name if in demo mode
+        if (isDemo) {
+          setUserName("Demo User");
+          
+          // Set groups to just the demo group
+          setGroups([{ 
+            id: "11111111-1111-1111-1111-111111111111", 
+            name: "Robert \"Bob\" Williams",
+            memberCount: 4,
+            taskCount: 2
+          }]);
+          return;
+        }
+
         const { data: auth } = await supabase.auth.getUser();
         const uid = auth.user?.id;
         if (!uid) return;
@@ -166,7 +182,7 @@ const AppHeader = () => {
       }
     };
     load();
-  }, [currentId, navigate]);
+  }, [currentId, navigate, isDemo]);
 
   return (
     <header className="h-14 flex items-center border-b px-4 gap-3">

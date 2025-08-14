@@ -11,6 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import ActivityLogEntry from "@/components/activity-log/ActivityLogEntry";
 import ActivityLogForm from "@/components/activity-log/ActivityLogForm";
+import { useDemoActivities } from "@/hooks/useDemoData";
+import { useDemo } from "@/hooks/useDemo";
+import { useDemoOperations } from "@/hooks/useDemoOperations";
 
 const ActivityLogPage = () => {
   const { groupId } = useParams();
@@ -22,6 +25,9 @@ const ActivityLogPage = () => {
   const [dateFilter, setDateFilter] = useState("all_dates");
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [isGroupAdmin, setIsGroupAdmin] = useState(false);
+  const { isDemo } = useDemo();
+  const demoActivities = useDemoActivities(groupId);
+  const { blockCreate } = useDemoOperations();
 
   useEffect(() => {
     const getUser = async () => {
@@ -43,7 +49,9 @@ const ActivityLogPage = () => {
     getUser();
   }, [groupId]);
 
-  const { data: activityLogs, isLoading } = useQuery({
+  const { data: activityLogs, isLoading } = demoActivities.isDemo 
+    ? demoActivities 
+    : useQuery({
     queryKey: ["activity-logs", groupId, searchTerm, typeFilter, dateFilter],
     queryFn: async () => {
       let query = supabase
@@ -85,7 +93,7 @@ const ActivityLogPage = () => {
       if (error) throw error;
       return data;
     },
-    enabled: !!groupId,
+    enabled: !!groupId && !isDemo,
   });
 
   const deleteMutation = useMutation({
@@ -158,7 +166,13 @@ const ActivityLogPage = () => {
       
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Activity Log</h2>
-        <Button onClick={() => setShowForm(true)} className="flex items-center gap-2">
+        <Button 
+          onClick={() => {
+            if (blockCreate()) return;
+            setShowForm(true);
+          }} 
+          className="flex items-center gap-2"
+        >
           <Plus className="h-4 w-4" />
           New Entry
         </Button>
@@ -256,7 +270,13 @@ const ActivityLogPage = () => {
                     Try adjusting your search or filter criteria.
                   </p>
                 )}
-                <Button onClick={() => setShowForm(true)} className="mt-4">
+                <Button 
+                  onClick={() => {
+                    if (blockCreate()) return;
+                    setShowForm(true);
+                  }} 
+                  className="mt-4"
+                >
                   Create your first entry
                 </Button>
               </div>

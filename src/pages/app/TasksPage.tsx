@@ -8,6 +8,7 @@ import { TaskList } from "@/components/tasks/TaskList";
 import { TaskFilters } from "@/components/tasks/TaskFilters";
 import { TaskModal } from "@/components/tasks/TaskModal";
 import { Plus } from "lucide-react";
+import { useDemoOperations } from "@/hooks/useDemoOperations";
 
 const TasksPage = () => {
   const { groupId } = useParams<{ groupId: string }>();
@@ -16,6 +17,7 @@ const TasksPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [hideCompleted, setHideCompleted] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState(false);
+  const { blockCreate } = useDemoOperations();
   const [filters, setFilters] = useState({
     status: [] as string[],
     assignee: undefined,
@@ -37,7 +39,10 @@ const TasksPage = () => {
         <h2 className="text-xl font-semibold">Task Center</h2>
         <Button 
           variant="hero"
-          onClick={() => setShowTaskModal(true)}
+          onClick={() => {
+            if (blockCreate()) return;
+            setShowTaskModal(true);
+          }}
         >
           <Plus className="h-4 w-4 mr-2" />
           New task

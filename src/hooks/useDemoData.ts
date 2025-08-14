@@ -13,7 +13,16 @@ export const useDemoContacts = (groupId?: string) => {
     care_group_id: demoData.demoGroupId,
     created_by_user_id: demoData.familyMembers[0].id,
     created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
+    // Map demo data fields to database fields
+    first_name: contact.firstName,
+    last_name: contact.lastName,
+    contact_type: contact.contactType,
+    organization_name: contact.organizationName,
+    email_personal: contact.emailPersonal,
+    phone_number: contact.phoneNumber,
+    is_emergency_contact: contact.isEmergencyContact,
+    emergency_type: contact.emergencyType
   }));
 
   return {
@@ -41,7 +50,11 @@ export const useDemoAppointments = (groupId?: string) => {
     created_by_email: appointment.createdByEmail,
     attending_user_id: appointment.attendingUserId,
     outcome_notes: appointment.outcomeNotes,
-    created_at: new Date().toISOString()
+    created_at: new Date().toISOString(),
+    // Map demo fields to database fields
+    description: appointment.description,
+    location: appointment.location,
+    category: appointment.category
   }));
 
   return {

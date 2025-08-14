@@ -11,6 +11,9 @@ import { DocumentUpload } from "@/components/documents/DocumentUpload";
 import { DocumentList } from "@/components/documents/DocumentList";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
+import { useDemoDocuments } from "@/hooks/useDemoData";
+import { useDemo } from "@/hooks/useDemo";
+import { useDemoOperations } from "@/hooks/useDemoOperations";
 
 const DOCUMENT_CATEGORIES = ['All', 'Medical', 'Legal', 'Financial', 'Personal', 'Other'];
 
@@ -21,6 +24,9 @@ const DocumentsPage = () => {
   const [showUpload, setShowUpload] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const { isDemo } = useDemo();
+  const demoDocuments = useDemoDocuments(groupId);
+  const { blockUpload } = useDemoOperations();
 
   // Debug logging
   console.log('DocumentsPage groupId:', groupId);
@@ -51,8 +57,10 @@ const DocumentsPage = () => {
     }
   }, [groupId, navigate]);
 
-  // Fetch documents
-  const { data: documents = [], refetch: refetchDocuments, isLoading } = useQuery({
+  // Use demo data if in demo mode, otherwise use real queries
+  const queryResult = demoDocuments.isDemo 
+    ? demoDocuments 
+    : useQuery({
     queryKey: ['documents', groupId],
     queryFn: async () => {
       if (!groupId || groupId === ':groupId') return [];
@@ -77,8 +85,15 @@ const DocumentsPage = () => {
       console.log('Fetched documents:', data);
       return data;
     },
-    enabled: !!groupId && groupId !== ':groupId',
+    enabled: !!groupId && groupId !== ':groupId' && !isDemo,
   });
+
+  const { data: documents = [], isLoading } = queryResult;
+  const refetchDocuments = () => {
+    if (!demoDocuments.isDemo && 'refetch' in queryResult) {
+      queryResult.refetch();
+    }
+  };
 
   // Fetch user profiles for display - simplified approach
   const { data: userProfiles = [] } = useQuery({
@@ -152,7 +167,13 @@ const DocumentsPage = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h2 className="text-xl font-semibold">Document centre</h2>
-        <Button onClick={() => setShowUpload(true)} className="flex items-center space-x-2">
+        <Button 
+          onClick={() => {
+            if (blockUpload()) return;
+            setShowUpload(true);
+          }} 
+          className="flex items-center space-x-2"
+        >
           <Plus className="h-4 w-4" />
           <span>Upload Document</span>
         </Button>

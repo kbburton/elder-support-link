@@ -8,6 +8,9 @@ import { format, isPast } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 import { TaskModal } from "./TaskModal";
 import { triggerReindex } from "@/utils/reindex";
+import { useDemoTasks } from "@/hooks/useDemoData";
+import { useDemo } from "@/hooks/useDemo";
+import { useDemoOperations } from "@/hooks/useDemoOperations";
 
 interface Task {
   id: string;
@@ -48,71 +51,78 @@ export function TaskList({ groupId, sortBy, filters, hideCompleted, searchQuery 
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const queryClient = useQueryClient();
+  const { isDemo } = useDemo();
+  const demoTasks = useDemoTasks(groupId);
+  const { blockOperation } = useDemoOperations();
 
-  const { data: tasks = [], isLoading } = useQuery({
-    queryKey: ["tasks", groupId, sortBy, filters, hideCompleted, searchQuery],
-    queryFn: async () => {
-      let query = supabase
-        .from("tasks")
-        .select(`
-          *,
-          task_recurrence_rules(id, pattern_type)
-        `)
-        .eq("group_id", groupId);
+  // Use demo data if in demo mode, otherwise use real queries
+  const { data: tasks = [], isLoading } = demoTasks.isDemo 
+    ? demoTasks 
+    : useQuery({
+        queryKey: ["tasks", groupId, sortBy, filters, hideCompleted, searchQuery],
+        queryFn: async () => {
+          let query = supabase
+            .from("tasks")
+            .select(`
+              *,
+              task_recurrence_rules(id, pattern_type)
+            `)
+            .eq("group_id", groupId);
 
-      // Apply filters
-      if (filters.status.length > 0) {
-        query = query.in("status", filters.status as ("Open" | "InProgress" | "Completed")[]);
-      }
+          // Apply filters
+          if (filters.status.length > 0) {
+            query = query.in("status", filters.status as ("Open" | "InProgress" | "Completed")[]);
+          }
 
-      if (filters.priority.length > 0) {
-        query = query.in("priority", filters.priority as ("High" | "Medium" | "Low")[]);
-      }
+          if (filters.priority.length > 0) {
+            query = query.in("priority", filters.priority as ("High" | "Medium" | "Low")[]);
+          }
 
-      if (filters.category.length > 0) {
-        query = query.in("category", filters.category);
-      }
+          if (filters.category.length > 0) {
+            query = query.in("category", filters.category);
+          }
 
-      if (hideCompleted) {
-        query = query.neq("status", "Completed");
-      }
+          if (hideCompleted) {
+            query = query.neq("status", "Completed");
+          }
 
-      if (searchQuery) {
-        query = query.or(`title.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%`);
-      }
+          if (searchQuery) {
+            query = query.or(`title.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%`);
+          }
 
-      // Apply default sorting: Status (Open→InProgress→Completed), then Due Date asc, Priority High→Low, Title
-      if (sortBy === "default") {
-        // Custom status ordering with CASE for proper Open→InProgress→Completed order
-        query = query.order("status", { ascending: true })
-                     .order("due_date", { ascending: true, nullsFirst: false })
-                     .order("priority", { ascending: false })
-                     .order("title", { ascending: true });
-      } else {
-        // Apply individual sorts
-        switch (sortBy) {
-          case "status":
-            query = query.order("status", { ascending: true });
-            break;
-          case "due_date":
-            query = query.order("due_date", { ascending: true, nullsFirst: false });
-            break;
-          case "priority":
-            query = query.order("priority", { ascending: false });
-            break;
-          case "title":
-            query = query.order("title", { ascending: true });
-            break;
-          default:
-            query = query.order("created_at", { ascending: false });
-        }
-      }
+          // Apply default sorting: Status (Open→InProgress→Completed), then Due Date asc, Priority High→Low, Title
+          if (sortBy === "default") {
+            // Custom status ordering with CASE for proper Open→InProgress→Completed order
+            query = query.order("status", { ascending: true })
+                         .order("due_date", { ascending: true, nullsFirst: false })
+                         .order("priority", { ascending: false })
+                         .order("title", { ascending: true });
+          } else {
+            // Apply individual sorts
+            switch (sortBy) {
+              case "status":
+                query = query.order("status", { ascending: true });
+                break;
+              case "due_date":
+                query = query.order("due_date", { ascending: true, nullsFirst: false });
+                break;
+              case "priority":
+                query = query.order("priority", { ascending: false });
+                break;
+              case "title":
+                query = query.order("title", { ascending: true });
+                break;
+              default:
+                query = query.order("created_at", { ascending: false });
+            }
+          }
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as any[];
-    },
-  });
+          const { data, error } = await query;
+          if (error) throw error;
+          return data as any[];
+        },
+        enabled: !!groupId && !isDemo,
+      });
 
   const updateTaskStatus = useMutation({
     mutationFn: async ({ taskId, updates }: { taskId: string; updates: any }) => {
@@ -150,6 +160,8 @@ export function TaskList({ groupId, sortBy, filters, hideCompleted, searchQuery 
   };
 
   const handleStatusChange = async (taskId: string, currentStatus: string) => {
+    if (blockOperation()) return;
+    
     // Get current user for completion tracking
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
