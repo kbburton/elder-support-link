@@ -262,9 +262,15 @@ const InviteAccept = () => {
 
       if (memberError) {
         console.error("❌ Error adding member:", memberError);
+        console.error("❌ Full error details:", JSON.stringify(memberError, null, 2));
+        console.log("🔍 Current user email:", session.user.email);
+        console.log("🔍 Invitation email:", invitation.invited_email);
+        console.log("🔍 User ID:", session.user.id);
+        console.log("🔍 Group ID:", invitation.group_id);
+        
         toast({
           title: "Error",
-          description: "Failed to join the group. Please try again.",
+          description: `Failed to join the group: ${memberError.message}`,
           variant: "destructive",
         });
         return;
