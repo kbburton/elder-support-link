@@ -171,6 +171,10 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
       // Send notifications for new appointment
       try {
         console.log('Sending notification for new appointment:', { appointmentId: newAppointment.id, groupId });
+        
+        // Get current session for authentication
+        const { data: { session } } = await supabase.auth.getSession();
+        
         const notifyResponse = await supabase.functions.invoke("notify", {
           body: {
             type: "immediate",
@@ -179,6 +183,9 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
             item_id: newAppointment.id,
             baseUrl: typeof window !== "undefined" ? window.location.origin : undefined,
           },
+          headers: session?.access_token ? {
+            'Authorization': `Bearer ${session.access_token}`
+          } : {},
         });
         console.log('Notification response:', notifyResponse);
         
