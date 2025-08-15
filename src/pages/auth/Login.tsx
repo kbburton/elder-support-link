@@ -58,41 +58,51 @@ const Login = () => {
       // Handle pending invitations
       const pending = loadPendingInvite();
       if (pending?.token) {
+        console.debug("LOGIN >>> found pending invitation, starting processing");
         try {
-          console.debug("INVITE >>> resolving", pending.token);
+          console.debug("LOGIN >>> calling get_invitation_by_token RPC");
 
           // 1) Resolve token -> invitation row (ARRAY result)
           const { data: rows, error: rErr } = await supabase.rpc('get_invitation_by_token', {
             invitation_token: pending.token
           });
-          if (rErr) throw rErr;
+          if (rErr) {
+            console.debug("LOGIN >>> get_invitation_by_token RPC failed:", rErr.message);
+            throw rErr;
+          }
 
           const resolved = Array.isArray(rows) ? rows[0] : rows;
-          console.debug("INVITE >>> resolved row", resolved);
+          console.debug("LOGIN >>> invitation resolved, id:", resolved?.id || "null");
 
           // 2) Basic validity checks - simple null check
           if (!resolved) {
-            console.warn("INVITE >>> invalid invitation; clearing");
+            console.debug("LOGIN >>> invitation not found or invalid, clearing");
             clearPendingInvite();
           } else {
             // 3) Accept invitation with correct param name and id
-            console.debug("INVITE >>> accepting", resolved.id);
+            console.debug("LOGIN >>> calling accept_invitation RPC for id:", resolved.id);
             const { data: groupId, error: aErr } = await supabase.rpc('accept_invitation', {
               invitation_id: resolved.id
             });
-            if (aErr) throw aErr;
+            if (aErr) {
+              console.debug("LOGIN >>> accept_invitation RPC failed:", aErr.message);
+              throw aErr;
+            }
 
-            console.debug("INVITE >>> accepted into group", groupId);
+            console.debug("LOGIN >>> invitation accepted successfully, group:", groupId);
             clearPendingInvite();
 
             if (groupId) {
+              console.debug("LOGIN >>> navigating to group dashboard");
               toast({ title: "Joined care group", description: "Welcome!" });
               navigate(`/app/${groupId}`, { replace: true });
               return; // stop normal flow; we're in!
+            } else {
+              console.debug("LOGIN >>> no group ID returned from accept_invitation");
             }
           }
         } catch (e: any) {
-          console.error("INVITE >>> error", e);
+          console.debug("LOGIN >>> invitation processing failed:", e?.message || "unknown error");
           toast({
             title: "Invitation issue",
             description: e?.message ?? "Could not accept invitation.",
@@ -101,6 +111,8 @@ const Login = () => {
           // Clear to avoid loops
           clearPendingInvite();
         }
+      } else {
+        console.debug("LOGIN >>> no pending invitation found");
       }
 
       // Check for welcome message first (from registration)

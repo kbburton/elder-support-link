@@ -41,24 +41,27 @@ const Register = () => {
       sp.get("invitation_token");
 
     if (token) {
-      console.debug("REGISTER >>> saving invite token", token);
+      console.debug("REGISTER >>> found invite token in URL, storing for later processing");
       savePendingInvite(token);
       
       // Still fetch invitation data for display purposes
       (async () => {
-        console.debug('INVITE >>> Resolving token for display:', token);
+        console.debug('REGISTER >>> resolving invite token for display purposes');
         const { data, error } = await supabase.rpc('get_invitation_by_token', {
           invitation_token: token
         });
         if (error || !data || data.length === 0) {
-          console.error("Invalid invitation token");
+          console.debug("REGISTER >>> invalid invitation token for display");
           return;
         }
         
+        console.debug("REGISTER >>> invitation resolved successfully for display");
         // Load invitation data for display
         setInvitationData(data[0]);
         setEmail(data[0].invited_email || "");
       })();
+    } else {
+      console.debug("REGISTER >>> no invite token found in URL");
     }
     
     const emailParam = sp.get("email");
