@@ -6,7 +6,7 @@ import SEO from "@/components/layout/SEO";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { getPendingInvite, clearPendingInvite } from "@/lib/inviteStorage";
+import { loadPendingInvite, clearPendingInvite, savePendingInvite } from "@/lib/invitations";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -21,35 +21,11 @@ const Login = () => {
     const token = searchParams.get("token");
     if (emailParam) setEmail(decodeURIComponent(emailParam));
     if (token) {
-      localStorage.setItem("pendingInvitationToken", token);
+      console.debug('INVITE >>> Saving token from URL (Login page):', token);
+      savePendingInvite(token);
     }
   }, [searchParams]);
 
-  async function processPostLoginInviteByToken() {
-    const token = localStorage.getItem('pendingInvitationToken');
-    if (!token) return false;
-
-    // call the new RPC
-    const { data: groupId, error } = await supabase.rpc('accept_invitation_by_token', {
-      invitation_token: token
-    });
-
-    if (error) {
-      console.error('accept_invitation_by_token failed', error);
-      toast({
-        title: "Couldn't join the group",
-        description: error.message ?? "Invalid or expired invitation",
-        variant: "destructive",
-      });
-      return false;
-    }
-
-    // success – clear token and go to the group
-    localStorage.removeItem('pendingInvitationToken');
-    toast({ title: "Welcome!", description: "You've joined the care group." });
-    navigate(`/app/${groupId}`, { replace: true });
-    return true;
-  }
 
   const handleSignIn = async () => {
     console.log("🔄 Login started for:", email);
@@ -72,8 +48,46 @@ const Login = () => {
         throw error;
       }
       console.log("✅ Authentication successful");
-      const handled = await processPostLoginInviteByToken();
-      if (handled) return;
+
+      // Check for pending invitation and process it
+      const invite = loadPendingInvite();
+      if (invite?.token) {
+        console.debug('INVITE >>> Processing pending invitation:', invite.token);
+        try {
+          // Resolve to get the invitation row and ensure it's still valid
+          const { data: resolved, error: rErr } = await supabase.rpc('get_invitation_by_token', {
+            invitation_token: invite.token
+          });
+          if (rErr) throw rErr;
+          if (!resolved || resolved.length === 0) {
+            // invalid invitation; just clear and continue
+            console.debug('INVITE >>> Invalid/expired invitation, clearing');
+            clearPendingInvite();
+          } else {
+            console.debug('INVITE >>> Accepting invitation:', resolved[0].id);
+            // Accept the invitation → adds membership and marks used
+            const { data: joinedGroupId, error: aErr } = await supabase.rpc('accept_invitation', {
+              invitation_id: resolved[0].id
+            });
+            if (aErr) throw aErr;
+            clearPendingInvite();
+            console.debug('INVITE >>> Invitation accepted, navigating to group:', joinedGroupId);
+            // Navigate straight to that group
+            if (joinedGroupId) {
+              toast({
+                title: "Welcome!",
+                description: "You've joined the care group.",
+              });
+              navigate(`/app/${joinedGroupId}`, { replace: true });
+              return; // stop normal fallback routing
+            }
+          }
+        } catch (e) {
+          // Log and continue with normal fallback (check existing groups)
+          console.error('INVITE >>> Invitation handling error', e);
+          clearPendingInvite();
+        }
+      }
 
       // Check for welcome message first (from registration)
       const welcomeMessage = localStorage.getItem("welcomeMessage");

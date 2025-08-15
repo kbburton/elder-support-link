@@ -10,7 +10,7 @@ import { PasswordInput } from "@/components/auth/PasswordInput";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { setPendingInvite } from "@/lib/inviteStorage";
+import { savePendingInvite, resolveInvite } from "@/lib/invitations";
 import { Info } from "lucide-react";
 
 const Register = () => {
@@ -38,10 +38,12 @@ const Register = () => {
     const emailParam = searchParams.get("email");
     
     if (token) {
-      localStorage.setItem("pendingInvitationToken", token);
+      console.debug('INVITE >>> Saving token from URL:', token);
+      savePendingInvite(token);
       
       // Still fetch invitation data for display purposes
       (async () => {
+        console.debug('INVITE >>> Resolving token for display:', token);
         const { data, error } = await supabase.rpc('get_invitation_by_token', {
           invitation_token: token
         });

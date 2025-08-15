@@ -86,7 +86,7 @@ const AcceptInvite = () => {
         }
 
         // Clear invitation and redirect to group
-        localStorage.removeItem("pendingInvitation");
+        // Note: No need to clear pendingInvitation here as it's handled by the new flow
         toast({ 
           title: "Welcome!", 
           description: `Joined ${invitationData.group_name ?? "care group"}` 
