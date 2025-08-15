@@ -78,6 +78,10 @@ const Login = () => {
           if (!resolved) {
             console.debug("LOGIN >>> invitation not found or invalid, clearing");
             clearPendingInvite();
+            toast({
+              title: "Invitation no longer valid",
+              description: "Ask the group admin to send a new invite.",
+            });
           } else {
             // 3) Accept invitation with correct param name and id
             console.debug("LOGIN >>> calling accept_invitation RPC for id:", resolved.id);
