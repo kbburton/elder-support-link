@@ -27,53 +27,38 @@ const Login = () => {
     if (!invite?.invitationId) return false;
 
     try {
-      const {
-        data: { user },
-        error: userErr,
-      } = await supabase.auth.getUser();
-      if (userErr || !user) {
-        console.error("No user after auth:", userErr);
-        return false;
-      }
-
       console.log("🔧 Calling RPC accept_invitation with", invite.invitationId);
       const { data: groupId, error } = await supabase.rpc("accept_invitation", {
         invitation_id: invite.invitationId,
-        user_id: user.id,
       });
       console.log("🔧 RPC result:", { groupId, error });
 
       if (error) {
         console.error("❌ accept_invitation failed:", error);
-        return false; // fall back to normal flow
+        toast({ title: "Error joining group", description: error.message, variant: "destructive" });
+        return false;
+      }
+
+      if (!groupId) {
+        console.warn("❌ Invite not valid (expired/used/invalid)");
+        toast({ title: "Invite not valid", description: "Please ask the admin to resend the invite." });
+        return false;
       }
 
       clearPendingInvite();
-
-      let target: string | null = (groupId as string) ?? null;
-      if (!target) {
-        const { data: memberships, error: mErr } = await supabase
-          .from("care_group_members")
-          .select("group_id")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(1);
-        if (mErr) console.warn("membership lookup error", mErr);
-        target = memberships?.[0]?.group_id ?? null;
-      }
-
-      if (target) {
+      toast({ title: "Welcome!", description: `Joined ${invite.groupName ?? "care group"}` });
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
         await supabase
           .from("profiles")
-          .update({ last_active_group_id: target })
+          .update({ last_active_group_id: groupId })
           .eq("user_id", user.id);
-        console.log("➡️ Navigating to group", target);
-        navigate(`/app/${target}`, { replace: true });
-        return true;
       }
-
-      console.warn("Invite handled but no target group found");
-      return false;
+      
+      console.log("➡️ Navigating to group", groupId);
+      navigate(`/app/${groupId}`, { replace: true });
+      return true;
     } catch (e) {
       console.error("Unhandled error in invite flow:", e);
       return false;
