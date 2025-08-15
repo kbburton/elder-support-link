@@ -49,42 +49,56 @@ const Login = () => {
       }
       console.log("✅ Authentication successful");
 
-      // Check for pending invitation and process it
-      const invite = loadPendingInvite();
-      if (invite?.token) {
-        console.debug('INVITE >>> Processing pending invitation:', invite.token);
+      // Get current user info first
+      const {
+        data: { user: currentUser },
+      } = await supabase.auth.getUser();
+      console.log("👤 Current user ID:", currentUser?.id);
+
+      // Handle pending invitations
+      const pending = loadPendingInvite();
+      if (pending?.token) {
         try {
-          // Resolve to get the invitation row and ensure it's still valid
-          const { data: resolved, error: rErr } = await supabase.rpc('get_invitation_by_token', {
-            invitation_token: invite.token
+          console.debug("INVITE >>> resolving", pending.token);
+
+          // 1) Resolve token -> invitation row (ARRAY result)
+          const { data: rows, error: rErr } = await supabase.rpc('get_invitation_by_token', {
+            invitation_token: pending.token
           });
           if (rErr) throw rErr;
-          if (!resolved || resolved.length === 0) {
-            // invalid invitation; just clear and continue
-            console.debug('INVITE >>> Invalid/expired invitation, clearing');
+
+          const resolved = Array.isArray(rows) ? rows[0] : rows;
+          console.debug("INVITE >>> resolved row", resolved);
+
+          // 2) Basic validity checks - simple null check
+          if (!resolved) {
+            console.warn("INVITE >>> invalid invitation; clearing");
             clearPendingInvite();
           } else {
-            console.debug('INVITE >>> Accepting invitation:', resolved[0].id);
-            // Accept the invitation → adds membership and marks used
-            const { data: joinedGroupId, error: aErr } = await supabase.rpc('accept_invitation', {
-              invitation_id: resolved[0].id
+            // 3) Accept invitation with correct param name and id
+            console.debug("INVITE >>> accepting", resolved.id);
+            const { data: groupId, error: aErr } = await supabase.rpc('accept_invitation', {
+              invitation_id: resolved.id
             });
             if (aErr) throw aErr;
+
+            console.debug("INVITE >>> accepted into group", groupId);
             clearPendingInvite();
-            console.debug('INVITE >>> Invitation accepted, navigating to group:', joinedGroupId);
-            // Navigate straight to that group
-            if (joinedGroupId) {
-              toast({
-                title: "Welcome!",
-                description: "You've joined the care group.",
-              });
-              navigate(`/app/${joinedGroupId}`, { replace: true });
-              return; // stop normal fallback routing
+
+            if (groupId) {
+              toast({ title: "Joined care group", description: "Welcome!" });
+              navigate(`/app/${groupId}`, { replace: true });
+              return; // stop normal flow; we're in!
             }
           }
-        } catch (e) {
-          // Log and continue with normal fallback (check existing groups)
-          console.error('INVITE >>> Invitation handling error', e);
+        } catch (e: any) {
+          console.error("INVITE >>> error", e);
+          toast({
+            title: "Invitation issue",
+            description: e?.message ?? "Could not accept invitation.",
+            variant: "destructive"
+          });
+          // Clear to avoid loops
           clearPendingInvite();
         }
       }
@@ -96,12 +110,6 @@ const Login = () => {
         localStorage.removeItem("welcomeMessage");
         toast({ title: "Welcome!", description: welcomeMessage });
       }
-
-      // Get current user info first
-      const {
-        data: { user: currentUser },
-      } = await supabase.auth.getUser();
-      console.log("👤 Current user ID:", currentUser?.id);
 
       console.log("🔄 Processing normal login flow...");
       // Check if user has existing care groups (normal login flow)
