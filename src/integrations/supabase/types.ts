@@ -330,6 +330,7 @@ export type Database = {
       care_group_invitations: {
         Row: {
           accepted_at: string | null
+          accepted_by: string | null
           accepted_by_user_id: string | null
           created_at: string
           expires_at: string
@@ -340,9 +341,11 @@ export type Database = {
           message: string
           status: string
           token: string
+          used_at: string | null
         }
         Insert: {
           accepted_at?: string | null
+          accepted_by?: string | null
           accepted_by_user_id?: string | null
           created_at?: string
           expires_at?: string
@@ -353,9 +356,11 @@ export type Database = {
           message: string
           status?: string
           token?: string
+          used_at?: string | null
         }
         Update: {
           accepted_at?: string | null
+          accepted_by?: string | null
           accepted_by_user_id?: string | null
           created_at?: string
           expires_at?: string
@@ -366,6 +371,7 @@ export type Database = {
           message?: string
           status?: string
           token?: string
+          used_at?: string | null
         }
         Relationships: [
           {
@@ -1119,6 +1125,38 @@ export type Database = {
           },
         ]
       }
+      invitation_nonces: {
+        Row: {
+          created_at: string
+          expires_at: string
+          invitation_id: string
+          nonce: string
+          used_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          invitation_id: string
+          nonce: string
+          used_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          invitation_id?: string
+          nonce?: string
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invitation_nonces_invitation_id_fkey"
+            columns: ["invitation_id"]
+            isOneToOne: false
+            referencedRelation: "care_group_invitations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notification_preferences: {
         Row: {
           created_at: string
@@ -1528,7 +1566,7 @@ export type Database = {
         Returns: unknown
       }
       get_invitation_by_token: {
-        Args: { invitation_token: string }
+        Args: { invitation_token: string } | { invitation_token: string }
         Returns: {
           group_id: string
           group_name: string
