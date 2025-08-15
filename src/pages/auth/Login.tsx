@@ -37,49 +37,52 @@ const Login = () => {
 
   async function processPostLoginInvite(): Promise<boolean> {
     const invite = getPendingInvite();
-    console.log("Processing invitation:", invite);
-    if (!invite?.invitationId) {
-      console.log("No invitation found");
-      return false;
-    }
+    console.log("📨 Processing invitation:", invite);
+    if (!invite?.invitationId) return false;
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      console.log("No user found");
-      return false;
-    }
+    if (!user) return false;
 
-    console.log("Calling accept_invitation RPC with invitation_id:", invite.invitationId, "user_id:", user.id);
-    
-    // Use accept_invitation RPC that requires both invitation_id and user_id
+    console.log("🔧 Calling RPC accept_invitation with", invite.invitationId);
     const { data: groupId, error } = await supabase.rpc("accept_invitation", {
       invitation_id: invite.invitationId,
-      user_id: user.id
+      user_id: user.id // Required by TypeScript types
     });
-    
-    console.log("RPC response - data:", groupId, "error:", error);
-    
+    console.log("🔧 RPC result:", { groupId, error });
+
     if (error) {
-      console.error("❌ accept_invite failed:", error);
+      console.error("❌ accept_invitation failed", error);
       return false;
     }
 
-    if (!groupId) {
-      console.error("❌ RPC succeeded but returned no group ID");
-      return false;
-    }
-
-    console.log("✅ Invitation accepted, group ID:", groupId);
     clearPendingInvite();
 
-    // Update user's last active group
-    await supabase.from("profiles")
-      .update({ last_active_group_id: groupId as string })
-      .eq("user_id", user.id);
-    
-    console.log("🎯 Navigating to group:", groupId);
-    navigate(`/app/${groupId}`, { replace: true });
-    return true;
+    let target: string | null = (groupId as string) ?? null;
+    if (!target) {
+      // safety net: fetch newest membership
+      const { data: memberships, error: mErr } = await supabase
+        .from("care_group_members")
+        .select("group_id")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (mErr) console.warn("membership lookup error", mErr);
+      target = memberships?.[0]?.group_id ?? null;
+    }
+
+    if (target) {
+      await supabase
+        .from("profiles")
+        .update({ last_active_group_id: target })
+        .eq("user_id", user.id);
+      console.log("➡️ Navigating to group", target);
+      navigate(`/app/${target}`, { replace: true });
+      return true;
+    }
+
+    console.warn("Invite handled but no target group found");
+    return false;
   }
 
   const handleSignIn = async () => {
