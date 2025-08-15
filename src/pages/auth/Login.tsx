@@ -18,59 +18,36 @@ const Login = () => {
 
   useEffect(() => {
     const emailParam = searchParams.get("email");
-    const tokenParam = searchParams.get("token");
+    const token = searchParams.get("token");
     if (emailParam) setEmail(decodeURIComponent(emailParam));
-    
-    // If coming from invitation link, resolve token to invitation data
-    if (tokenParam) {
-      (async () => {
-        const { data, error } = await supabase.rpc('get_invitation_by_token', {
-          invitation_token: tokenParam
-        });
-        if (error || !data || data.length === 0) return;
-        
-        const inviteData = {
-          invitationId: data[0].id,
-          groupId: data[0].group_id,
-          groupName: data[0].group_name,
-          email: data[0].invited_email
-        };
-        localStorage.setItem("pendingInvitation", JSON.stringify(inviteData));
-      })();
+    if (token) {
+      localStorage.setItem("pendingInvitationToken", token);
     }
   }, [searchParams]);
 
-  function getPendingInvite() {
-    try {
-      const raw = localStorage.getItem('pendingInvitation');
-      return raw ? JSON.parse(raw) : null;
-    } catch { return null; }
-  }
+  async function processPostLoginInviteByToken() {
+    const token = localStorage.getItem('pendingInvitationToken');
+    if (!token) return false;
 
-  async function processPostLoginInvite(navigate: any, toast: any) {
-    const invite = getPendingInvite();
-    if (!invite?.invitationId) return false;
-
-    console.log('📨 Processing invitation:', invite);
-
-    const { data, error } = await supabase.rpc('accept_invitation', {
-      invitation_id: invite.invitationId
+    // call the new RPC
+    const { data: groupId, error } = await supabase.rpc('accept_invitation_by_token', {
+      invitation_token: token
     });
 
     if (error) {
-      console.error('❌ accept_invitation failed:', error);
+      console.error('accept_invitation_by_token failed', error);
       toast({
-        title: 'Could not join group',
-        description: error.message ?? 'Invalid or expired invitation',
-        variant: 'destructive'
+        title: "Couldn't join the group",
+        description: error.message ?? "Invalid or expired invitation",
+        variant: "destructive",
       });
       return false;
     }
 
-    // Success: data === group_id (uuid)
-    localStorage.removeItem('pendingInvitation');
-    toast({ title: 'Joined', description: invite.groupName });
-    navigate(`/app/${data}`, { replace: true });
+    // success – clear token and go to the group
+    localStorage.removeItem('pendingInvitationToken');
+    toast({ title: "Welcome!", description: "You've joined the care group." });
+    navigate(`/app/${groupId}`, { replace: true });
     return true;
   }
 
@@ -95,8 +72,8 @@ const Login = () => {
         throw error;
       }
       console.log("✅ Authentication successful");
-      const handled = await processPostLoginInvite(navigate, toast);
-      if (handled) return; // already navigated
+      const handled = await processPostLoginInviteByToken();
+      if (handled) return;
 
       // Check for welcome message first (from registration)
       const welcomeMessage = localStorage.getItem("welcomeMessage");
