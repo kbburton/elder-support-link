@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { savePendingInvite } from "@/lib/invitations";
 import { Loader2 } from "lucide-react";
 
 const AcceptInvite = () => {
@@ -45,14 +46,8 @@ const AcceptInvite = () => {
       const invitationData = invitation[0];
       const invitedEmail = invitationData.invited_email;
 
-      // Save invitation data for processing
-      const inviteData = {
-        invitationId: invitationData.id,
-        groupId: invitationData.group_id,
-        groupName: invitationData.group_name,
-        email: invitedEmail
-      };
-      localStorage.setItem("pendingInvitation", JSON.stringify(inviteData));
+      // Save invitation token for processing after login
+      savePendingInvite(invitationData.id);
 
       // Check if user is authenticated
       const { data: { session } } = await supabase.auth.getSession();

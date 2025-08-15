@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { savePendingInvite } from "@/lib/invitations";
 import { Loader2 } from "lucide-react";
 
 const InviteAccept = () => {
@@ -47,7 +48,7 @@ const InviteAccept = () => {
       const invitedEmail = invitationData.invited_email;
 
       // Store invitation token for after login/registration
-      localStorage.setItem("pendingInvitation", token!);
+      savePendingInvite(token!);
       
       // Check if user exists by looking for profile with this email
       const { data: existingUser } = await supabase
