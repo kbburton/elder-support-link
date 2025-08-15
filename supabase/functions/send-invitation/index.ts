@@ -232,7 +232,7 @@ serve(async (req) => {
     }
 
     // Create invitation link - use the project's frontend URL
-    const baseUrl = 'https://0e4bac8e-3ee0-4c82-ba54-2cfbf09a1df6.lovableproject.com';
+    const baseUrl = 'https://elder-support-link.lovable.app';
     const registerLink = `${baseUrl}/register?token=${invitationData.id}`;
     const loginLink = `${baseUrl}/login?token=${invitationData.id}`;
 
