@@ -34,11 +34,14 @@ const Register = () => {
 
   // Check for prefilled email from URL params and invitation data on load
   useEffect(() => {
-    const token = searchParams.get("token");
-    const emailParam = searchParams.get("email");
-    
+    const sp = new URLSearchParams(window.location.search);
+    const token =
+      sp.get("token") ||
+      sp.get("invitationId") ||
+      sp.get("invitation_token");
+
     if (token) {
-      console.debug('INVITE >>> Saving token from URL:', token);
+      console.debug("REGISTER >>> saving invite token", token);
       savePendingInvite(token);
       
       // Still fetch invitation data for display purposes
@@ -58,8 +61,10 @@ const Register = () => {
       })();
     }
     
+    const emailParam = sp.get("email");
     if (emailParam) setEmail(decodeURIComponent(emailParam));
-  }, [searchParams]);
+    // IMPORTANT: do not clear the invite here
+  }, []);
 
   const loadInvitationData = async (token: string) => {
     console.log("🔍 Loading invitation data for token:", token);
