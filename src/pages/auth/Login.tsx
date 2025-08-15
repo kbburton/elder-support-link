@@ -30,10 +30,7 @@ const Login = () => {
     if (!user) return false;
 
     console.log("🔧 Calling RPC accept_invitation with", invite.invitationId);
-    const { data: groupId, error } = await supabase.rpc("accept_invitation", {
-      invitation_id: invite.invitationId,
-      user_id: user.id
-    });
+    const { data: groupId, error } = await supabase.rpc("accept_invitation", { invitation_id: invite.invitationId, user_id: user.id });
     console.log("🔧 RPC result:", { groupId, error });
     if (error) return false;
 
@@ -41,19 +38,12 @@ const Login = () => {
 
     let target: string | null = (groupId as string) ?? null;
     if (!target) {
-      const { data: memberships } = await supabase
-        .from("care_group_members")
-        .select("group_id")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(1);
-      target = memberships?.[0]?.group_id ?? null;
+      const { data } = await supabase.from("care_group_members")
+        .select("group_id").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1);
+      target = data?.[0]?.group_id ?? null;
     }
-
     if (target) {
-      await supabase.from("profiles")
-        .update({ last_active_group_id: target })
-        .eq("user_id", user.id);
+      await supabase.from("profiles").update({ last_active_group_id: target }).eq("user_id", user.id);
       console.log("➡️ Navigating to group", target);
       navigate(`/app/${target}`, { replace: true });
       return true;
@@ -82,9 +72,7 @@ const Login = () => {
         throw error;
       }
       console.log("✅ Authentication successful");
-
-      const handled = await processPostLoginInvite();
-      if (handled) return;
+      const handled = await processPostLoginInvite(); if (handled) return;
 
       // Check for welcome message first (from registration)
       const welcomeMessage = localStorage.getItem("welcomeMessage");

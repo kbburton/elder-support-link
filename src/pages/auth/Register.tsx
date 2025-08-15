@@ -38,13 +38,8 @@ const Register = () => {
     const emailParam = searchParams.get("email");
     const groupId = searchParams.get("groupId");
     const groupName = searchParams.get("groupName");
-
     if (token) {
-      setPendingInvite({
-        invitationId: token,
-        groupId: groupId || undefined,
-        groupName: groupName ? decodeURIComponent(groupName) : undefined,
-      });
+      setPendingInvite({ invitationId: token, groupId: groupId || undefined, groupName: groupName ? decodeURIComponent(groupName) : undefined });
       console.log("Invite saved for post-login processing");
       loadInvitationData(token);
     }
