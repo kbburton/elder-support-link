@@ -38,41 +38,48 @@ const Login = () => {
   async function processPostLoginInvite(): Promise<boolean> {
     const invite = getPendingInvite();
     console.log("Processing invitation:", invite);
-    if (!invite?.invitationId) return false;
+    if (!invite?.invitationId) {
+      console.log("No invitation found");
+      return false;
+    }
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return false;
+    if (!user) {
+      console.log("No user found");
+      return false;
+    }
 
-    // Both RPC names return group_id now; prefer the wrapper
+    console.log("Calling accept_invitation RPC with:", { invitation_id: invite.invitationId, user_id: user.id });
+    
+    // Call the RPC that handles invitation acceptance and creates membership
     const { data: groupId, error } = await supabase.rpc("accept_invitation", {
       invitation_id: invite.invitationId,
       user_id: user.id,
     });
+    
+    console.log("RPC response - data:", groupId, "error:", error);
+    
     if (error) {
-      console.error("accept_invitation failed", error);
+      console.error("❌ accept_invitation failed:", error);
       return false;
     }
 
+    if (!groupId) {
+      console.error("❌ RPC succeeded but returned no group ID");
+      return false;
+    }
+
+    console.log("✅ Invitation accepted, group ID:", groupId);
     clearPendingInvite();
 
-    let target = groupId as string | null;
-    if (!target) {
-      const { data: memberships } = await supabase
-        .from("care_group_members")
-        .select("group_id")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(1);
-      target = memberships?.[0]?.group_id ?? null;
-    }
-    if (target) {
-      await supabase.from("profiles")
-        .update({ last_active_group_id: target })
-        .eq("user_id", user.id);
-      navigate(`/app/${target}`, { replace: true });
-      return true;
-    }
-    return false;
+    // Update user's last active group
+    await supabase.from("profiles")
+      .update({ last_active_group_id: groupId })
+      .eq("user_id", user.id);
+    
+    console.log("🎯 Navigating to group:", groupId);
+    navigate(`/app/${groupId}`, { replace: true });
+    return true;
   }
 
   const handleSignIn = async () => {
