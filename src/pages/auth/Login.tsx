@@ -27,6 +27,46 @@ const Login = () => {
   }, [searchParams]);
 
 
+  async function processInvitationAfterLogin(userId: string, navigate: Function, toast: Function) {
+    const token = localStorage.getItem('invitationToken');
+    if (!token) return false;
+
+    // 1) Lookup invitation (uuid)
+    const { data: invRows, error: lookupErr } = await supabase.rpc('get_invitation_by_token', {
+      invitation_token: token
+    });
+
+    if (lookupErr) {
+      toast({ title: 'Invitation issue', description: lookupErr.message, variant: 'destructive' });
+      return false;
+    }
+    
+    const inv = Array.isArray(invRows) ? invRows[0] : invRows;
+    if (!inv || (inv as any).status !== 'pending' || (inv as any).used_at || ((inv as any).expires_at && new Date((inv as any).expires_at) <= new Date())) {
+      toast({ title: 'Invitation issue', description: 'This invitation is invalid or expired.', variant: 'destructive' });
+      return false;
+    }
+
+    // 2) Accept invitation
+    const { data: groupId, error: acceptErr } = await supabase.rpc('accept_invitation', {
+      invitation_id: inv.id
+    });
+    if (acceptErr) {
+      toast({ title: 'Could not join group', description: acceptErr.message, variant: 'destructive' });
+      return false;
+    }
+
+    // 3) Clear token; set last active group; navigate to the group
+    localStorage.removeItem('invitationToken');
+    await supabase.from('profiles')
+      .update({ last_active_group_id: groupId })
+      .eq('user_id', userId);
+
+    toast({ title: 'Welcome!', description: 'You\'ve joined the care group.' });
+    navigate(`/app/${groupId}`, { replace: true });
+    return true;
+  }
+
   const handleSignIn = async () => {
     console.log("🔄 Login started for:", email);
     console.log("🔘 Button clicked, loading state:", loading);
@@ -56,70 +96,9 @@ const Login = () => {
       console.log("👤 Current user ID:", currentUser?.id);
       console.debug("LOGIN >>> Starting invitation check...");
 
-      // Handle pending invitations
-      const invitationToken = localStorage.getItem('invitationToken');
-      console.debug("LOGIN >>> Found invitation token:", invitationToken ? 'yes' : 'no');
-      if (invitationToken) {
-        console.debug("LOGIN >>> found pending invitation, starting processing");
-        try {
-          console.debug("LOGIN >>> calling get_invitation_by_token RPC");
-
-          // 1) Resolve token -> invitation row (ARRAY result)
-          const { data: rows, error: rErr } = await supabase.rpc('get_invitation_by_token', {
-            invitation_token: invitationToken
-          });
-          if (rErr) {
-            console.debug("LOGIN >>> get_invitation_by_token RPC failed:", rErr.message);
-            throw rErr;
-          }
-
-          const resolved = Array.isArray(rows) ? rows[0] : rows;
-          console.debug("LOGIN >>> invitation resolved, id:", resolved?.id || "null");
-
-          // 2) Basic validity checks - simple null check
-          if (!resolved) {
-            console.debug("LOGIN >>> invitation not found or invalid, clearing token");
-            localStorage.removeItem('invitationToken');
-            toast({
-              title: "Invitation no longer valid",
-              description: "Ask the group admin to send a new invite.",
-            });
-          } else {
-            // 3) Accept invitation with correct param name and id
-            console.debug("LOGIN >>> calling accept_invitation RPC for id:", resolved.id);
-            const { data: groupId, error: aErr } = await supabase.rpc('accept_invitation', {
-              invitation_id: resolved.id
-            });
-            if (aErr) {
-              console.debug("LOGIN >>> accept_invitation RPC failed:", aErr.message);
-              throw aErr;
-            }
-
-            console.debug("LOGIN >>> invitation accepted successfully, group:", groupId);
-            localStorage.removeItem('invitationToken');
-
-            if (groupId) {
-              console.debug("LOGIN >>> navigating to group dashboard");
-              toast({ title: "Joined care group", description: "Welcome!" });
-              navigate(`/app/${groupId}`, { replace: true });
-              return; // stop normal flow; we're in!
-            } else {
-              console.debug("LOGIN >>> no group ID returned from accept_invitation");
-            }
-          }
-        } catch (e: any) {
-          console.debug("LOGIN >>> invitation processing failed:", e?.message || "unknown error");
-          toast({
-            title: "Invitation issue",
-            description: e?.message ?? "Could not accept invitation.",
-            variant: "destructive"
-          });
-          // Clear to avoid loops
-          localStorage.removeItem('invitationToken');
-        }
-      } else {
-        console.debug("LOGIN >>> no pending invitation found");
-      }
+      // Process invitation if present
+      const processed = await processInvitationAfterLogin(currentUser!.id, navigate, toast);
+      if (processed) return; // you were redirected to the group
 
       // Check for welcome message first (from registration)
       const welcomeMessage = localStorage.getItem("welcomeMessage");
