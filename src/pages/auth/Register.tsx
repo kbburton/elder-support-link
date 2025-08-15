@@ -36,13 +36,32 @@ const Register = () => {
   useEffect(() => {
     const token = searchParams.get("token");
     const emailParam = searchParams.get("email");
-    const groupId = searchParams.get("groupId");
-    const groupName = searchParams.get("groupName");
+    
     if (token) {
-      setPendingInvite({ invitationId: token, groupId: groupId || undefined, groupName: groupName ? decodeURIComponent(groupName) : undefined });
-      console.log("Invite saved for post-login processing");
-      loadInvitationData(token);
+      (async () => {
+        // Resolve token to the invitation row
+        const { data, error } = await supabase.rpc('get_invitation_by_token', { 
+          invitation_token: token 
+        });
+        if (error || !data || data.length === 0) {
+          console.error("Failed to resolve token:", error);
+          return;
+        }
+
+        // Store what Login.tsx needs later (row id, not token)
+        const inviteForLater = {
+          invitationId: data[0].id,        // <-- row id, not token
+          groupId: data[0].group_id,
+          groupName: data[0].group_name ?? null
+        };
+        localStorage.setItem("postLoginInvitation", JSON.stringify(inviteForLater));
+        console.log("Invite resolved and saved for post-login processing:", inviteForLater);
+        
+        // Load invitation data for display
+        setInvitationData(data[0]);
+      })();
     }
+    
     if (emailParam) setEmail(decodeURIComponent(emailParam));
   }, [searchParams]);
 

@@ -22,14 +22,28 @@ const Login = () => {
   }, [searchParams]);
 
   async function processPostLoginInvite(): Promise<boolean> {
-    const invite = getPendingInvite();
+    // Check both pendingInvitation and postLoginInvitation
+    const pendingInvite = getPendingInvite();
+    const postLoginInviteStr = localStorage.getItem("postLoginInvitation");
+    const postLoginInvite = postLoginInviteStr ? JSON.parse(postLoginInviteStr) : null;
+    
+    const invite = pendingInvite || postLoginInvite;
     console.log("📨 Processing invitation:", invite);
     if (!invite?.invitationId) return false;
 
     try {
+      // Optional: harden against token being stored by mistake
+      if (!invite.invitationId && invite.token) {
+        const { data, error } = await supabase.rpc('get_invitation_by_token', { 
+          invitation_token: invite.token 
+        });
+        if (error || !data || data.length === 0) throw error ?? new Error('Invite not found');
+        invite.invitationId = data[0].id;
+      }
+
       console.log("🔧 Calling RPC accept_invitation with", invite.invitationId);
       const { data: groupId, error } = await supabase.rpc("accept_invitation", {
-        invitation_id: invite.invitationId,
+        invitation_id: invite.invitationId,   // <-- must be the row id
       });
       console.log("🔧 RPC result:", { groupId, error });
 
@@ -45,7 +59,10 @@ const Login = () => {
         return false;
       }
 
+      // Clear both possible storage locations
       clearPendingInvite();
+      localStorage.removeItem("postLoginInvitation");
+      
       toast({ title: "Welcome!", description: `Joined ${invite.groupName ?? "care group"}` });
       
       const { data: { user } } = await supabase.auth.getUser();
