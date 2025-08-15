@@ -41,8 +41,8 @@ const Register = () => {
       sp.get("invitation_token");
 
     if (token) {
-      console.debug("REGISTER >>> found invite token in URL, storing for later processing");
-      savePendingInvite(token);
+      console.debug("REGISTER >>> found invite token in URL, storing raw token:", token);
+      localStorage.setItem('invitationToken', token);
       
       // Still fetch invitation data for display purposes
       (async () => {

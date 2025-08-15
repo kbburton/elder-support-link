@@ -21,8 +21,8 @@ const Login = () => {
     const token = searchParams.get("token");
     if (emailParam) setEmail(decodeURIComponent(emailParam));
     if (token) {
-      console.debug('INVITE >>> Saving token from URL (Login page):', token);
-      savePendingInvite(token);
+      console.debug('LOGIN >>> Saving raw token to localStorage:', token);
+      localStorage.setItem('invitationToken', token);
     }
   }, [searchParams]);
 
@@ -57,15 +57,16 @@ const Login = () => {
       console.debug("LOGIN >>> Starting invitation check...");
 
       // Handle pending invitations
-      const pending = loadPendingInvite();
-      if (pending?.token) {
+      const invitationToken = localStorage.getItem('invitationToken');
+      console.debug("LOGIN >>> Found invitation token:", invitationToken ? 'yes' : 'no');
+      if (invitationToken) {
         console.debug("LOGIN >>> found pending invitation, starting processing");
         try {
           console.debug("LOGIN >>> calling get_invitation_by_token RPC");
 
           // 1) Resolve token -> invitation row (ARRAY result)
           const { data: rows, error: rErr } = await supabase.rpc('get_invitation_by_token', {
-            invitation_token: pending.token
+            invitation_token: invitationToken
           });
           if (rErr) {
             console.debug("LOGIN >>> get_invitation_by_token RPC failed:", rErr.message);
@@ -77,8 +78,8 @@ const Login = () => {
 
           // 2) Basic validity checks - simple null check
           if (!resolved) {
-            console.debug("LOGIN >>> invitation not found or invalid, clearing");
-            clearPendingInvite();
+            console.debug("LOGIN >>> invitation not found or invalid, clearing token");
+            localStorage.removeItem('invitationToken');
             toast({
               title: "Invitation no longer valid",
               description: "Ask the group admin to send a new invite.",
@@ -95,7 +96,7 @@ const Login = () => {
             }
 
             console.debug("LOGIN >>> invitation accepted successfully, group:", groupId);
-            clearPendingInvite();
+            localStorage.removeItem('invitationToken');
 
             if (groupId) {
               console.debug("LOGIN >>> navigating to group dashboard");
@@ -114,7 +115,7 @@ const Login = () => {
             variant: "destructive"
           });
           // Clear to avoid loops
-          clearPendingInvite();
+          localStorage.removeItem('invitationToken');
         }
       } else {
         console.debug("LOGIN >>> no pending invitation found");
