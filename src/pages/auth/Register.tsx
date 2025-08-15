@@ -48,15 +48,12 @@ const Register = () => {
           return;
         }
 
-        // Store invitation data (don't clear pendingInvitation, Login reads both)
-        const inviteData = {
-          invitationId: data[0].id,
-          groupId: data[0].group_id,
-          groupName: data[0].group_name ?? null,
-          email: data[0].invited_email
-        };
-        localStorage.setItem("pendingInvitation", JSON.stringify(inviteData));
-        console.log("Invite resolved and saved for post-login processing:", inviteData);
+        // Save one canonical key
+        localStorage.setItem('pendingInvitation', JSON.stringify({
+          invitationId: data[0]?.id,
+          groupId: data[0]?.group_id,
+          groupName: data[0]?.group_name ?? 'Care group'
+        }));
         
         // Load invitation data for display
         setInvitationData(data[0]);
