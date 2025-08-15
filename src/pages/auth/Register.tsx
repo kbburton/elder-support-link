@@ -10,7 +10,7 @@ import { PasswordInput } from "@/components/auth/PasswordInput";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { setPendingInvite } from "@/lib/invitations";
+import { setPendingInvite } from "@/lib/inviteStorage";
 import { Info } from "lucide-react";
 
 const Register = () => {

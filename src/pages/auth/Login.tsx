@@ -6,7 +6,7 @@ import SEO from "@/components/layout/SEO";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { getPendingInvite, clearPendingInvite } from "@/lib/invitations";
+import { getPendingInvite, clearPendingInvite } from "@/lib/inviteStorage";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -16,22 +16,8 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Replace the existing token/email handling with this:
   useEffect(() => {
-    const token = searchParams.get("token");
     const emailParam = searchParams.get("email");
-    const groupId = searchParams.get("groupId");
-    const groupName = searchParams.get("groupName");
-
-    if (token) {
-      const payload = {
-        invitationId: token,
-        groupId: groupId || undefined,
-        groupName: groupName ? decodeURIComponent(groupName) : undefined,
-      };
-      localStorage.setItem("pendingInvitation", JSON.stringify(payload));
-      console.log("Stored invitation data for post-login processing (will be cleared after first login)");
-    }
     if (emailParam) setEmail(decodeURIComponent(emailParam));
   }, [searchParams]);
 
@@ -46,42 +32,32 @@ const Login = () => {
     console.log("🔧 Calling RPC accept_invitation with", invite.invitationId);
     const { data: groupId, error } = await supabase.rpc("accept_invitation", {
       invitation_id: invite.invitationId,
-      user_id: user.id // Required by TypeScript types
+      user_id: user.id
     });
     console.log("🔧 RPC result:", { groupId, error });
-
-    if (error) {
-      console.error("❌ accept_invitation failed", error);
-      return false;
-    }
+    if (error) return false;
 
     clearPendingInvite();
 
     let target: string | null = (groupId as string) ?? null;
     if (!target) {
-      // safety net: fetch newest membership
-      const { data: memberships, error: mErr } = await supabase
+      const { data: memberships } = await supabase
         .from("care_group_members")
         .select("group_id")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(1);
-
-      if (mErr) console.warn("membership lookup error", mErr);
       target = memberships?.[0]?.group_id ?? null;
     }
 
     if (target) {
-      await supabase
-        .from("profiles")
+      await supabase.from("profiles")
         .update({ last_active_group_id: target })
         .eq("user_id", user.id);
       console.log("➡️ Navigating to group", target);
       navigate(`/app/${target}`, { replace: true });
       return true;
     }
-
-    console.warn("Invite handled but no target group found");
     return false;
   }
 
