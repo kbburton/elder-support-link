@@ -49,18 +49,18 @@ const Login = () => {
       return false;
     }
 
-    console.log("Calling accept_invitation RPC with:", { invitation_id: invite.invitationId, user_id: user.id });
+    console.log("Calling accept_invitation RPC with invitation_id:", invite.invitationId, "user_id:", user.id);
     
-    // Call the RPC that handles invitation acceptance and creates membership
+    // Use accept_invitation RPC that requires both invitation_id and user_id
     const { data: groupId, error } = await supabase.rpc("accept_invitation", {
       invitation_id: invite.invitationId,
-      user_id: user.id,
+      user_id: user.id
     });
     
     console.log("RPC response - data:", groupId, "error:", error);
     
     if (error) {
-      console.error("❌ accept_invitation failed:", error);
+      console.error("❌ accept_invite failed:", error);
       return false;
     }
 
@@ -74,7 +74,7 @@ const Login = () => {
 
     // Update user's last active group
     await supabase.from("profiles")
-      .update({ last_active_group_id: groupId })
+      .update({ last_active_group_id: groupId as string })
       .eq("user_id", user.id);
     
     console.log("🎯 Navigating to group:", groupId);
