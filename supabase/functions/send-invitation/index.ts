@@ -233,7 +233,8 @@ serve(async (req) => {
 
     // Create invitation link - use the project's frontend URL
     const baseUrl = 'https://0e4bac8e-3ee0-4c82-ba54-2cfbf09a1df6.lovableproject.com';
-    const inviteLink = `${baseUrl}/register?token=${invitationData.id}`;
+    const registerLink = `${baseUrl}/register?token=${invitationData.id}`;
+    const loginLink = `${baseUrl}/login?token=${invitationData.id}`;
 
     // Send email using Gmail API
     try {
@@ -250,10 +251,21 @@ serve(async (req) => {
           </div>
           
           <div style="text-align: center; margin: 30px 0;">
-            <a href="${inviteLink}" 
-               style="background-color: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
-              Accept Invitation
-            </a>
+            <p style="margin-bottom: 15px; color: #555;">Choose an option below:</p>
+            
+            <div style="margin-bottom: 15px;">
+              <a href="${registerLink}" 
+                 style="background-color: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold; margin: 5px;">
+                Create New Account
+              </a>
+            </div>
+            
+            <div>
+              <a href="${loginLink}" 
+                 style="background-color: #28a745; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold; margin: 5px;">
+                Sign In (Existing Account)
+              </a>
+            </div>
           </div>
           
           <p style="color: #666; font-size: 14px;">
@@ -261,8 +273,11 @@ serve(async (req) => {
           </p>
           
           <p style="color: #666; font-size: 14px;">
-            If you can't click the button above, copy and paste this link into your browser:<br>
-            <a href="${inviteLink}" style="color: #007bff; word-break: break-all;">${inviteLink}</a>
+            If you can't click the buttons above, copy and paste one of these links into your browser:<br><br>
+            <strong>New users:</strong><br>
+            <a href="${registerLink}" style="color: #007bff; word-break: break-all;">${registerLink}</a><br><br>
+            <strong>Existing users:</strong><br>
+            <a href="${loginLink}" style="color: #28a745; word-break: break-all;">${loginLink}</a>
           </p>
           
           <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
