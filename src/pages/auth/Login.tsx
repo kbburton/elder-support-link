@@ -54,6 +54,7 @@ const Login = () => {
         data: { user: currentUser },
       } = await supabase.auth.getUser();
       console.log("👤 Current user ID:", currentUser?.id);
+      console.debug("LOGIN >>> Starting invitation check...");
 
       // Handle pending invitations
       const pending = loadPendingInvite();
