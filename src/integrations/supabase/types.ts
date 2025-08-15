@@ -1516,8 +1516,8 @@ export type Database = {
     }
     Functions: {
       accept_invitation: {
-        Args: { invitation_id: string; user_id: string }
-        Returns: undefined
+        Args: { invitation_id: string }
+        Returns: string
       }
       build_weighted_tsv: {
         Args: { body_text?: string; snippet_text?: string; title_text?: string }
