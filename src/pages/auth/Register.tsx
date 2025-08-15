@@ -38,25 +38,21 @@ const Register = () => {
     const emailParam = searchParams.get("email");
     
     if (token) {
+      localStorage.setItem("pendingInvitationToken", token);
+      
+      // Still fetch invitation data for display purposes
       (async () => {
-        // Resolve token to the invitation row
-        const { data, error } = await supabase.rpc('get_invitation_by_token', { 
-          invitation_token: token 
+        const { data, error } = await supabase.rpc('get_invitation_by_token', {
+          invitation_token: token
         });
         if (error || !data || data.length === 0) {
-          console.error("Failed to resolve token:", error);
+          console.error("Invalid invitation token");
           return;
         }
-
-        // Save one canonical key
-        localStorage.setItem('pendingInvitation', JSON.stringify({
-          invitationId: data[0]?.id,
-          groupId: data[0]?.group_id,
-          groupName: data[0]?.group_name ?? 'Care group'
-        }));
         
         // Load invitation data for display
         setInvitationData(data[0]);
+        setEmail(data[0].invited_email || "");
       })();
     }
     

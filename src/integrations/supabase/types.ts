@@ -1519,6 +1519,10 @@ export type Database = {
         Args: { invitation_id: string }
         Returns: string
       }
+      accept_invitation_by_token: {
+        Args: { invitation_token: string }
+        Returns: string
+      }
       build_weighted_tsv: {
         Args: { body_text?: string; snippet_text?: string; title_text?: string }
         Returns: unknown
