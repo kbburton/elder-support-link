@@ -34,14 +34,9 @@ const Register = () => {
 
   // Check for prefilled email from URL params and invitation data on load
   useEffect(() => {
-    const sp = new URLSearchParams(window.location.search);
-    const token =
-      sp.get("token") ||
-      sp.get("invitationId") ||
-      sp.get("invitation_token");
-
+    const token = new URLSearchParams(window.location.search).get('token');
     if (token) {
-      console.debug("REGISTER >>> found invite token in URL, storing raw token:", token);
+      console.debug("REGISTER >>> found invite token in URL, storing:", token);
       localStorage.setItem('invitationToken', token);
       
       // Still fetch invitation data for display purposes
@@ -64,9 +59,9 @@ const Register = () => {
       console.debug("REGISTER >>> no invite token found in URL");
     }
     
-    const emailParam = sp.get("email");
+    const emailParam = new URLSearchParams(window.location.search).get("email");
     if (emailParam) setEmail(decodeURIComponent(emailParam));
-    // IMPORTANT: do not clear the invite here
+    // IMPORTANT: do not clear the invite here - let Login handle acceptance
   }, []);
 
   const loadInvitationData = async (token: string) => {
