@@ -14,21 +14,27 @@ export interface ResolvedInvite {
 const STORAGE_KEY = "pendingInvitation";
 
 export function savePendingInvite(token: string): void {
-  const invite: PendingInvite = { token };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(invite));
+  // standardize going forward
+  localStorage.setItem('pendingInvitation', JSON.stringify({ token }));
 }
 
 export function loadPendingInvite(): PendingInvite | null {
+  const raw = localStorage.getItem('pendingInvitation');
+  if (!raw) return null;
+
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
+    const parsed = JSON.parse(raw);
+    if (typeof parsed === 'string') return { token: parsed };
+    if (parsed && typeof parsed.token === 'string') return { token: parsed.token };
     return null;
+  } catch {
+    // stored as plain string (uuid)
+    return { token: raw };
   }
 }
 
 export function clearPendingInvite(): void {
-  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem('pendingInvitation');
 }
 
 export async function resolveInvite(token: string): Promise<ResolvedInvite | null> {
