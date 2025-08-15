@@ -233,7 +233,7 @@ serve(async (req) => {
 
     // Create invitation link - use the project's frontend URL
     const baseUrl = 'https://0e4bac8e-3ee0-4c82-ba54-2cfbf09a1df6.lovableproject.com';
-    const inviteLink = `${baseUrl}/invite/accept?token=${invitationData.token}`;
+    const inviteLink = `${baseUrl}/register?token=${invitationData.id}`;
 
     // Send email using Gmail API
     try {
