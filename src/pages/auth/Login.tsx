@@ -26,29 +26,58 @@ const Login = () => {
     console.log("📨 Processing invitation:", invite);
     if (!invite?.invitationId) return false;
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return false;
+    try {
+      const {
+        data: { user },
+        error: userErr,
+      } = await supabase.auth.getUser();
+      if (userErr || !user) {
+        console.error("No user after auth:", userErr);
+        return false;
+      }
 
-    console.log("🔧 Calling RPC accept_invitation with", invite.invitationId);
-    const { data: groupId, error } = await supabase.rpc("accept_invitation", { invitation_id: invite.invitationId, user_id: user.id });
-    console.log("🔧 RPC result:", { groupId, error });
-    if (error) return false;
+      console.log("🔧 Calling RPC accept_invitation with", invite.invitationId);
+      const { data: groupId, error } = await supabase.rpc("accept_invitation", {
+        invitation_id: invite.invitationId,
+        user_id: user.id,
+      });
+      console.log("🔧 RPC result:", { groupId, error });
 
-    clearPendingInvite();
+      if (error) {
+        console.error("❌ accept_invitation failed:", error);
+        return false; // fall back to normal flow
+      }
 
-    let target: string | null = (groupId as string) ?? null;
-    if (!target) {
-      const { data } = await supabase.from("care_group_members")
-        .select("group_id").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1);
-      target = data?.[0]?.group_id ?? null;
+      clearPendingInvite();
+
+      let target: string | null = (groupId as string) ?? null;
+      if (!target) {
+        const { data: memberships, error: mErr } = await supabase
+          .from("care_group_members")
+          .select("group_id")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(1);
+        if (mErr) console.warn("membership lookup error", mErr);
+        target = memberships?.[0]?.group_id ?? null;
+      }
+
+      if (target) {
+        await supabase
+          .from("profiles")
+          .update({ last_active_group_id: target })
+          .eq("user_id", user.id);
+        console.log("➡️ Navigating to group", target);
+        navigate(`/app/${target}`, { replace: true });
+        return true;
+      }
+
+      console.warn("Invite handled but no target group found");
+      return false;
+    } catch (e) {
+      console.error("Unhandled error in invite flow:", e);
+      return false;
     }
-    if (target) {
-      await supabase.from("profiles").update({ last_active_group_id: target }).eq("user_id", user.id);
-      console.log("➡️ Navigating to group", target);
-      navigate(`/app/${target}`, { replace: true });
-      return true;
-    }
-    return false;
   }
 
   const handleSignIn = async () => {
@@ -72,7 +101,9 @@ const Login = () => {
         throw error;
       }
       console.log("✅ Authentication successful");
-      const handled = await processPostLoginInvite(); if (handled) return;
+      const handled = await processPostLoginInvite();
+      console.log("Invite handled?", handled);
+      if (handled) return;
 
       // Check for welcome message first (from registration)
       const welcomeMessage = localStorage.getItem("welcomeMessage");

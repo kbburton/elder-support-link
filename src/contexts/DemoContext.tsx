@@ -79,10 +79,10 @@ export const DemoProvider: React.FC<DemoProviderProps> = ({ children }) => {
     // Monitor auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
-        console.log('Real user logged in, ending demo session');
+        console.log('Real user logged in, ending demo mode safely');
         setHasRealAuth(true);
         setDemoSession(null);
-        localStorage.removeItem('demo-session');
+        clearDemoOnly(); // Only clear demo keys, keep real app keys intact
       } else if (event === 'SIGNED_OUT') {
         console.log('User signed out, allowing demo mode');
         setHasRealAuth(false);
@@ -177,9 +177,20 @@ export const DemoProvider: React.FC<DemoProviderProps> = ({ children }) => {
     }
   }, []);
 
+  const clearDemoOnly = () => {
+    const DEMO_PREFIXES = ["demo:", "demo_", "__demo__"];
+    const toDelete: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)!;
+      if (DEMO_PREFIXES.some((p) => k.startsWith(p))) toDelete.push(k);
+    }
+    toDelete.forEach((k) => localStorage.removeItem(k));
+    localStorage.removeItem('demo-session'); // Always clear demo session
+  };
+
   const endDemoSession = useCallback(() => {
     setDemoSession(null);
-    localStorage.removeItem('demo-session');
+    clearDemoOnly();
     console.log('🔚 Demo session ended');
   }, []);
 
