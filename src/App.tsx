@@ -53,6 +53,7 @@ const App = () => (
             <Route path="/password-reset" element={<PasswordReset />} />
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/invite/accept" element={<InviteAccept />} />
+            <Route path="/invite/:id" element={<InviteAccept />} />
             <Route path="/app/groups/new" element={<CreateGroupPage />} />
 
             <Route path="/app/:groupId" element={<AppLayout />}>

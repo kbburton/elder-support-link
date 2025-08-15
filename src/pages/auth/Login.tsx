@@ -18,7 +18,26 @@ const Login = () => {
 
   useEffect(() => {
     const emailParam = searchParams.get("email");
+    const tokenParam = searchParams.get("token");
     if (emailParam) setEmail(decodeURIComponent(emailParam));
+    
+    // If coming from invitation link, resolve token to invitation data
+    if (tokenParam) {
+      (async () => {
+        const { data, error } = await supabase.rpc('get_invitation_by_token', {
+          invitation_token: tokenParam
+        });
+        if (error || !data || data.length === 0) return;
+        
+        const inviteData = {
+          invitationId: data[0].id,
+          groupId: data[0].group_id,
+          groupName: data[0].group_name,
+          email: data[0].invited_email
+        };
+        localStorage.setItem("pendingInvitation", JSON.stringify(inviteData));
+      })();
+    }
   }, [searchParams]);
 
   async function processPostLoginInvite(): Promise<boolean> {
