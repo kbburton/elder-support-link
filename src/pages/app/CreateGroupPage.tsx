@@ -90,27 +90,42 @@ export default function CreateGroupPage() {
 
   const createGroupMutation = useMutation({
     mutationFn: async (values: CreateGroupFormValues) => {
+      console.log("Creating group with currentUser:", currentUser);
+      
       if (!currentUser) throw new Error("User not authenticated");
+
+      // Double-check authentication
+      const { data: authUser } = await supabase.auth.getUser();
+      console.log("Auth user from getUser():", authUser.user);
+      
+      if (!authUser.user) {
+        throw new Error("Authentication failed - please log in again");
+      }
 
       // Combine first and last name for group name if not provided
       const groupName = values.name || `${values.recipient_first_name} ${values.recipient_last_name}`;
 
+      const insertData = {
+        name: groupName,
+        recipient_first_name: values.recipient_first_name,
+        recipient_last_name: values.recipient_last_name,
+        date_of_birth: values.date_of_birth || null,
+        living_situation: values.living_situation || null,
+        profile_description: values.profile_description || null,
+        special_dates: values.special_dates ? { dates: values.special_dates } : null,
+        created_by_user_id: authUser.user.id, // Use the fresh auth user ID
+      };
+      
+      console.log("Inserting care group data:", insertData);
+
       // Create the care group
       const { data: group, error: groupError } = await supabase
         .from("care_groups")
-        .insert({
-          name: groupName,
-          recipient_first_name: values.recipient_first_name,
-          recipient_last_name: values.recipient_last_name,
-          date_of_birth: values.date_of_birth || null,
-          living_situation: values.living_situation || null,
-          profile_description: values.profile_description || null,
-          special_dates: values.special_dates ? { dates: values.special_dates } : null,
-          created_by_user_id: currentUser.id,
-        })
+        .insert(insertData)
         .select()
         .single();
 
+      console.log("Insert result:", { group, groupError });
       if (groupError) throw groupError;
 
       // Add current user as admin member
@@ -118,7 +133,7 @@ export default function CreateGroupPage() {
         .from("care_group_members")
         .insert({
           group_id: group.id,
-          user_id: currentUser.id,
+          user_id: authUser.user.id, // Use the fresh auth user ID here too
           role: "admin",
           is_admin: true,
         });
