@@ -425,7 +425,7 @@ export type Database = {
         Row: {
           chronic_conditions: string | null
           created_at: string
-          created_by_user_id: string | null
+          created_by_user_id: string
           date_of_birth: string | null
           hearing: string | null
           id: string
@@ -450,7 +450,7 @@ export type Database = {
         Insert: {
           chronic_conditions?: string | null
           created_at?: string
-          created_by_user_id?: string | null
+          created_by_user_id: string
           date_of_birth?: string | null
           hearing?: string | null
           id?: string
@@ -475,7 +475,7 @@ export type Database = {
         Update: {
           chronic_conditions?: string | null
           created_at?: string
-          created_by_user_id?: string | null
+          created_by_user_id?: string
           date_of_birth?: string | null
           hearing?: string | null
           id?: string
