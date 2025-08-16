@@ -1554,8 +1554,10 @@ export type Database = {
     }
     Functions: {
       accept_invitation: {
-        Args: { invitation_id: string }
-        Returns: string
+        Args:
+          | { invitation_id: string }
+          | { invitation_id: string; user_id: string }
+        Returns: undefined
       }
       accept_invitation_by_token: {
         Args: { invitation_token: string }
@@ -1566,14 +1568,13 @@ export type Database = {
         Returns: unknown
       }
       get_invitation_by_token: {
-        Args: { invitation_token: string } | { invitation_token: string }
+        Args: { invitation_token: string }
         Returns: {
+          expires_at: string
           group_id: string
-          group_name: string
           id: string
-          invited_by_email: string
-          invited_email: string
-          message: string
+          status: string
+          used_at: string
         }[]
       }
       get_search_jobs: {
