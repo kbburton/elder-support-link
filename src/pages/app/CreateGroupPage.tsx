@@ -95,13 +95,16 @@ export default function CreateGroupPage() {
       
       if (!currentUser) throw new Error("User not authenticated");
 
-      // Double-check authentication
-      const { data: authUser } = await supabase.auth.getUser();
-      console.log("Auth user from getUser():", authUser.user);
+      // Ensure we have a valid session with proper JWT context
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      console.log("Session check:", { session: !!session, user: session?.user?.id, sessionError });
       
-      if (!authUser.user) {
-        throw new Error("Authentication failed - please log in again");
+      if (sessionError || !session?.user) {
+        throw new Error("Authentication session invalid - please log in again");
       }
+
+      // Small delay to ensure JWT context is fully established in database
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       // Combine first and last name for group name if not provided
       const groupName = values.name || `${values.recipient_first_name} ${values.recipient_last_name}`;
@@ -114,10 +117,11 @@ export default function CreateGroupPage() {
         living_situation: values.living_situation || null,
         profile_description: values.profile_description || null,
         special_dates: values.special_dates ? { dates: values.special_dates } : null,
-        created_by_user_id: authUser.user.id, // Use the fresh auth user ID
+        created_by_user_id: session.user.id, // Use session user ID for consistency
       };
       
       console.log("Inserting care group data:", insertData);
+      console.log("User ID from session:", session.user.id);
 
       // Create the care group
       const { data: group, error: groupError } = await supabase
@@ -127,19 +131,28 @@ export default function CreateGroupPage() {
         .single();
 
       console.log("Insert result:", { group, groupError });
-      if (groupError) throw groupError;
+      if (groupError) {
+        console.error("Care group creation failed:", groupError);
+        throw new Error(groupError.message || "Failed to create care group");
+      }
 
       // Add current user as admin member
       const { error: memberError } = await supabase
         .from("care_group_members")
         .insert({
           group_id: group.id,
-          user_id: authUser.user.id, // Use the fresh auth user ID here too
-          role: "admin",
+          user_id: session.user.id, // Use session user ID for consistency
+          role: "admin",  
           is_admin: true,
         });
 
-      if (memberError) throw memberError;
+      console.log("Member insertion result:", { memberError });
+      if (memberError) {
+        console.error("Member creation failed:", memberError);
+        // Try to clean up the created group if member creation fails
+        await supabase.from("care_groups").delete().eq("id", group.id);
+        throw new Error(memberError.message || "Failed to add user as group admin");
+      }
 
       return group;
     },
