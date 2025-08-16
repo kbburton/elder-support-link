@@ -130,7 +130,12 @@ const CalendarPage = () => {
         onClose={closeWelcome}
       />
       
-      {/* New Appointment Modal - Handled by SharedCalendar component */}
+      <AppointmentModal
+        isOpen={showAppointmentModal}
+        onClose={() => setShowAppointmentModal(false)}
+        appointment={undefined}
+        groupId={groupId}
+      />
     </div>
   );
 };
