@@ -89,6 +89,10 @@ const Login = () => {
       }
       console.log("✅ Authentication successful");
 
+      // Check for return URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const returnTo = urlParams.get('returnTo');
+
       // Get current user info first
       const {
         data: { user: currentUser },
@@ -98,6 +102,17 @@ const Login = () => {
 
       // Process invitation if present
       const processed = await processInvitationAfterLogin(currentUser!.id, navigate, toast);
+      
+      // If invitation was processed, processInvitationAfterLogin handles navigation
+      if (processed) {
+        return;
+      }
+
+      // Handle return URL redirect
+      if (returnTo) {
+        navigate(decodeURIComponent(returnTo), { replace: true });
+        return;
+      }
       if (processed) return; // you were redirected to the group
 
       // Check for welcome message first (from registration)

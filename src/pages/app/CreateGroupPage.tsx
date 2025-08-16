@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import SEO from "@/components/layout/SEO";
+import { AuthWrapper } from "@/components/auth/AuthWrapper";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -168,19 +169,20 @@ export default function CreateGroupPage() {
   };
 
   return (
-    <main className="container max-w-2xl mx-auto py-6">
-      <SEO
-        title="Create Care Group - DaveAssist"
-        description="Create a new care group to coordinate care for your loved one"
-        canonicalPath={typeof window !== "undefined" ? window.location.pathname : "/app/groups/new"}
-      />
+    <AuthWrapper>
+      <main className="container max-w-2xl mx-auto py-6">
+        <SEO
+          title="Create Care Group - DaveAssist"
+          description="Create a new care group to coordinate care for your loved one"
+          canonicalPath={typeof window !== "undefined" ? window.location.pathname : "/app/groups/new"}
+        />
 
-      <header className="mb-6">
-        <h1 className="text-2xl font-semibold">Create Care Group</h1>
-        <p className="text-muted-foreground">
-          Set up a new care group to coordinate care for your loved one
-        </p>
-      </header>
+        <header className="mb-6">
+          <h1 className="text-2xl font-semibold">Create Care Group</h1>
+          <p className="text-muted-foreground">
+            Set up a new care group to coordinate care for your loved one
+          </p>
+        </header>
 
       <Card>
         <CardHeader>
@@ -460,5 +462,6 @@ export default function CreateGroupPage() {
         </CardFooter>
       </Card>
     </main>
+    </AuthWrapper>
   );
 }
