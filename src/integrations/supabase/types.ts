@@ -1572,7 +1572,9 @@ export type Database = {
         Returns: {
           expires_at: string
           group_id: string
+          group_name: string
           id: string
+          invited_email: string
           status: string
           used_at: string
         }[]
