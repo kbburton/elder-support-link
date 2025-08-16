@@ -1567,6 +1567,23 @@ export type Database = {
         Args: { body_text?: string; snippet_text?: string; title_text?: string }
         Returns: unknown
       }
+      create_care_group_with_member: {
+        Args: {
+          p_date_of_birth?: string
+          p_living_situation?: string
+          p_name: string
+          p_profile_description?: string
+          p_recipient_first_name: string
+          p_recipient_last_name: string
+          p_special_dates?: Json
+        }
+        Returns: {
+          error_message: string
+          group_id: string
+          group_name: string
+          success: boolean
+        }[]
+      }
       get_invitation_by_token: {
         Args: { invitation_token: string }
         Returns: {

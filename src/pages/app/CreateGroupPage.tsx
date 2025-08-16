@@ -95,7 +95,7 @@ export default function CreateGroupPage() {
       
       if (!currentUser) throw new Error("User not authenticated");
 
-      // Ensure we have a valid session with proper JWT context
+      // Ensure we have a valid session
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       console.log("Session check:", { session: !!session, user: session?.user?.id, sessionError });
       
@@ -103,58 +103,41 @@ export default function CreateGroupPage() {
         throw new Error("Authentication session invalid - please log in again");
       }
 
-      // Small delay to ensure JWT context is fully established in database
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // Combine first and last name for group name if not provided
-      const groupName = values.name || `${values.recipient_first_name} ${values.recipient_last_name}`;
-
-      const insertData = {
-        name: groupName,
-        recipient_first_name: values.recipient_first_name,
-        recipient_last_name: values.recipient_last_name,
-        date_of_birth: values.date_of_birth || null,
-        living_situation: values.living_situation || null,
-        profile_description: values.profile_description || null,
-        special_dates: values.special_dates ? { dates: values.special_dates } : null,
-        created_by_user_id: session.user.id, // Use session user ID for consistency
-      };
-      
-      console.log("Inserting care group data:", insertData);
       console.log("User ID from session:", session.user.id);
+      console.log("Calling secure database function for group creation");
 
-      // Create the care group
-      const { data: group, error: groupError } = await supabase
-        .from("care_groups")
-        .insert(insertData)
-        .select()
-        .single();
+      // Use the secure database function to create the group and membership
+      const { data, error } = await supabase.rpc('create_care_group_with_member', {
+        p_name: values.name || null,
+        p_recipient_first_name: values.recipient_first_name,
+        p_recipient_last_name: values.recipient_last_name,
+        p_date_of_birth: values.date_of_birth || null,
+        p_living_situation: values.living_situation || null,
+        p_profile_description: values.profile_description || null,
+        p_special_dates: values.special_dates ? { dates: values.special_dates } : null,
+      });
 
-      console.log("Insert result:", { group, groupError });
-      if (groupError) {
-        console.error("Care group creation failed:", groupError);
-        throw new Error(groupError.message || "Failed to create care group");
+      console.log("Database function result:", { data, error });
+
+      if (error) {
+        console.error("Database function failed:", error);
+        throw new Error(error.message || "Failed to create care group");
       }
 
-      // Add current user as admin member
-      const { error: memberError } = await supabase
-        .from("care_group_members")
-        .insert({
-          group_id: group.id,
-          user_id: session.user.id, // Use session user ID for consistency
-          role: "admin",  
-          is_admin: true,
-        });
-
-      console.log("Member insertion result:", { memberError });
-      if (memberError) {
-        console.error("Member creation failed:", memberError);
-        // Try to clean up the created group if member creation fails
-        await supabase.from("care_groups").delete().eq("id", group.id);
-        throw new Error(memberError.message || "Failed to add user as group admin");
+      // The function returns an array with one result
+      const result = data?.[0];
+      if (!result?.success) {
+        console.error("Care group creation failed:", result?.error_message);
+        throw new Error(result?.error_message || "Failed to create care group");
       }
 
-      return group;
+      console.log("Care group created successfully:", result);
+
+      // Return a group-like object for consistency with the rest of the code
+      return {
+        id: result.group_id,
+        name: result.group_name,
+      };
     },
     onSuccess: (group) => {
       // Store the new group as current group in localStorage
