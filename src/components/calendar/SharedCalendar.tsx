@@ -23,9 +23,11 @@ type SharedCalendarProps = {
   showLegend?: boolean;
   excludeDeleted?: boolean;
   onEventSelect?: (evt: CalendarEvent) => void;
+
+  // optional callback after delete (we still delete internally)
   onEventDelete?: (evt: CalendarEvent) => void;
 
-  // New for Select Mode
+  // Select Mode (bulk)
   selectMode?: boolean;
   isSelected?: (evt: CalendarEvent) => boolean;
   onToggleSelect?: (evt: CalendarEvent) => void;
@@ -182,9 +184,33 @@ export default function SharedCalendar(props: SharedCalendarProps) {
     setSelectedEvent(null);
   }
 
-  function handleDelete() {
-    if (selectedEvent) {
+  async function performSoftDelete(evt: CalendarEvent) {
+    if (evt.type === "appointment") {
+      // IMPORTANT: payload key MUST match SQL arg name
+      const { error } = await supabase.rpc("soft_delete_appointment", {
+        p_appointment_id: evt.id,
+      });
+      if (error) throw error;
+      await apptQuery.refetch();
+    } else {
+      const { error } = await supabase.rpc("soft_delete_task", {
+        p_task_id: evt.id,
+      });
+      if (error) throw error;
+      await taskQuery.refetch();
+    }
+  }
+
+  async function handleDelete() {
+    if (!selectedEvent) return;
+    try {
+      // delete internally with the correct parameter name
+      await performSoftDelete(selectedEvent);
+      // notify parent (optional)
       onEventDelete?.(selectedEvent);
+    } catch (e) {
+      console.error("Delete failed:", e);
+    } finally {
       closeEvent();
     }
   }
@@ -322,7 +348,7 @@ export default function SharedCalendar(props: SharedCalendarProps) {
           <Button variant="outline" size="icon" onClick={goPrev}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <div className="mx-2 text-sm font-medium">
+        <div className="mx-2 text-sm font-medium">
             {view === "month" && format(selectedDate, "MMMM yyyy")}
             {view === "week" && `${format(start, "MMM d")} – ${format(end, "MMM d, yyyy")}`}
             {view === "day" && format(selectedDate, "PPP")}
@@ -387,9 +413,7 @@ export default function SharedCalendar(props: SharedCalendarProps) {
           <DialogFooter className="flex items-center justify-between">
             <Button variant="outline" onClick={closeEvent}>Close</Button>
             {selectedEvent && (
-              <Button variant="destructive" onClick={() => {
-                handleDelete();
-              }}>
+              <Button variant="destructive" onClick={handleDelete}>
                 <Trash2 className="h-4 w-4 mr-2" />
                 Delete
               </Button>
