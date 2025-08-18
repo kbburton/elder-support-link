@@ -32,13 +32,44 @@ export async function softDeleteEntity(
 ): Promise<DeleteResult> {
   try {
     const rpcName = RPC_MAPPING[entityType].softDelete;
-    const paramName = `p_${entityType}_id`;
     
-    const { error } = await supabase.rpc(rpcName as any, {
-      [paramName]: entityId,
-      p_actor_user_id: actorUserId,
-      p_actor_email: actorEmail
-    });
+    // Use correct parameter names for each entity type
+    let params: Record<string, any>;
+    if (entityType === 'task') {
+      params = {
+        p_task_id: entityId,
+        p_actor_user_id: actorUserId,
+        p_actor_email: actorEmail
+      };
+    } else if (entityType === 'appointment') {
+      params = {
+        p_appointment_id: entityId,
+        p_actor_user_id: actorUserId,
+        p_actor_email: actorEmail
+      };
+    } else if (entityType === 'contact') {
+      params = {
+        p_contact_id: entityId,
+        p_actor_user_id: actorUserId,
+        p_actor_email: actorEmail
+      };
+    } else if (entityType === 'activity') {
+      params = {
+        p_activity_id: entityId,
+        p_actor_user_id: actorUserId,
+        p_actor_email: actorEmail
+      };
+    } else if (entityType === 'document') {
+      params = {
+        p_document_id: entityId,
+        p_actor_user_id: actorUserId,
+        p_actor_email: actorEmail
+      };
+    } else {
+      throw new Error(`Unknown entity type: ${entityType}`);
+    }
+    
+    const { error } = await supabase.rpc(rpcName as any, params);
 
     if (error) {
       console.error(`Soft delete ${entityType} error:`, error);
@@ -63,13 +94,44 @@ export async function restoreEntity(
 ): Promise<DeleteResult> {
   try {
     const rpcName = RPC_MAPPING[entityType].restore;
-    const paramName = `p_${entityType}_id`;
     
-    const { error } = await supabase.rpc(rpcName as any, {
-      [paramName]: entityId,
-      p_actor_user_id: actorUserId,
-      p_actor_email: actorEmail
-    });
+    // Use correct parameter names for each entity type
+    let params: Record<string, any>;
+    if (entityType === 'task') {
+      params = {
+        p_task_id: entityId,
+        p_actor_user_id: actorUserId,
+        p_actor_email: actorEmail
+      };
+    } else if (entityType === 'appointment') {
+      params = {
+        p_appointment_id: entityId,
+        p_actor_user_id: actorUserId,
+        p_actor_email: actorEmail
+      };
+    } else if (entityType === 'contact') {
+      params = {
+        p_contact_id: entityId,
+        p_actor_user_id: actorUserId,
+        p_actor_email: actorEmail
+      };
+    } else if (entityType === 'activity') {
+      params = {
+        p_activity_id: entityId,
+        p_actor_user_id: actorUserId,
+        p_actor_email: actorEmail
+      };
+    } else if (entityType === 'document') {
+      params = {
+        p_document_id: entityId,
+        p_actor_user_id: actorUserId,
+        p_actor_email: actorEmail
+      };
+    } else {
+      throw new Error(`Unknown entity type: ${entityType}`);
+    }
+    
+    const { error } = await supabase.rpc(rpcName as any, params);
 
     if (error) {
       console.error(`Restore ${entityType} error:`, error);
