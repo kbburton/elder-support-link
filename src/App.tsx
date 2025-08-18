@@ -32,6 +32,7 @@ import ContactsImportPage from "./pages/app/ContactsImportPage";
 import SearchJobsPage from "./pages/app/SearchJobsPage";
 import CreateGroupPage from "./pages/app/CreateGroupPage";
 import FeedbackPage from "./pages/app/FeedbackPage";
+import TasksPage from "./pages/app/TasksPage";
 import AdminEmailPage from "./pages/app/AdminEmailPage";
 const queryClient = new QueryClient();
 const App = () => (
@@ -55,6 +56,7 @@ const App = () => (
             <Route path="/app/:groupId" element={<AppLayout />}>
               <Route index element={<CalendarPage />} />
               <Route path="calendar" element={<CalendarPage />} />
+              <Route path="tasks" element={<TasksPage />} />
               <Route path="contacts/:contactId" element={<ContactDetailPage />} />
               <Route path="contacts/:contactId/edit" element={<ContactFormPage />} />
               <Route path="contacts/import" element={<ContactsImportPage />} />
