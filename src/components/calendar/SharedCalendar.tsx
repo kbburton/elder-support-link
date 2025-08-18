@@ -191,7 +191,15 @@ export default function SharedCalendar(props: SharedCalendarProps) {
         p_by_user_id: user.id,
         p_appointment_id: evt.id,
       });
-      if (error) throw error;
+      if (error) {
+        // Handle "already deleted" case gracefully
+        if (error.message?.includes("already deleted") || error.message?.includes("update blocked")) {
+          console.log("Item was already deleted, refreshing view...");
+          await apptQuery.refetch();
+          return; // Don't throw error for already deleted items
+        }
+        throw error;
+      }
       await apptQuery.refetch();
     } else {
       const { error } = await supabase.rpc("soft_delete_task" as any, {
@@ -199,7 +207,14 @@ export default function SharedCalendar(props: SharedCalendarProps) {
         p_by_user_id: user.id,
         p_task_id: evt.id,
       });
-      if (error) throw error;
+      if (error) {
+        if (error.message?.includes("already deleted") || error.message?.includes("update blocked")) {
+          console.log("Item was already deleted, refreshing view...");
+          await taskQuery.refetch();
+          return;
+        }
+        throw error;
+      }
       await taskQuery.refetch();
     }
   }
@@ -212,7 +227,13 @@ export default function SharedCalendar(props: SharedCalendarProps) {
       // notify parent (optional)
       onEventDelete?.(selectedEvent);
     } catch (e) {
-      console.error("Delete failed:", e);
+      // Only log and show error if it's not an "already deleted" case
+      if (e instanceof Error && !e.message?.includes("already deleted") && !e.message?.includes("update blocked")) {
+        console.error("Delete failed:", e);
+        // You could add a toast notification here if needed
+      } else {
+        console.log("Item was already deleted, operation completed successfully");
+      }
     } finally {
       closeEvent();
     }
