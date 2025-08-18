@@ -20,9 +20,9 @@ export function useRecentlyDeleted(groupId: string | undefined) {
 
   const { data: deletedItems = [], isLoading, error } = useQuery({
     queryKey: ["recently-deleted", groupId],
-    enabled: !!groupId,
+    enabled: !!groupId && groupId !== ':groupId',
     queryFn: async () => {
-      if (!groupId) return [];
+      if (!groupId || groupId === ':groupId') return [];
 
       const items: DeletedItem[] = [];
 

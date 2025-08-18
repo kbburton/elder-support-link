@@ -104,8 +104,11 @@ export default function SharedCalendar(props: SharedCalendarProps) {
 
   const apptQuery = useQuery({
     queryKey: ["calendar-appointments", groupId, view, start.toISOString(), end.toISOString(), excludeDeleted],
-    enabled: !!groupId,
+    enabled: !!groupId && groupId !== ':groupId',
     queryFn: async () => {
+      if (!groupId || groupId === ':groupId') {
+        throw new Error('Invalid group ID');
+      }
       const { data, error } = await supabase
         .from("appointments")
         .select("id, group_id, date_time, duration_minutes, description, location, category, created_by_email")
@@ -121,8 +124,11 @@ export default function SharedCalendar(props: SharedCalendarProps) {
 
   const taskQuery = useQuery({
     queryKey: ["calendar-tasks", groupId, view, start.toISOString(), end.toISOString(), excludeDeleted],
-    enabled: !!groupId,
+    enabled: !!groupId && groupId !== ':groupId',
     queryFn: async () => {
+      if (!groupId || groupId === ':groupId') {
+        throw new Error('Invalid group ID');
+      }
       const { data, error } = await supabase
         .from("tasks")
         .select("id, group_id, title, description, due_date, status, priority, created_by_email")
