@@ -1,238 +1,220 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { Filter, Plus, Search } from 'lucide-react';
+import { useEffect, useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Plus, Trash2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import SEO from "@/components/layout/SEO";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { DocumentUpload } from "@/components/documents/DocumentUpload";
-import { DocumentList } from "@/components/documents/DocumentList";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/components/ui/use-toast";
-import { useDemoDocuments } from "@/hooks/useDemoData";
+import { toast } from "@/hooks/use-toast";
 import { useDemo } from "@/hooks/useDemo";
 import { useDemoOperations } from "@/hooks/useDemoOperations";
 
-const DOCUMENT_CATEGORIES = ['All', 'Medical', 'Legal', 'Financial', 'Personal', 'Other'];
+type Document = {
+  id: string;
+  group_id: string | null;
+  title: string | null;
+  category: string | null;
+  file_type: string | null;
+  file_size: number | null;
+  upload_date: string;
+};
 
 const DocumentsPage = () => {
-  const { groupId } = useParams<{ groupId: string }>();
-  const navigate = useNavigate();
-  const { toast } = useToast();
-  const [showUpload, setShowUpload] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('All');
+  const { groupId } = useParams();
+  const queryClient = useQueryClient();
   const { isDemo } = useDemo();
-  const demoDocuments = useDemoDocuments(groupId);
-  const { blockUpload } = useDemoOperations();
+  const { blockCreate } = useDemoOperations();
 
-  // Debug logging
-  console.log('DocumentsPage groupId:', groupId);
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [currentUserId, setCurrentUserId] = useState<string>("");
+  const [currentUserEmail, setCurrentUserEmail] = useState<string>("");
 
-  // Check if we need to redirect to a valid group
   useEffect(() => {
-    if (!groupId || groupId === ':groupId') {
-      // Redirect to the first available group
-      const fetchAndRedirect = async () => {
-        try {
-          const { data: user } = await supabase.auth.getUser();
-          if (!user.user) return;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setCurrentUserId(user.id);
+        setCurrentUserEmail(user.email ?? "");
+      }
+    })();
+  }, []);
 
-          const { data: groups } = await supabase
-            .from('care_group_members')
-            .select('group_id')
-            .eq('user_id', user.user.id)
-            .limit(1);
-
-          if (groups && groups.length > 0) {
-            navigate(`/app/${groups[0].group_id}/documents`, { replace: true });
-          }
-        } catch (error) {
-          console.error('Failed to redirect to valid group:', error);
-        }
-      };
-      fetchAndRedirect();
-    }
-  }, [groupId, navigate]);
-
-  // Use demo data if in demo mode, otherwise use real queries
-  const queryResult = demoDocuments.isDemo 
-    ? demoDocuments 
-    : useQuery({
-    queryKey: ['documents', groupId],
+  const { data, isLoading } = useQuery({
+    queryKey: ["documents", groupId, search],
+    enabled: !!groupId,
     queryFn: async () => {
-      if (!groupId || groupId === ':groupId') return [];
-      
-      console.log('Fetching documents for groupId:', groupId);
-      const { data, error } = await supabase
-        .from('documents')
-        .select('*')
-        .eq('group_id', groupId)
-        .order('upload_date', { ascending: false });
+      let q = supabase
+        .from("documents")
+        .select("id, group_id, title, category, file_type, file_size, upload_date")
+        .eq("group_id", groupId)
+        .eq("is_deleted", false)
+        .order("upload_date", { ascending: false });
 
-      if (error) {
-        console.error('Documents fetch error:', error);
-        toast({
-          title: 'Failed to load documents',
-          description: error.message,
-          variant: 'destructive'
-        });
-        return [];
+      if (search) {
+        q = q.or(`title.ilike.%${search}%,category.ilike.%${search}%`);
       }
 
-      console.log('Fetched documents:', data);
-      return data;
+      const { data, error } = await q;
+      if (error) throw error;
+      return data as Document[];
     },
-    enabled: !!groupId && groupId !== ':groupId' && !isDemo,
   });
 
-  const { data: documents = [], isLoading } = queryResult;
-  const refetchDocuments = () => {
-    if (!demoDocuments.isDemo && 'refetch' in queryResult) {
-      queryResult.refetch();
+  const rows = data ?? [];
+  const toggleOne = (id: string) => setSelected((s) => ({ ...s, [id]: !s[id] }));
+  const allChecked = useMemo(() => rows.length > 0 && rows.every(r => selected[r.id]), [rows, selected]);
+  const someChecked = useMemo(() => rows.some(r => selected[r.id]) && !allChecked, [rows, selected, allChecked]);
+  const toggleAll = () => {
+    if (allChecked) {
+      setSelected({});
+    } else {
+      const next: Record<string, boolean> = {};
+      rows.forEach(r => { next[r.id] = true; });
+      setSelected(next);
     }
   };
 
-  // Fetch user profiles for display - simplified approach
-  const { data: userProfiles = [] } = useQuery({
-    queryKey: ['user-emails', groupId],
-    queryFn: async () => {
-      if (!groupId || groupId === ':groupId') return [];
-      
-      // Get all documents for this group to find unique user IDs
-      const { data: docs } = await supabase
-        .from('documents')
-        .select('uploaded_by_user_id')
-        .eq('group_id', groupId);
+  const deleteOne = useMutation({
+    mutationFn: async (id: string) => {
+      if (isDemo) {
+        toast({ title: "Read-only demo", description: "Deletion is disabled in demo mode." });
+        return;
+      }
+      const ok = window.confirm("Move this document to Trash?");
+      if (!ok) return;
 
-      if (!docs) return [];
-
-      // Get unique user IDs
-      const userIds = [...new Set(docs.map(d => d.uploaded_by_user_id).filter(Boolean))];
-      if (userIds.length === 0) return [];
-
-      // Get profiles for those users
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('user_id, email')
-        .in('user_id', userIds);
-
-      return profiles?.map(profile => ({
-        id: profile.user_id,
-        email: profile.email || 'Unknown'
-      })) || [];
+      const { error } = await supabase.rpc("soft_delete_document", {
+        p_document_id: id,
+        p_by_user_id: currentUserId,
+        p_by_email: currentUserEmail,
+      });
+      if (error) throw error;
     },
-    enabled: !!groupId && groupId !== ':groupId',
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      toast({ title: "Moved to Trash", description: "Document was soft-deleted." });
+    },
+    onError: (e: any) => toast({ title: "Delete failed", description: e.message, variant: "destructive" }),
   });
 
-  // Filter documents based on search term and category
-  const filteredDocuments = documents.filter(doc => {
-    const matchesSearch = !searchTerm || 
-      doc.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doc.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doc.summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doc.full_text?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doc.notes?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesCategory = selectedCategory === 'All' || doc.category === selectedCategory;
-    
-    return matchesSearch && matchesCategory;
+  const deleteBulk = useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (isDemo) {
+        toast({ title: "Read-only demo", description: "Deletion is disabled in demo mode." });
+        return;
+      }
+      const ok = window.confirm(`Move ${ids.length} document(s) to Trash?`);
+      if (!ok) return;
+      for (const id of ids) {
+        const { error } = await supabase.rpc("soft_delete_document", {
+          p_document_id: id,
+          p_by_user_id: currentUserId,
+          p_by_email: currentUserEmail,
+        });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      setSelected({});
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      toast({ title: "Moved to Trash", description: "Selected documents were soft-deleted." });
+    },
+    onError: (e: any) => toast({ title: "Bulk delete failed", description: e.message, variant: "destructive" }),
   });
-
-  const handleUploadComplete = () => {
-    refetchDocuments();
-    setShowUpload(false);
-  };
-
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <SEO title="Documents — DaveAssist" description="Securely store and search care documents." />
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold">Document centre</h2>
-        </div>
-        <div className="text-center py-12">
-          <p>Loading documents...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
-      <SEO title="Documents — DaveAssist" description="Securely store and search care documents." />
-      
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <h2 className="text-xl font-semibold">Document centre</h2>
-        <Button 
+      <SEO title="Documents — DaveAssist" description="Manage documents." />
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold">Documents</h2>
+        <Button
           onClick={() => {
-            if (blockUpload()) return;
-            setShowUpload(true);
-          }} 
-          className="flex items-center space-x-2"
+            if (blockCreate()) return;
+            window.location.href = `/app/${groupId}/documents/upload`;
+          }}
+          className="flex items-center gap-2"
         >
           <Plus className="h-4 w-4" />
-          <span>Upload Document</span>
+          Upload
         </Button>
       </div>
 
-      {/* Search and Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Search documents by title, content, or notes..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        <div className="flex items-center space-x-2">
-          <Filter className="h-4 w-4 text-muted-foreground" />
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {DOCUMENT_CATEGORIES.map((category) => (
-                <SelectItem key={category} value={category}>
-                  {category}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      <Card>
+        <CardHeader><CardTitle>Search</CardTitle></CardHeader>
+        <CardContent className="flex gap-3">
+          <Input placeholder="Title or category…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Button variant="outline" onClick={() => setSearch("")}>Clear</Button>
+        </CardContent>
+      </Card>
 
-      {/* Results count */}
-      {searchTerm || selectedCategory !== 'All' ? (
-        <div className="text-sm text-muted-foreground">
-          {filteredDocuments.length} document{filteredDocuments.length !== 1 ? 's' : ''} found
-          {searchTerm && ` for "${searchTerm}"`}
-          {selectedCategory !== 'All' && ` in ${selectedCategory}`}
+      <Card>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-muted/40">
+                  <th className="w-12 p-3">
+                    <input
+                      type="checkbox"
+                      checked={allChecked}
+                      ref={(el) => { if (el) el.indeterminate = someChecked; }}
+                      onChange={toggleAll}
+                    />
+                  </th>
+                  <th className="text-left p-3">Title</th>
+                  <th className="text-left p-3">Category</th>
+                  <th className="text-left p-3">Type</th>
+                  <th className="text-left p-3">Size</th>
+                  <th className="text-left p-3">Uploaded</th>
+                  <th className="text-right p-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {isLoading ? (
+                  <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">Loading…</td></tr>
+                ) : rows.length === 0 ? (
+                  <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">No documents</td></tr>
+                ) : rows.map((d) => (
+                  <tr key={d.id} className="border-t">
+                    <td className="p-3"><input type="checkbox" checked={!!selected[d.id]} onChange={() => toggleOne(d.id)} /></td>
+                    <td className="p-3">{d.title || "(Untitled)"}</td>
+                    <td className="p-3">{d.category || ""}</td>
+                    <td className="p-3">{d.file_type || ""}</td>
+                    <td className="p-3">{d.file_size ?? ""}</td>
+                    <td className="p-3">{new Date(d.upload_date).toLocaleString()}</td>
+                    <td className="p-3 text-right">
+                      <Button variant="destructive" size="sm" onClick={() => deleteOne.mutate(d.id)}>
+                        <Trash2 className="h-4 w-4" />
+                        <span className="sr-only">Delete</span>
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {Object.keys(selected).filter(id => selected[id]).length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-background border shadow-lg rounded-xl px-4 py-3 flex items-center gap-3">
+          <div>{Object.keys(selected).filter(id => selected[id]).length} selected</div>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => {
+              const ids = Object.keys(selected).filter(id => selected[id]);
+              deleteBulk.mutate(ids);
+            }}
+          >
+            <Trash2 className="h-4 w-4 mr-1" /> Delete selected
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setSelected({})}>Clear</Button>
         </div>
-      ) : null}
-
-      {/* Document List */}
-      <DocumentList
-        documents={filteredDocuments}
-        onRefresh={refetchDocuments}
-        userProfiles={userProfiles}
-      />
-
-      {/* Upload Dialog */}
-      <Dialog open={showUpload} onOpenChange={setShowUpload}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DocumentUpload
-            onUploadComplete={handleUploadComplete}
-            onClose={() => setShowUpload(false)}
-          />
-        </DialogContent>
-      </Dialog>
+      )}
     </div>
   );
 };
