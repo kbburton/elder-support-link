@@ -183,8 +183,7 @@ const SearchPage = () => {
           
           const { data, error } = await supabase.rpc("search_all", {
             q: query.trim(),
-            group_id: groupId,
-            lim: 50
+            group_id: groupId
           });
 
           if (error) {
