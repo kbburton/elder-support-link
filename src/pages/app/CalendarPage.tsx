@@ -1,49 +1,46 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import SEO from "@/components/layout/SEO";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Trash2 } from "lucide-react";
-import SharedCalendar from "@/components/calendar/SharedCalendar";
+import { Plus, CheckSquare, Square, Trash2, X } from "lucide-react";
+import SharedCalendar, { CalendarEvent } from "@/components/calendar/SharedCalendar";
 import { AppointmentModal } from "@/components/appointments/AppointmentModal";
 import { useDemoOperations } from "@/hooks/useDemoOperations";
 import { GroupWelcomeModal } from "@/components/welcome/GroupWelcomeModal";
 import { useGroupWelcome } from "@/hooks/useGroupWelcome";
 import { useLastActiveGroup } from "@/hooks/useLastActiveGroup";
 import { supabase } from "@/integrations/supabase/client";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
 
-type CalendarEventType = "appointment" | "task";
-type CalendarEvent = {
-  id: string;
-  type: CalendarEventType;
-  // raw DB row (shape varies per type; we only need id)
-  raw?: any;
+type SelectedMap = {
+  appointment: Set<string>;
+  task: Set<string>;
 };
 
 const CalendarPage = () => {
   const { groupId } = useParams<{ groupId: string }>();
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [activeView, setActiveView] = useState<"month" | "week" | "day" | "list">("month");
-
-  // When an event is clicked in the calendar, we store it here
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
-
-  // Separate modal state for creating/editing appointments from the “New Appointment” button
+  const [activeView, setActiveView] = useState<'month' | 'week' | 'day' | 'list'>('month');
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
-
   const [groupName, setGroupName] = useState("");
-  const [currentUserId, setCurrentUserId] = useState<string>("");
-  const [currentUserEmail, setCurrentUserEmail] = useState<string>("");
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<SelectedMap>({
+    appointment: new Set(),
+    task: new Set(),
+  });
+  const [visibleEvents, setVisibleEvents] = useState<CalendarEvent[]>([]);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const { blockCreate } = useDemoOperations();
+  const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Keep last active group fresh
+  // Use the last active group hook to update when user navigates to this page
   useLastActiveGroup();
 
-  // Welcome modal
+  // Use the welcome modal hook
   const { showWelcome, closeWelcome } = useGroupWelcome(groupId || "", groupName);
 
   // Fetch group name for welcome modal
@@ -52,32 +49,71 @@ const CalendarPage = () => {
       if (!groupId) return;
       try {
         const { data: group } = await supabase
-          .from("care_groups")
-          .select("name")
-          .eq("id", groupId)
+          .from('care_groups')
+          .select('name')
+          .eq('id', groupId)
           .single();
+
         if (group) setGroupName(group.name);
       } catch (error) {
-        console.error("Error fetching group name:", error);
+        console.error('Error fetching group name:', error);
       }
     };
+
     fetchGroupName();
   }, [groupId]);
 
-  // Get current user (for audit fields in RPCs)
-  useEffect(() => {
-    (async () => {
-      const { data } = await supabase.auth.getUser();
-      const user = data?.user;
-      if (user) {
-        setCurrentUserId(user.id);
-        setCurrentUserEmail(user.email ?? "");
-      }
-    })();
-  }, []);
-
   if (!groupId) {
     return <div>Group ID not found</div>;
+  }
+
+  const totalSelected = selected.appointment.size + selected.task.size;
+
+  function resetSelection() {
+    setSelected({ appointment: new Set(), task: new Set() });
+  }
+
+  function toggleSelectMode(on?: boolean) {
+    const next = typeof on === "boolean" ? on : !selectMode;
+    setSelectMode(next);
+    if (!next) resetSelection();
+  }
+
+  function isSelected(evt: CalendarEvent) {
+    return evt.type === "appointment"
+      ? selected.appointment.has(evt.id)
+      : selected.task.has(evt.id);
+  }
+
+  function onToggleSelect(evt: CalendarEvent) {
+    setSelected((prev) => {
+      const next: SelectedMap = {
+        appointment: new Set(prev.appointment),
+        task: new Set(prev.task),
+      };
+      if (evt.type === "appointment") {
+        if (next.appointment.has(evt.id)) next.appointment.delete(evt.id);
+        else next.appointment.add(evt.id);
+      } else {
+        if (next.task.has(evt.id)) next.task.delete(evt.id);
+        else next.task.add(evt.id);
+      }
+      return next;
+    });
+  }
+
+  function selectAllVisible() {
+    if (!visibleEvents.length) return;
+    const next: SelectedMap = { appointment: new Set(), task: new Set() };
+    for (const e of visibleEvents) {
+      if (e.type === "appointment") next.appointment.add(e.id);
+      else next.task.add(e.id);
+    }
+    setSelected(next);
+  }
+
+  function clearSelection() {
+    resetSelection();
   }
 
   const handleNewAppointment = () => {
@@ -85,97 +121,97 @@ const CalendarPage = () => {
     setShowAppointmentModal(true);
   };
 
-  /**
-   * Soft-delete mutations.
-   * These call the RPCs we created earlier and then invalidate calendar queries.
-   * SharedCalendar will refresh because its react-query keys depend on groupId/date/view.
-   */
-
-  const deleteAppointmentMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const ok = window.confirm("Move this appointment to Trash?");
-      if (!ok) return;
-      const { error } = await supabase.rpc("soft_delete_appointment", {
-        p_appointment_id: id,
-        p_by_user_id: currentUserId,
-        p_by_email: currentUserEmail,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      // SharedCalendar should be using a key like ["calendar-events", groupId, view, dateRange]
-      queryClient.invalidateQueries(); // broad invalidation is fine here
-      toast({ title: "Moved to Trash", description: "Appointment was soft-deleted." });
-      setSelectedEvent(null);
-    },
-    onError: (e: any) => {
-      toast({ title: "Delete failed", description: e.message, variant: "destructive" });
-    },
-  });
-
-  const deleteTaskMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const ok = window.confirm("Move this task to Trash?");
-      if (!ok) return;
-      const { error } = await supabase.rpc("soft_delete_task", {
-        p_task_id: id,
-        p_by_user_id: currentUserId,
-        p_by_email: currentUserEmail,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries();
-      toast({ title: "Moved to Trash", description: "Task was soft-deleted." });
-      setSelectedEvent(null);
-    },
-    onError: (e: any) => {
-      toast({ title: "Delete failed", description: e.message, variant: "destructive" });
-    },
-  });
-
-  // Centralized delete handler (Calendar → this page)
-  const handleEventDelete = useCallback(
-    (evt: CalendarEvent) => {
-      if (!evt?.id || !evt?.type) return;
+  async function singleDeleteHandler(evt: CalendarEvent) {
+    try {
       if (evt.type === "appointment") {
-        deleteAppointmentMutation.mutate(evt.id);
-      } else if (evt.type === "task") {
-        deleteTaskMutation.mutate(evt.id);
+        const { error } = await supabase.rpc("soft_delete_appointment", { _appointment_id: evt.id });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.rpc("soft_delete_task", { _task_id: evt.id });
+        if (error) throw error;
       }
-    },
-    [deleteAppointmentMutation, deleteTaskMutation]
-  );
+      toast({ title: "Moved to Trash", description: `${evt.type === "appointment" ? "Appointment" : "Task"} moved to Trash.` });
+      queryClient.invalidateQueries({ queryKey: ["calendar-appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["calendar-tasks"] });
+    } catch (e: any) {
+      toast({ title: "Delete failed", description: e?.message ?? "Unable to delete", variant: "destructive" });
+    }
+  }
 
-  // Calendar tells us which event the user clicked; we keep it here to let modals use it if needed
-  const handleEventSelect = useCallback((evt: CalendarEvent) => {
-    setSelectedEvent(evt || null);
-  }, []);
+  async function bulkDeleteConfirmed() {
+    setShowConfirm(false);
+    if (totalSelected === 0) {
+      toast({ title: "No items selected", description: "Select appointments or tasks first." });
+      return;
+    }
+    const apptIds = Array.from(selected.appointment);
+    const taskIds = Array.from(selected.task);
 
-  // For convenience: show an action button if something is selected
-  const showInlineDelete =
-    !!selectedEvent && (selectedEvent.type === "appointment" || selectedEvent.type === "task");
+    try {
+      const promises: Promise<any>[] = [];
+      for (const id of apptIds) promises.push(supabase.rpc("soft_delete_appointment", { _appointment_id: id }));
+      for (const id of taskIds) promises.push(supabase.rpc("soft_delete_task", { _task_id: id }));
+      const results = await Promise.allSettled(promises);
+      const failures = results.filter(r => r.status === "rejected");
+      if (failures.length) {
+        console.error(failures);
+        toast({ title: "Some deletions failed", description: `${failures.length} item(s) could not be deleted.`, variant: "destructive" });
+      } else {
+        toast({ title: "Moved to Trash", description: `${totalSelected} item(s) moved to Trash.` });
+      }
+      queryClient.invalidateQueries({ queryKey: ["calendar-appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["calendar-tasks"] });
+      resetSelection();
+      setSelectMode(false);
+    } catch (e: any) {
+      toast({ title: "Bulk delete failed", description: e?.message ?? "Unable to delete", variant: "destructive" });
+    }
+  }
+
+  const bulkBar = useMemo(() => {
+    if (!selectMode) return null;
+    return (
+      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40">
+        <div className="rounded-xl border bg-background shadow-lg px-4 py-3 flex items-center gap-3">
+          <div className="text-sm">
+            <span className="font-medium">{totalSelected}</span> selected
+          </div>
+          <Button variant="outline" size="sm" onClick={selectAllVisible}>
+            <CheckSquare className="h-4 w-4 mr-2" />
+            Select all on screen
+          </Button>
+          <Button variant="outline" size="sm" onClick={clearSelection}>
+            <X className="h-4 w-4 mr-2" />
+            Clear
+          </Button>
+          <Button variant="destructive" size="sm" onClick={() => setShowConfirm(true)} disabled={totalSelected === 0}>
+            <Trash2 className="h-4 w-4 mr-2" />
+            Move to Trash
+          </Button>
+        </div>
+      </div>
+    );
+  }, [selectMode, totalSelected, visibleEvents]);
 
   return (
     <div className="space-y-6">
       <SEO title="Calendar — DaveAssist" description="View and manage appointments and tasks in calendar format." />
 
-      <div className="flex items-center justify-between gap-2">
+      {/* Header */}
+      <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Calendar</h2>
-
         <div className="flex items-center gap-2">
-          {showInlineDelete ? (
-            <Button
-              variant="destructive"
-              onClick={() => {
-                if (selectedEvent) handleEventDelete(selectedEvent);
-              }}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete Selected
+          {!selectMode ? (
+            <Button variant="outline" onClick={() => toggleSelectMode(true)}>
+              <Square className="h-4 w-4 mr-2" />
+              Select
             </Button>
-          ) : null}
-
+          ) : (
+            <Button variant="outline" onClick={() => toggleSelectMode(false)}>
+              <X className="h-4 w-4 mr-2" />
+              Cancel Select
+            </Button>
+          )}
           <Button variant="hero" onClick={handleNewAppointment}>
             <Plus className="h-4 w-4 mr-2" />
             New Appointment
@@ -183,6 +219,7 @@ const CalendarPage = () => {
         </div>
       </div>
 
+      {/* Tabs */}
       <Tabs value={activeView} onValueChange={(v) => setActiveView(v as any)} className="space-y-4">
         <TabsList>
           <TabsTrigger value="month">Month</TabsTrigger>
@@ -191,14 +228,6 @@ const CalendarPage = () => {
           <TabsTrigger value="list">Full List</TabsTrigger>
         </TabsList>
 
-        {/* IMPORTANT:
-            The two props below (`onEventSelect`, `onEventDelete`) will be
-            implemented in SharedCalendar next:
-            - onEventSelect(evt) → call this when user clicks an event
-            - onEventDelete(evt) → call this when user clicks "Delete" in an event modal
-            Also, SharedCalendar should filter .eq("is_deleted", false) for both appointments and tasks.
-        */}
-
         <TabsContent value="month">
           <SharedCalendar
             view="month"
@@ -206,12 +235,12 @@ const CalendarPage = () => {
             onSelectedDateChange={setSelectedDate}
             showLegend={true}
             groupId={groupId}
-            // @ts-expect-error: wired in next step
-            onEventSelect={handleEventSelect}
-            // @ts-expect-error: wired in next step
-            onEventDelete={handleEventDelete}
-            // @ts-expect-error: wired in next step
             excludeDeleted={true}
+            selectMode={selectMode}
+            isSelected={isSelected}
+            onToggleSelect={onToggleSelect}
+            onEventDelete={singleDeleteHandler}
+            onEventsLoaded={setVisibleEvents}
           />
         </TabsContent>
 
@@ -222,12 +251,12 @@ const CalendarPage = () => {
             onSelectedDateChange={setSelectedDate}
             showLegend={true}
             groupId={groupId}
-            // @ts-expect-error: wired in next step
-            onEventSelect={handleEventSelect}
-            // @ts-expect-error: wired in next step
-            onEventDelete={handleEventDelete}
-            // @ts-expect-error: wired in next step
             excludeDeleted={true}
+            selectMode={selectMode}
+            isSelected={isSelected}
+            onToggleSelect={onToggleSelect}
+            onEventDelete={singleDeleteHandler}
+            onEventsLoaded={setVisibleEvents}
           />
         </TabsContent>
 
@@ -238,12 +267,12 @@ const CalendarPage = () => {
             onSelectedDateChange={setSelectedDate}
             showLegend={true}
             groupId={groupId}
-            // @ts-expect-error: wired in next step
-            onEventSelect={handleEventSelect}
-            // @ts-expect-error: wired in next step
-            onEventDelete={handleEventDelete}
-            // @ts-expect-error: wired in next step
             excludeDeleted={true}
+            selectMode={selectMode}
+            isSelected={isSelected}
+            onToggleSelect={onToggleSelect}
+            onEventDelete={singleDeleteHandler}
+            onEventsLoaded={setVisibleEvents}
           />
         </TabsContent>
 
@@ -254,16 +283,17 @@ const CalendarPage = () => {
             onSelectedDateChange={setSelectedDate}
             showLegend={true}
             groupId={groupId}
-            // @ts-expect-error: wired in next step
-            onEventSelect={handleEventSelect}
-            // @ts-expect-error: wired in next step
-            onEventDelete={handleEventDelete}
-            // @ts-expect-error: wired in next step
             excludeDeleted={true}
+            selectMode={selectMode}
+            isSelected={isSelected}
+            onToggleSelect={onToggleSelect}
+            onEventDelete={singleDeleteHandler}
+            onEventsLoaded={setVisibleEvents}
           />
         </TabsContent>
       </Tabs>
 
+      {/* Welcome modal */}
       <GroupWelcomeModal
         groupId={groupId}
         groupName={groupName}
@@ -271,15 +301,35 @@ const CalendarPage = () => {
         onClose={closeWelcome}
       />
 
-      {/* This modal handles "New Appointment" from header button.
-         Editing existing appointments from calendar clicks continues to be handled inside SharedCalendar’s event modal;
-         if you’d like to reuse this modal for edit too, we can wire it in next. */}
+      {/* Create appointment modal */}
       <AppointmentModal
         isOpen={showAppointmentModal}
         onClose={() => setShowAppointmentModal(false)}
         appointment={undefined}
         groupId={groupId}
       />
+
+      {/* Sticky bulk bar */}
+      {bulkBar}
+
+      {/* Simple bulk confirm dialog */}
+      {showConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-background border rounded-xl shadow-xl p-6 w-[420px]">
+            <div className="text-lg font-semibold mb-2">Move {totalSelected} item(s) to Trash?</div>
+            <p className="text-sm text-muted-foreground mb-4">
+              These items will be soft-deleted and can be restored within 30 days by a group admin.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowConfirm(false)}>Cancel</Button>
+              <Button variant="destructive" onClick={bulkDeleteConfirmed}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Move to Trash
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
