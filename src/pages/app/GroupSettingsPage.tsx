@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
+import { RecentlyDeletedTable } from "@/components/delete/RecentlyDeletedTable";
 const GroupSchema = z.object({
   name: z.string().min(1, "Name is required"),
   recipient_address: z.string().optional(),
@@ -403,6 +404,10 @@ const handleSignOut = async () => {
             </div>
           </CardContent>
         </Card>
+      </section>
+
+      <section className="mt-8">
+        <RecentlyDeletedTable groupId={groupId || ""} />
       </section>
 
       <section className="mt-8">

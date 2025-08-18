@@ -110,6 +110,7 @@ export default function SharedCalendar(props: SharedCalendarProps) {
         .from("appointments")
         .select("id, group_id, date_time, duration_minutes, description, location, category, created_by_email")
         .eq("group_id", groupId)
+        .eq("is_deleted", false)
         .gte("date_time", start.toISOString())
         .lte("date_time", end.toISOString())
         .order("date_time", { ascending: true });
@@ -126,6 +127,7 @@ export default function SharedCalendar(props: SharedCalendarProps) {
         .from("tasks")
         .select("id, group_id, title, description, due_date, status, priority, created_by_email")
         .eq("group_id", groupId)
+        .eq("is_deleted", false)
         .not("due_date", "is", null)
         .gte("due_date", format(start, "yyyy-MM-dd"))
         .lte("due_date", format(end, "yyyy-MM-dd"))
