@@ -34,6 +34,9 @@ import CreateGroupPage from "./pages/app/CreateGroupPage";
 import FeedbackPage from "./pages/app/FeedbackPage";
 import TasksPage from "./pages/app/TasksPage";
 import AdminEmailPage from "./pages/app/AdminEmailPage";
+import ContactsPage from "./pages/app/ContactsPage";
+import DocumentsPage from "./pages/app/DocumentsPage";
+import ActivityPage from "./pages/app/ActivityPage";
 const queryClient = new QueryClient();
 const App = () => (
   <HelmetProvider>
@@ -57,10 +60,13 @@ const App = () => (
               <Route index element={<CalendarPage />} />
               <Route path="calendar" element={<CalendarPage />} />
               <Route path="tasks" element={<TasksPage />} />
+              <Route path="contacts" element={<ContactsPage />} />
               <Route path="contacts/:contactId" element={<ContactDetailPage />} />
               <Route path="contacts/:contactId/edit" element={<ContactFormPage />} />
               <Route path="contacts/import" element={<ContactsImportPage />} />
               <Route path="contacts/new" element={<ContactFormPage />} />
+              <Route path="documents" element={<DocumentsPage />} />
+              <Route path="activity" element={<ActivityPage />} />
               <Route path="search" element={<SearchPage />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="settings" element={<GroupSettingsPage />} />
