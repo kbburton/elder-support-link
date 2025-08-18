@@ -12,6 +12,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter
 } from "@/components/ui/dialog";
 import { ChevronLeft, ChevronRight, CalendarDays, Clock, Trash2, CheckSquare, Square } from "lucide-react";
+import { softDeleteEntity } from "@/lib/delete/rpc";
 
 export type View = "month" | "week" | "day" | "list";
 
@@ -192,34 +193,26 @@ export default function SharedCalendar(props: SharedCalendarProps) {
     if (!user) throw new Error('User not authenticated');
     
     if (evt.type === "appointment") {
-      const { error } = await supabase.rpc("soft_delete_appointment" as any, {
-        p_by_email: user.email!,
-        p_by_user_id: user.id,
-        p_appointment_id: evt.id,
-      });
-      if (error) {
+      const result = await softDeleteEntity('appointment', evt.id, user.id, user.email!);
+      if (!result.success) {
         // Handle "already deleted" case gracefully
-        if (error.message?.includes("already deleted") || error.message?.includes("update blocked")) {
+        if (result.error?.includes("already deleted") || result.error?.includes("update blocked")) {
           console.log("Item was already deleted, refreshing view...");
           await apptQuery.refetch();
           return; // Don't throw error for already deleted items
         }
-        throw error;
+        throw new Error(result.error || 'Delete failed');
       }
       await apptQuery.refetch();
     } else {
-      const { error } = await supabase.rpc("soft_delete_task" as any, {
-        p_by_email: user.email!,
-        p_by_user_id: user.id,
-        p_task_id: evt.id,
-      });
-      if (error) {
-        if (error.message?.includes("already deleted") || error.message?.includes("update blocked")) {
+      const result = await softDeleteEntity('task', evt.id, user.id, user.email!);
+      if (!result.success) {
+        if (result.error?.includes("already deleted") || result.error?.includes("update blocked")) {
           console.log("Item was already deleted, refreshing view...");
           await taskQuery.refetch();
           return;
         }
-        throw error;
+        throw new Error(result.error || 'Delete failed');
       }
       await taskQuery.refetch();
     }

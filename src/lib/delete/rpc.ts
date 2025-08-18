@@ -30,8 +30,17 @@ export async function softDeleteEntity(
   actorUserId: string,
   actorEmail: string
 ): Promise<DeleteResult> {
+  console.log('🗑️ SOFT DELETE DEBUG START:', {
+    entityType,
+    entityId,
+    actorUserId,
+    actorEmail,
+    timestamp: new Date().toISOString()
+  });
+  
   try {
     const rpcName = RPC_MAPPING[entityType].softDelete;
+    console.log('🗑️ Using RPC function:', rpcName);
     
     // Use correct parameter names for each entity type based on actual DB function signatures
     let params: Record<string, any>;
@@ -74,13 +83,24 @@ export async function softDeleteEntity(
       throw new Error(`Unknown entity type: ${entityType}`);
     }
     
+    console.log('🗑️ Prepared parameters:', params);
+    console.log('🗑️ Calling supabase.rpc with:', { rpcName, params });
+    
     const { error } = await supabase.rpc(rpcName as any, params);
+    
+    console.log('🗑️ RPC Response:', { error: error ? {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code
+    } : null });
 
     if (error) {
-      console.error(`Soft delete ${entityType} error:`, error);
+      console.error(`🗑️ Soft delete ${entityType} error:`, error);
       return { success: false, error: error.message };
     }
 
+    console.log('🗑️ SOFT DELETE SUCCESS for', entityType, entityId);
     return { success: true };
   } catch (error) {
     console.error(`Soft delete ${entityType} error:`, error);

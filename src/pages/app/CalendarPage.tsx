@@ -13,6 +13,7 @@ import { useLastActiveGroup } from "@/hooks/useLastActiveGroup";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { softDeleteEntity } from "@/lib/delete/rpc";
 
 type SelectedMap = {
   appointment: Set<string>;
@@ -127,33 +128,25 @@ const CalendarPage = () => {
       if (!user) throw new Error('User not authenticated');
       
       if (evt.type === "appointment") {
-        const { error } = await supabase.rpc("soft_delete_appointment" as any, { 
-          p_by_email: user.email!,
-          p_by_user_id: user.id,
-          p_appointment_id: evt.id 
-        });
-        if (error) {
+        const result = await softDeleteEntity('appointment', evt.id, user.id, user.email!);
+        if (!result.success) {
           // Handle "already deleted" case gracefully
-          if (error.message?.includes("already deleted") || error.message?.includes("update blocked")) {
+          if (result.error?.includes("already deleted") || result.error?.includes("update blocked")) {
             console.log("Item was already deleted, refreshing view...");
             queryClient.invalidateQueries({ queryKey: ["calendar-appointments"] });
             return; // Don't show error toast for already deleted items
           }
-          throw error;
+          throw new Error(result.error || 'Delete failed');
         }
       } else {
-        const { error } = await supabase.rpc("soft_delete_task" as any, { 
-          p_by_email: user.email!,
-          p_by_user_id: user.id,
-          p_task_id: evt.id 
-        });
-        if (error) {
-          if (error.message?.includes("already deleted") || error.message?.includes("update blocked")) {
+        const result = await softDeleteEntity('task', evt.id, user.id, user.email!);
+        if (!result.success) {
+          if (result.error?.includes("already deleted") || result.error?.includes("update blocked")) {
             console.log("Item was already deleted, refreshing view...");
             queryClient.invalidateQueries({ queryKey: ["calendar-tasks"] });
             return;
           }
-          throw error;
+          throw new Error(result.error || 'Delete failed');
         }
       }
       toast({ title: "Moved to Trash", description: `${evt.type === "appointment" ? "Appointment" : "Task"} moved to Trash.` });
@@ -183,12 +176,8 @@ const CalendarPage = () => {
       const results = [];
       for (const id of apptIds) {
         try {
-          const { error } = await supabase.rpc("soft_delete_appointment" as any, { 
-            p_by_email: user.email!, 
-            p_by_user_id: user.id, 
-            p_appointment_id: id 
-          });
-          if (error) throw error;
+          const result = await softDeleteEntity('appointment', id, user.id, user.email!);
+          if (!result.success) throw new Error(result.error || 'Delete failed');
           results.push({ status: "fulfilled", value: null });
         } catch (error) {
           results.push({ status: "rejected", reason: error });
@@ -196,12 +185,8 @@ const CalendarPage = () => {
       }
       for (const id of taskIds) {
         try {
-          const { error } = await supabase.rpc("soft_delete_task" as any, { 
-            p_by_email: user.email!, 
-            p_by_user_id: user.id, 
-            p_task_id: id 
-          });
-          if (error) throw error;
+          const result = await softDeleteEntity('task', id, user.id, user.email!);
+          if (!result.success) throw new Error(result.error || 'Delete failed');
           results.push({ status: "fulfilled", value: null });
         } catch (error) {
           results.push({ status: "rejected", reason: error });
