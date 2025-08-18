@@ -55,6 +55,12 @@ const AppHeader = () => {
   useEffect(() => {
     const load = async () => {
       try {
+        // Clear any invalid stored group IDs
+        const stored = localStorage.getItem('daveassist-current-group');
+        if (stored && (stored === ':groupId' || stored === 'undefined' || stored.startsWith(':'))) {
+          console.log('Clearing invalid stored group ID:', stored);
+          localStorage.removeItem('daveassist-current-group');
+        }
         // Set demo user name if in demo mode
         if (isDemo) {
           setUserName("Demo User");
@@ -175,7 +181,8 @@ const AppHeader = () => {
 
         // Check localStorage for persisted group if not already set
         const savedGroup = localStorage.getItem('daveassist-current-group');
-        if (savedGroup && savedGroup !== currentId && withDemo.find(g => g.id === savedGroup)) {
+        // Validate savedGroup before navigating
+        if (savedGroup && savedGroup !== currentId && savedGroup !== ':groupId' && savedGroup !== 'undefined' && !savedGroup.startsWith(':') && withDemo.find(g => g.id === savedGroup)) {
           navigate(`/app/${savedGroup}/calendar`, { replace: true });
         }
       } catch (e) {

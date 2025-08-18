@@ -9,6 +9,12 @@ export const useGroupWelcome = (groupId: string, groupName: string) => {
   useEffect(() => {
     const checkFirstTimeAccess = async () => {
       try {
+        // Validate groupId before making requests
+        if (!groupId || groupId === ':groupId' || groupId === 'undefined' || groupId.startsWith(':')) {
+          console.log('Skipping welcome check for invalid groupId:', groupId);
+          return;
+        }
+
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.user) return;
 

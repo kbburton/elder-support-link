@@ -7,7 +7,11 @@ export const useLastActiveGroup = () => {
 
   useEffect(() => {
     const updateLastActiveGroup = async () => {
-      if (!groupId) return;
+      // Validate groupId - don't store invalid route parameters
+      if (!groupId || groupId === ':groupId' || groupId === 'undefined' || groupId.startsWith(':')) {
+        console.log('Skipping invalid groupId:', groupId);
+        return;
+      }
 
       try {
         const { data: { session } } = await supabase.auth.getSession();

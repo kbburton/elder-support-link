@@ -47,7 +47,11 @@ const CalendarPage = () => {
   // Fetch group name for welcome modal
   useEffect(() => {
     const fetchGroupName = async () => {
-      if (!groupId) return;
+      // Validate groupId before making requests
+      if (!groupId || groupId === ':groupId' || groupId === 'undefined' || groupId.startsWith(':')) {
+        console.log('Skipping group name fetch for invalid groupId:', groupId);
+        return;
+      }
       try {
         const { data: group } = await supabase
           .from('care_groups')
@@ -64,8 +68,22 @@ const CalendarPage = () => {
     fetchGroupName();
   }, [groupId]);
 
-  if (!groupId) {
-    return <div>Group ID not found</div>;
+  // Validate groupId and handle invalid values
+  if (!groupId || groupId === ':groupId' || groupId === 'undefined' || groupId.startsWith(':')) {
+    console.error('Invalid groupId detected:', groupId);
+    
+    // Clear any invalid stored group IDs
+    const stored = localStorage.getItem('daveassist-current-group');
+    if (stored && (stored === ':groupId' || stored === 'undefined' || stored.startsWith(':'))) {
+      console.log('Clearing invalid stored group ID:', stored);
+      localStorage.removeItem('daveassist-current-group');
+    }
+    
+    return <div className="p-6 text-center">
+      <h2 className="text-xl font-semibold mb-2">Invalid Group</h2>
+      <p className="text-muted-foreground mb-4">The group ID is not valid. Please select a group from the dropdown.</p>
+      <Button onClick={() => window.location.href = '/app/demo/calendar'}>Go to Demo</Button>
+    </div>;
   }
 
   const totalSelected = selected.appointment.size + selected.task.size;
