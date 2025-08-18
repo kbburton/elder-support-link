@@ -38,32 +38,32 @@ export async function softDeleteEntity(
     if (entityType === 'task') {
       params = {
         p_task_id: entityId,
-        p_actor_user_id: actorUserId,
-        p_actor_email: actorEmail
+        p_by_user_id: actorUserId,
+        p_by_email: actorEmail
       };
     } else if (entityType === 'appointment') {
       params = {
         p_appointment_id: entityId,
-        p_actor_user_id: actorUserId,
-        p_actor_email: actorEmail
+        p_by_user_id: actorUserId,
+        p_by_email: actorEmail
       };
     } else if (entityType === 'contact') {
       params = {
         p_contact_id: entityId,
-        p_actor_user_id: actorUserId,
-        p_actor_email: actorEmail
+        p_by_user_id: actorUserId,
+        p_by_email: actorEmail
       };
     } else if (entityType === 'activity') {
       params = {
         p_activity_id: entityId,
-        p_actor_user_id: actorUserId,
-        p_actor_email: actorEmail
+        p_by_user_id: actorUserId,
+        p_by_email: actorEmail
       };
     } else if (entityType === 'document') {
       params = {
         p_document_id: entityId,
-        p_actor_user_id: actorUserId,
-        p_actor_email: actorEmail
+        p_by_user_id: actorUserId,
+        p_by_email: actorEmail
       };
     } else {
       throw new Error(`Unknown entity type: ${entityType}`);
@@ -100,32 +100,32 @@ export async function restoreEntity(
     if (entityType === 'task') {
       params = {
         p_task_id: entityId,
-        p_actor_user_id: actorUserId,
-        p_actor_email: actorEmail
+        p_by_user_id: actorUserId,
+        p_by_email: actorEmail
       };
     } else if (entityType === 'appointment') {
       params = {
         p_appointment_id: entityId,
-        p_actor_user_id: actorUserId,
-        p_actor_email: actorEmail
+        p_by_user_id: actorUserId,
+        p_by_email: actorEmail
       };
     } else if (entityType === 'contact') {
       params = {
         p_contact_id: entityId,
-        p_actor_user_id: actorUserId,
-        p_actor_email: actorEmail
+        p_by_user_id: actorUserId,
+        p_by_email: actorEmail
       };
     } else if (entityType === 'activity') {
       params = {
         p_activity_id: entityId,
-        p_actor_user_id: actorUserId,
-        p_actor_email: actorEmail
+        p_by_user_id: actorUserId,
+        p_by_email: actorEmail
       };
     } else if (entityType === 'document') {
       params = {
         p_document_id: entityId,
-        p_actor_user_id: actorUserId,
-        p_actor_email: actorEmail
+        p_by_user_id: actorUserId,
+        p_by_email: actorEmail
       };
     } else {
       throw new Error(`Unknown entity type: ${entityType}`);
