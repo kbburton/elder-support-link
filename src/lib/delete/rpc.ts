@@ -33,33 +33,38 @@ export async function softDeleteEntity(
   try {
     const rpcName = RPC_MAPPING[entityType].softDelete;
     
-    // Use correct parameter names for each entity type
+    // Use correct parameter names for each entity type based on actual DB function signatures
     let params: Record<string, any>;
     if (entityType === 'task') {
+      // soft_delete_task(p_by_email text, p_by_user_id uuid, p_task_id uuid)
       params = {
         p_task_id: entityId,
         p_by_user_id: actorUserId,
         p_by_email: actorEmail
       };
     } else if (entityType === 'appointment') {
+      // soft_delete_appointment(p_by_email text, p_by_user_id uuid, p_appointment_id uuid)
       params = {
         p_appointment_id: entityId,
         p_by_user_id: actorUserId,
         p_by_email: actorEmail
       };
     } else if (entityType === 'contact') {
+      // soft_delete_contact(p_by_email text, p_by_user_id uuid, p_contact_id uuid)
       params = {
         p_contact_id: entityId,
         p_by_user_id: actorUserId,
         p_by_email: actorEmail
       };
     } else if (entityType === 'activity') {
+      // soft_delete_activity(p_by_email text, p_by_user_id uuid, p_activity_id uuid)
       params = {
         p_activity_id: entityId,
         p_by_user_id: actorUserId,
         p_by_email: actorEmail
       };
     } else if (entityType === 'document') {
+      // soft_delete_document(p_by_email text, p_by_user_id uuid, p_document_id uuid)
       params = {
         p_document_id: entityId,
         p_by_user_id: actorUserId,
@@ -95,33 +100,38 @@ export async function restoreEntity(
   try {
     const rpcName = RPC_MAPPING[entityType].restore;
     
-    // Use correct parameter names for each entity type
+    // Use correct parameter names for each entity type based on actual DB function signatures
     let params: Record<string, any>;
     if (entityType === 'task') {
+      // restore_task(p_by_email text, p_by_user_id uuid, p_task_id uuid)
       params = {
         p_task_id: entityId,
         p_by_user_id: actorUserId,
         p_by_email: actorEmail
       };
     } else if (entityType === 'appointment') {
+      // restore_appointment(p_appointment_id uuid, p_actor_user_id uuid, p_actor_email text)
       params = {
         p_appointment_id: entityId,
-        p_by_user_id: actorUserId,
-        p_by_email: actorEmail
+        p_actor_user_id: actorUserId,
+        p_actor_email: actorEmail
       };
     } else if (entityType === 'contact') {
+      // restore_contact(p_contact_id uuid, p_actor_user_id uuid, p_actor_email text)
       params = {
         p_contact_id: entityId,
-        p_by_user_id: actorUserId,
-        p_by_email: actorEmail
+        p_actor_user_id: actorUserId,
+        p_actor_email: actorEmail
       };
     } else if (entityType === 'activity') {
+      // restore_activity(p_by_email text, p_by_user_id uuid, p_activity_id uuid)
       params = {
         p_activity_id: entityId,
         p_by_user_id: actorUserId,
         p_by_email: actorEmail
       };
     } else if (entityType === 'document') {
+      // restore_document(p_by_email text, p_by_user_id uuid, p_document_id uuid)
       params = {
         p_document_id: entityId,
         p_by_user_id: actorUserId,
