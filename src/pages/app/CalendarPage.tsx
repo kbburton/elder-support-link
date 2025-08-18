@@ -132,20 +132,38 @@ const CalendarPage = () => {
           p_by_user_id: user.id,
           p_appointment_id: evt.id 
         });
-        if (error) throw error;
+        if (error) {
+          // Handle "already deleted" case gracefully
+          if (error.message?.includes("already deleted") || error.message?.includes("update blocked")) {
+            console.log("Item was already deleted, refreshing view...");
+            queryClient.invalidateQueries({ queryKey: ["calendar-appointments"] });
+            return; // Don't show error toast for already deleted items
+          }
+          throw error;
+        }
       } else {
         const { error } = await supabase.rpc("soft_delete_task" as any, { 
           p_by_email: user.email!,
           p_by_user_id: user.id,
           p_task_id: evt.id 
         });
-        if (error) throw error;
+        if (error) {
+          if (error.message?.includes("already deleted") || error.message?.includes("update blocked")) {
+            console.log("Item was already deleted, refreshing view...");
+            queryClient.invalidateQueries({ queryKey: ["calendar-tasks"] });
+            return;
+          }
+          throw error;
+        }
       }
       toast({ title: "Moved to Trash", description: `${evt.type === "appointment" ? "Appointment" : "Task"} moved to Trash.` });
       queryClient.invalidateQueries({ queryKey: ["calendar-appointments"] });
       queryClient.invalidateQueries({ queryKey: ["calendar-tasks"] });
     } catch (e: any) {
-      toast({ title: "Delete failed", description: e?.message ?? "Unable to delete", variant: "destructive" });
+      // Only show error toast for real errors, not "already deleted" cases
+      if (!(e?.message?.includes("already deleted") || e?.message?.includes("update blocked"))) {
+        toast({ title: "Delete failed", description: e?.message ?? "Unable to delete", variant: "destructive" });
+      }
     }
   }
 
