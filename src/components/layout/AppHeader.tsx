@@ -13,7 +13,8 @@ import { useDemo } from "@/hooks/useDemo";
 const AppHeader = () => {
   const navigate = useNavigate();
   const { groupId } = useParams();
-  const currentId = groupId || "demo";
+  // Don't use invalid groupId values
+  const currentId = (groupId && groupId !== ':groupId' && groupId !== 'undefined') ? groupId : "demo";
   const { isDemo } = useDemo();
 
   const [groups, setGroups] = useState<{ id: string; name: string; memberCount: number; taskCount: number }[]>([]);
@@ -127,7 +128,7 @@ const AppHeader = () => {
         }
 
         // Add current group if not in user's memberships and not demo
-        if (currentId && !list.find((g) => g.id === currentId) && currentId !== "demo") {
+        if (currentId && !list.find((g) => g.id === currentId) && currentId !== "demo" && currentId !== ':groupId' && currentId !== 'undefined') {
           const { data: cur } = await supabase
             .from("care_groups")
             .select("id, name")
