@@ -24,6 +24,7 @@ const ActivityLogPage = () => {
   const [typeFilter, setTypeFilter] = useState("all_types");
   const [dateFilter, setDateFilter] = useState("all_dates");
   const [currentUserId, setCurrentUserId] = useState<string>("");
+  const [currentUserEmail, setCurrentUserEmail] = useState<string>("");
   const [isGroupAdmin, setIsGroupAdmin] = useState(false);
   const { isDemo } = useDemo();
   const demoActivities = useDemoActivities(groupId);
@@ -34,97 +35,97 @@ const ActivityLogPage = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setCurrentUserId(user.id);
-        
-        // Check if user is group admin
+        setCurrentUserEmail(user.email ?? "");
+
+        // Prefer boolean flag if present
         const { data: memberData } = await supabase
           .from("care_group_members")
-          .select("role")
+          .select("is_admin, role")
           .eq("user_id", user.id)
           .eq("group_id", groupId)
-          .single();
-        
-        setIsGroupAdmin(memberData?.role === "admin");
+          .maybeSingle();
+
+        setIsGroupAdmin(Boolean(memberData?.is_admin) || memberData?.role === "admin");
       }
     };
     getUser();
   }, [groupId]);
 
-  const { data: activityLogs, isLoading } = demoActivities.isDemo 
-    ? demoActivities 
+  const { data: activityLogs, isLoading } = demoActivities.isDemo
+    ? demoActivities
     : useQuery({
-    queryKey: ["activity-logs", groupId, searchTerm, typeFilter, dateFilter],
-    queryFn: async () => {
-      let query = supabase
-        .from("activity_logs")
-        .select("*")
-        .eq("group_id", groupId)
-        .order("date_time", { ascending: false });
+        queryKey: ["activity-logs", groupId, searchTerm, typeFilter, dateFilter],
+        queryFn: async () => {
+          let query = supabase
+            .from("activity_logs")
+            .select("*")
+            .eq("group_id", groupId)
+            .eq("is_deleted", false) // exclude soft-deleted
+            .order("date_time", { ascending: false });
 
-      if (searchTerm) {
-        query = query.or(`title.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%`);
-      }
+          if (searchTerm) {
+            query = query.or(`title.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%`);
+          }
 
-      if (typeFilter && typeFilter !== "all_types") {
-        query = query.eq("type", typeFilter);
-      }
+          if (typeFilter && typeFilter !== "all_types") {
+            query = query.eq("type", typeFilter);
+          }
 
-      if (dateFilter && dateFilter !== "all_dates") {
-        const now = new Date();
-        let startDate: Date;
-        
-        switch (dateFilter) {
-          case "today":
-            startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            break;
-          case "week":
-            startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-            break;
-          case "month":
-            startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-            break;
-          default:
-            startDate = new Date(0);
-        }
-        
-        query = query.gte("date_time", startDate.toISOString());
-      }
+          if (dateFilter && dateFilter !== "all_dates") {
+            const now = new Date();
+            let startDate: Date;
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!groupId && !isDemo,
-  });
+            switch (dateFilter) {
+              case "today":
+                startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                break;
+              case "week":
+                startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                break;
+              case "month":
+                startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                break;
+              default:
+                startDate = new Date(0);
+            }
 
+            query = query.gte("date_time", startDate.toISOString());
+          }
+
+          const { data, error } = await query;
+          if (error) throw error;
+          return data;
+        },
+        enabled: !!groupId && !isDemo,
+      });
+
+  // Soft delete using RPC; logs in deletion_audit and sets is_deleted flags.
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      // First delete any comments associated with this activity log
-      await supabase
-        .from("activity_log_comments")
-        .delete()
-        .eq("activity_log_id", id);
-      
-      // Then delete any document links
-      await supabase
-        .from("document_links")
-        .delete()
-        .eq("linked_item_id", id)
-        .eq("linked_item_type", "activity_log");
-      
-      // Finally delete the activity log itself
-      const { error } = await supabase
-        .from("activity_logs")
-        .delete()
-        .eq("id", id);
-      
+      if (isDemo) {
+        toast({
+          title: "Read-only demo",
+          description: "Deletion is disabled in demo mode.",
+        });
+        return;
+      }
+
+      // Call your SECURITY DEFINER function:
+      // expected args: p_activity_id, p_by_user_id, p_by_email
+      const { error } = await supabase.rpc("soft_delete_activity", {
+        p_activity_id: id,
+        p_by_user_id: currentUserId,
+        p_by_email: currentUserEmail,
+      });
+
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["activity-logs"] });
-      toast({ title: "Activity log deleted", description: "Activity log entry has been deleted." });
+      toast({ title: "Moved to Trash", description: "Activity was soft-deleted." });
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Delete failed", description: error.message, variant: "destructive" });
     },
   });
 
@@ -133,6 +134,7 @@ const ActivityLogPage = () => {
     setShowForm(true);
   };
 
+  // Keep the callback signature expected by ActivityLogEntry, but route to soft delete
   const handleDelete = (id: string) => {
     deleteMutation.mutate(id);
   };
@@ -140,6 +142,7 @@ const ActivityLogPage = () => {
   const handleFormSave = () => {
     setShowForm(false);
     setEditingEntry(null);
+    queryClient.invalidateQueries({ queryKey: ["activity-logs"] });
   };
 
   const handleFormCancel = () => {
@@ -163,14 +166,14 @@ const ActivityLogPage = () => {
   return (
     <div className="space-y-6">
       <SEO title="Activity Log — DaveAssist" description="Log calls, visits, and interactions." />
-      
+
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Activity Log</h2>
-        <Button 
+        <Button
           onClick={() => {
             if (blockCreate()) return;
             setShowForm(true);
-          }} 
+          }}
           className="flex items-center gap-2"
         >
           <Plus className="h-4 w-4" />
@@ -225,8 +228,8 @@ const ActivityLogPage = () => {
               </Select>
             </div>
             <div className="space-y-2">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => {
                   setSearchTerm("");
                   setTypeFilter("all_types");
@@ -250,12 +253,12 @@ const ActivityLogPage = () => {
             </CardContent>
           </Card>
         ) : activityLogs && activityLogs.length > 0 ? (
-          activityLogs.map((entry) => (
+          activityLogs.map((entry: any) => (
             <ActivityLogEntry
               key={entry.id}
               entry={entry}
               onEdit={handleEdit}
-              onDelete={handleDelete}
+              onDelete={() => handleDelete(entry.id)} // unified soft delete
               currentUserId={currentUserId}
               isGroupAdmin={isGroupAdmin}
             />
@@ -265,16 +268,18 @@ const ActivityLogPage = () => {
             <CardContent className="p-6">
               <div className="text-center space-y-2">
                 <p className="text-muted-foreground">No activity log entries found.</p>
-                {(searchTerm || (typeFilter && typeFilter !== "all_types") || (dateFilter && dateFilter !== "all_dates")) && (
+                {(searchTerm ||
+                  (typeFilter && typeFilter !== "all_types") ||
+                  (dateFilter && dateFilter !== "all_dates")) && (
                   <p className="text-sm text-muted-foreground">
                     Try adjusting your search or filter criteria.
                   </p>
                 )}
-                <Button 
+                <Button
                   onClick={() => {
                     if (blockCreate()) return;
                     setShowForm(true);
-                  }} 
+                  }}
                   className="mt-4"
                 >
                   Create your first entry
