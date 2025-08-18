@@ -55,7 +55,7 @@ export function AssociationManager({
       const associations: Association[] = [];
       
       // Fetch linked contacts
-        if (entityType !== 'contact') {
+      if (entityType !== 'contact') {
           let contactTable = '';
           let contactIdField = '';
           
@@ -72,23 +72,24 @@ export function AssociationManager({
             contactTable = 'contact_documents';
             contactIdField = 'document_id';
           }
-          
-          if (contactTable) {
-            const { data: contactLinks } = await supabase
-              .from(contactTable as any)
-              .select(`
-                contacts!inner(id, first_name, last_name, organization_name)
-              `)
-              .eq(contactIdField, entityId);
         
-        contactLinks?.forEach((link: any) => {
-          const contact = link.contacts;
-          associations.push({
-            id: contact.id,
-            title: [contact.first_name, contact.last_name].filter(Boolean).join(' ') || contact.organization_name || 'Unnamed Contact',
-            type: 'contact'
+        if (contactTable) {
+          const { data: contactLinks } = await supabase
+            .from(contactTable as any)
+            .select(`
+              contacts!inner(id, first_name, last_name, organization_name)
+            `)
+            .eq(contactIdField, entityId);
+      
+          contactLinks?.forEach((link: any) => {
+            const contact = link.contacts;
+            associations.push({
+              id: contact.id,
+              title: [contact.first_name, contact.last_name].filter(Boolean).join(' ') || contact.organization_name || 'Unnamed Contact',
+              type: 'contact'
+            });
           });
-        });
+        }
       }
 
       // Fetch linked appointments
@@ -227,8 +228,23 @@ export function AssociationManager({
         .filter(a => a.type === selectedType)
         .map(a => a.id);
 
+      let tableName: string;
+      if (selectedType === 'contact') {
+        tableName = 'contacts';
+      } else if (selectedType === 'appointment') {
+        tableName = 'appointments';
+      } else if (selectedType === 'task') {
+        tableName = 'tasks';
+      } else if (selectedType === 'document') {
+        tableName = 'documents';
+      } else if (selectedType === 'activity') {
+        tableName = 'activity_logs';
+      } else {
+        return [];
+      }
+
       let query = supabase
-        .from(selectedType === 'activity' ? 'activity_logs' : `${selectedType}s`)
+        .from(tableName as any)
         .select('*')
         .eq(selectedType === 'contact' ? 'care_group_id' : 'group_id', groupId)
         .eq('is_deleted', false);
@@ -302,7 +318,7 @@ export function AssociationManager({
         : { [sourceColumn]: entityId, [targetColumn]: targetId };
 
       const { error } = await supabase
-        .from(tableName)
+        .from(tableName as any)
         .insert(insertData);
 
       if (error) throw error;
@@ -357,7 +373,7 @@ export function AssociationManager({
         : { [sourceColumn]: entityId, [targetColumn]: association.id };
 
       const { error } = await supabase
-        .from(tableName)
+        .from(tableName as any)
         .delete()
         .match(whereCondition);
 
@@ -513,7 +529,7 @@ export function AssociationManager({
                   
                   {availableItems.length > 0 && (
                     <div className="mt-2 max-h-48 overflow-y-auto space-y-1 border rounded-md p-2">
-                      {availableItems.map((item) => (
+                      {availableItems.map((item: any) => (
                         <button
                           key={item.id}
                           onClick={() => createAssociationMutation.mutate({ targetId: item.id })}

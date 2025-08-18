@@ -271,14 +271,9 @@ export default function DocumentsListPage() {
 
         {showUpload && (
           <DocumentUpload
-            onUploadComplete={(document) => {
+            onUploadComplete={() => {
               setShowUpload(false);
               refetch();
-              
-              // Auto-process the document
-              if (document?.id) {
-                processDocumentMutation.mutate(document.id);
-              }
             }}
             onClose={() => setShowUpload(false)}
           />
