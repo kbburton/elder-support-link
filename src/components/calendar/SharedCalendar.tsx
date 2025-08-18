@@ -45,7 +45,6 @@ type AppointmentRow = {
   location: string | null;
   category: string | null;
   created_by_email: string | null;
-  is_deleted?: boolean;
 };
 
 type TaskRow = {
@@ -57,7 +56,6 @@ type TaskRow = {
   status: string;
   priority: string | null;
   created_by_email: string | null;
-  is_deleted?: boolean;
 };
 
 export type CalendarEvent = {
@@ -108,15 +106,13 @@ export default function SharedCalendar(props: SharedCalendarProps) {
     queryKey: ["calendar-appointments", groupId, view, start.toISOString(), end.toISOString(), excludeDeleted],
     enabled: !!groupId,
     queryFn: async () => {
-      let q = supabase
+      const { data, error } = await supabase
         .from("appointments")
-        .select("id, group_id, date_time, duration_minutes, description, location, category, created_by_email, is_deleted")
+        .select("id, group_id, date_time, duration_minutes, description, location, category, created_by_email")
         .eq("group_id", groupId)
         .gte("date_time", start.toISOString())
         .lte("date_time", end.toISOString())
         .order("date_time", { ascending: true });
-      if (excludeDeleted) q = q.eq("is_deleted", false);
-      const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as AppointmentRow[];
     }
@@ -126,16 +122,14 @@ export default function SharedCalendar(props: SharedCalendarProps) {
     queryKey: ["calendar-tasks", groupId, view, start.toISOString(), end.toISOString(), excludeDeleted],
     enabled: !!groupId,
     queryFn: async () => {
-      let q = supabase
+      const { data, error } = await supabase
         .from("tasks")
-        .select("id, group_id, title, description, due_date, status, priority, created_by_email, is_deleted")
+        .select("id, group_id, title, description, due_date, status, priority, created_by_email")
         .eq("group_id", groupId)
         .not("due_date", "is", null)
         .gte("due_date", format(start, "yyyy-MM-dd"))
         .lte("due_date", format(end, "yyyy-MM-dd"))
         .order("due_date", { ascending: true });
-      if (excludeDeleted) q = q.eq("is_deleted", false);
-      const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as TaskRow[];
     }
@@ -185,15 +179,22 @@ export default function SharedCalendar(props: SharedCalendarProps) {
   }
 
   async function performSoftDelete(evt: CalendarEvent) {
+    // Get current user info
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+    
     if (evt.type === "appointment") {
-      // IMPORTANT: payload key MUST match SQL arg name
-      const { error } = await supabase.rpc("soft_delete_appointment", {
+      const { error } = await supabase.rpc("soft_delete_appointment" as any, {
+        p_by_email: user.email!,
+        p_by_user_id: user.id,
         p_appointment_id: evt.id,
       });
       if (error) throw error;
       await apptQuery.refetch();
     } else {
-      const { error } = await supabase.rpc("soft_delete_task", {
+      const { error } = await supabase.rpc("soft_delete_task" as any, {
+        p_by_email: user.email!,
+        p_by_user_id: user.id,
         p_task_id: evt.id,
       });
       if (error) throw error;

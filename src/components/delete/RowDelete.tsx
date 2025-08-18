@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import DeleteConfirm from '@/components/delete/DeleteConfirm';
+import { DeleteConfirm } from '@/components/delete/DeleteConfirm';
 import { useDeletion } from '@/hooks/useDeletion';
 import type { EntityType } from '@/lib/delete/types';
 
@@ -23,12 +23,12 @@ export default function RowDelete({ id, type, label='item(s)', onDone, variant='
   async function handleConfirm() {
     setBusy(true);
     try {
-      await softDelete(type, [id]);
+      await softDelete([id], type);
       toast({
         title: 'Moved to Trash',
         description: 'This is a soft delete. You can restore it from Trash within 30 days.',
         action: (
-          <Button variant="outline" onClick={async () => { await restore(type, [id]); onDone?.(); }}>
+          <Button variant="outline" onClick={async () => { await restore([id], type); onDone?.(); }}>
             Undo
           </Button>
         ),
@@ -52,11 +52,12 @@ export default function RowDelete({ id, type, label='item(s)', onDone, variant='
       )}
 
       <DeleteConfirm
-        open={open}
-        onOpenChange={setOpen}
+        isOpen={open}
+        onClose={() => setOpen(false)}
+        entityType={type}
         count={1}
-        entityLabel={label}
         onConfirm={handleConfirm}
+        isLoading={busy}
       />
     </>
   );

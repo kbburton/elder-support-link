@@ -123,11 +123,22 @@ const CalendarPage = () => {
 
   async function singleDeleteHandler(evt: CalendarEvent) {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+      
       if (evt.type === "appointment") {
-        const { error } = await supabase.rpc("soft_delete_appointment", { _appointment_id: evt.id });
+        const { error } = await supabase.rpc("soft_delete_appointment" as any, { 
+          p_by_email: user.email!,
+          p_by_user_id: user.id,
+          p_appointment_id: evt.id 
+        });
         if (error) throw error;
       } else {
-        const { error } = await supabase.rpc("soft_delete_task", { _task_id: evt.id });
+        const { error } = await supabase.rpc("soft_delete_task" as any, { 
+          p_by_email: user.email!,
+          p_by_user_id: user.id,
+          p_task_id: evt.id 
+        });
         if (error) throw error;
       }
       toast({ title: "Moved to Trash", description: `${evt.type === "appointment" ? "Appointment" : "Task"} moved to Trash.` });
@@ -148,10 +159,36 @@ const CalendarPage = () => {
     const taskIds = Array.from(selected.task);
 
     try {
-      const promises: Promise<any>[] = [];
-      for (const id of apptIds) promises.push(supabase.rpc("soft_delete_appointment", { _appointment_id: id }));
-      for (const id of taskIds) promises.push(supabase.rpc("soft_delete_task", { _task_id: id }));
-      const results = await Promise.allSettled(promises);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+      
+      const results = [];
+      for (const id of apptIds) {
+        try {
+          const { error } = await supabase.rpc("soft_delete_appointment" as any, { 
+            p_by_email: user.email!, 
+            p_by_user_id: user.id, 
+            p_appointment_id: id 
+          });
+          if (error) throw error;
+          results.push({ status: "fulfilled", value: null });
+        } catch (error) {
+          results.push({ status: "rejected", reason: error });
+        }
+      }
+      for (const id of taskIds) {
+        try {
+          const { error } = await supabase.rpc("soft_delete_task" as any, { 
+            p_by_email: user.email!, 
+            p_by_user_id: user.id, 
+            p_task_id: id 
+          });
+          if (error) throw error;
+          results.push({ status: "fulfilled", value: null });
+        } catch (error) {
+          results.push({ status: "rejected", reason: error });
+        }
+      }
       const failures = results.filter(r => r.status === "rejected");
       if (failures.length) {
         console.error(failures);

@@ -13,9 +13,6 @@ import PasswordReset from "./pages/auth/PasswordReset";
 import Onboarding from "./pages/auth/Onboarding";
 import AppLayout from "./components/layout/AppLayout";
 import CalendarPage from "./pages/app/CalendarPage";
-import TasksPage from "./pages/app/TasksPage";
-import DocumentsPage from "./pages/app/DocumentsPage";
-import ActivityLogPage from "./pages/app/ActivityLogPage";
 import AdminConsolePage from "./pages/app/AdminConsolePage";
 import GroupInvitePage from "./pages/app/GroupInvitePage";
 import SearchPage from "./pages/app/SearchPage";
@@ -29,7 +26,6 @@ import AppointmentsCrud from "./pages/crud/AppointmentsCrud";
 import TasksCrud from "./pages/crud/TasksCrud";
 import DocumentsCrud from "./pages/crud/DocumentsCrud";
 import ActivityLogsCrud from "./pages/crud/ActivityLogsCrud";
-import ContactsPage from "./pages/app/ContactsPage";
 import ContactDetailPage from "./pages/app/ContactDetailPage";
 import ContactFormPage from "./pages/app/ContactFormPage";
 import ContactsImportPage from "./pages/app/ContactsImportPage";
@@ -59,14 +55,10 @@ const App = () => (
             <Route path="/app/:groupId" element={<AppLayout />}>
               <Route index element={<CalendarPage />} />
               <Route path="calendar" element={<CalendarPage />} />
-              <Route path="tasks" element={<TasksPage />} />
-              <Route path="documents" element={<DocumentsPage />} />
-              <Route path="activity" element={<ActivityLogPage />} />
-              <Route path="contacts" element={<ContactsPage />} />
-              <Route path="contacts/import" element={<ContactsImportPage />} />
-              <Route path="contacts/new" element={<ContactFormPage />} />
               <Route path="contacts/:contactId" element={<ContactDetailPage />} />
               <Route path="contacts/:contactId/edit" element={<ContactFormPage />} />
+              <Route path="contacts/import" element={<ContactsImportPage />} />
+              <Route path="contacts/new" element={<ContactFormPage />} />
               <Route path="search" element={<SearchPage />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="settings" element={<GroupSettingsPage />} />
