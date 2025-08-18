@@ -176,7 +176,11 @@ const SearchPage = () => {
           const demoResults = searchDemoData(query);
           setResults(demoResults);
         } else {
-          // Use database search
+          // Use database search - ensure groupId is valid UUID
+          if (!groupId || typeof groupId !== 'string' || groupId.length !== 36) {
+            throw new Error("Invalid group ID");
+          }
+          
           const { data, error } = await supabase.rpc("search_all", {
             q: query.trim(),
             group_id: groupId,
