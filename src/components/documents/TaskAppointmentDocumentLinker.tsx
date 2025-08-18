@@ -44,7 +44,7 @@ export const TaskAppointmentDocumentLinker = ({
   const { data: documents = [] } = useQuery({
     queryKey: ['documents', groupId],
     queryFn: async () => {
-      if (!groupId || groupId === ':groupId') return [];
+      if (!groupId || groupId === ':groupId' || groupId === 'undefined') return [];
       const { data, error } = await supabase
         .from('documents')
         .select('id, title, category, original_filename')
@@ -54,7 +54,7 @@ export const TaskAppointmentDocumentLinker = ({
       if (error) throw error;
       return data as Document[];
     },
-    enabled: !!groupId && groupId !== ':groupId' && (showDialog || isCreationMode),
+    enabled: !!groupId && groupId !== ':groupId' && groupId !== 'undefined' && (showDialog || isCreationMode),
   });
 
   // Fetch existing links

@@ -34,8 +34,14 @@ const adminItems = [
 ];
 
 export function AppSidebar() {
-  const { groupId = "demo" } = useParams();
+  const { groupId } = useParams();
   const { state } = useSidebar();
+  
+  // Don't render if we don't have a valid groupId
+  if (!groupId || groupId === ':groupId') {
+    return null;
+  }
+  
   const base = `/app/${groupId}`;
 
   return (

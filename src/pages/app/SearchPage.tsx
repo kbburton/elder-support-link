@@ -38,7 +38,7 @@ const SearchPage = () => {
   const { isDemo } = useDemo();
   
   // Validate groupId 
-  if (!groupId || groupId === ":groupId") {
+  if (!groupId || groupId === ":groupId" || groupId === "undefined") {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p>Invalid group ID. Please navigate from a valid group page.</p>
