@@ -11,6 +11,7 @@ import { triggerReindex } from "@/utils/reindex";
 import { useDemoTasks } from "@/hooks/useDemoData";
 import { useDemo } from "@/hooks/useDemo";
 import { useDemoOperations } from "@/hooks/useDemoOperations";
+import RowDelete from "@/components/delete/RowDelete";
 
 interface Task {
   id: string;
@@ -289,6 +290,17 @@ export function TaskList({ groupId, sortBy, filters, hideCompleted, searchQuery 
                         {task.priority}
                       </Badge>
                     )}
+                    {/* Delete button */}
+                    <RowDelete
+                      id={task.id}
+                      type="task"
+                      label="task"
+                      variant="icon"
+                      onDone={() => {
+                        // Refresh tasks
+                        queryClient.invalidateQueries({ queryKey: ["tasks"] });
+                      }}
+                    />
                   </div>
                 </div>
                 

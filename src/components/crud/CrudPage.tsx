@@ -14,7 +14,23 @@ import { TaskAppointmentDocumentLinker } from "@/components/documents/TaskAppoin
 import ContactMultiSelect from "@/components/contacts/ContactMultiSelect";
 import { useContactLinkOperations } from "@/hooks/useContactLinkOperations";
 import { triggerReindex } from "@/utils/reindex";
+import RowDelete from "@/components/delete/RowDelete";
+import type { EntityType } from "@/lib/delete/types";
 const sb = supabase as any;
+
+// Helper function to map table names to entity types
+function getEntityTypeFromTable(tableName: string): EntityType {
+  switch (tableName) {
+    case 'contacts': return 'contact';
+    case 'tasks': return 'task';
+    case 'appointments': return 'appointment';
+    case 'activity_logs': return 'activity';
+    case 'documents': return 'document';
+    default: 
+      console.warn(`Unknown table type: ${tableName}, defaulting to 'contact'`);
+      return 'contact';
+  }
+}
 export type CrudField = {
   name: string;
   label?: string;
@@ -427,7 +443,13 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
                       <TableRow key={row[idField] ?? JSON.stringify(row)}>
                         <TableCell className="space-x-1">
                           <Button size="sm" variant="outline" onClick={() => setEditing(row)}>Edit</Button>
-                          <Button size="sm" variant="ghost" onClick={() => deleteMutation.mutate(row)}>Del</Button>
+                          <RowDelete
+                            id={row[idField]}
+                            type={getEntityTypeFromTable(config.table)}
+                            label={config.table.slice(0, -1)} // Remove 's' from plural
+                            variant="button"
+                            onDone={() => qc.invalidateQueries({ queryKey })}
+                          />
                         </TableCell>
                         {config.fields.map((f) => (
                           <TableCell key={f.name} className="max-w-[260px] truncate">
