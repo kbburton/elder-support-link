@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, CheckSquare, Square, Trash2, X } from "lucide-react";
 import SharedCalendar, { CalendarEvent } from "@/components/calendar/SharedCalendar";
-import { AppointmentModal } from "@/components/appointments/AppointmentModal";
 import { EnhancedAppointmentModal } from "@/components/appointments/EnhancedAppointmentModal";
+import { EnhancedTaskModal } from "@/components/tasks/EnhancedTaskModal";
 import { useDemoOperations } from "@/hooks/useDemoOperations";
 import { GroupWelcomeModal } from "@/components/welcome/GroupWelcomeModal";
 import { useGroupWelcome } from "@/hooks/useGroupWelcome";
@@ -26,6 +26,9 @@ const CalendarPage = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [activeView, setActiveView] = useState<'month' | 'week' | 'day' | 'list'>('month');
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
+  const [selectedTask, setSelectedTask] = useState<any>(null);
   const [groupName, setGroupName] = useState("");
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<SelectedMap>({
@@ -138,7 +141,18 @@ const CalendarPage = () => {
 
   const handleNewAppointment = () => {
     if (blockCreate()) return;
+    setSelectedAppointment(null);
     setShowAppointmentModal(true);
+  };
+
+  const handleEventSelect = (evt: any) => {
+    if (evt.type === "appointment") {
+      setSelectedAppointment(evt.raw);
+      setShowAppointmentModal(true);
+    } else if (evt.type === "task") {
+      setSelectedTask(evt.raw);
+      setShowTaskModal(true);
+    }
   };
 
   async function singleDeleteHandler(evt: CalendarEvent) {
@@ -300,6 +314,7 @@ const CalendarPage = () => {
             onToggleSelect={onToggleSelect}
             onEventDelete={singleDeleteHandler}
             onEventsLoaded={setVisibleEvents}
+            onEventSelect={handleEventSelect}
           />
         </TabsContent>
 
@@ -316,6 +331,7 @@ const CalendarPage = () => {
             onToggleSelect={onToggleSelect}
             onEventDelete={singleDeleteHandler}
             onEventsLoaded={setVisibleEvents}
+            onEventSelect={handleEventSelect}
           />
         </TabsContent>
 
@@ -332,6 +348,7 @@ const CalendarPage = () => {
             onToggleSelect={onToggleSelect}
             onEventDelete={singleDeleteHandler}
             onEventsLoaded={setVisibleEvents}
+            onEventSelect={handleEventSelect}
           />
         </TabsContent>
 
@@ -348,6 +365,7 @@ const CalendarPage = () => {
             onToggleSelect={onToggleSelect}
             onEventDelete={singleDeleteHandler}
             onEventsLoaded={setVisibleEvents}
+            onEventSelect={handleEventSelect}
           />
         </TabsContent>
       </Tabs>
@@ -360,11 +378,25 @@ const CalendarPage = () => {
         onClose={closeWelcome}
       />
 
-      {/* Create appointment modal */}
+      {/* Create/Edit appointment modal */}
       <EnhancedAppointmentModal
         isOpen={showAppointmentModal}
-        onClose={() => setShowAppointmentModal(false)}
-        appointment={undefined}
+        onClose={() => {
+          setShowAppointmentModal(false);
+          setSelectedAppointment(null);
+        }}
+        appointment={selectedAppointment}
+        groupId={groupId}
+      />
+
+      {/* Edit task modal */}
+      <EnhancedTaskModal
+        isOpen={showTaskModal}
+        onClose={() => {
+          setShowTaskModal(false);
+          setSelectedTask(null);
+        }}
+        task={selectedTask}
         groupId={groupId}
       />
 
