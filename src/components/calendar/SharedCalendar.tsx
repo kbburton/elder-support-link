@@ -1,288 +1,413 @@
-import { useState, useEffect, useMemo } from "react";
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays, isSameDay, isToday, isBefore, parseISO } from "date-fns";
-import { CalendarIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { cn } from "@/lib/utils";
+import React, { useMemo, useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarItem } from "./CalendarItem";
-import { CalendarLegend } from "./CalendarLegend";
-import { CalendarViews } from "./CalendarViews";
-import { TaskModal } from "@/components/tasks/TaskModal";
-import { AppointmentModal } from "@/components/appointments/AppointmentModal";
-import { useDemoAppointments, useDemoTasks } from "@/hooks/useDemoData";
-import { useDemo } from "@/hooks/useDemo";
+import {
+  startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfDay,
+  addMonths, addWeeks, addDays, eachDayOfInterval, isSameDay, isSameMonth, format
+} from "date-fns";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter
+} from "@/components/ui/dialog";
+import { ChevronLeft, ChevronRight, CalendarDays, Clock, Trash2 } from "lucide-react";
 
-export interface SharedCalendarProps {
-  view: 'month' | 'week' | 'day' | 'list';
+type View = "month" | "week" | "day" | "list";
+
+type SharedCalendarProps = {
+  view: View;
   selectedDate: Date;
-  onSelectedDateChange: (date: Date) => void;
-  showLegend?: boolean;
-  filters?: {
-    category?: string;
-    assigneeIds?: string[];
-    status?: string;
-    showCompleted?: boolean;
-    showOverdueOnly?: boolean;
-  };
-  colorMap?: Record<string, string>;
+  onSelectedDateChange: (d: Date) => void;
   groupId: string;
-}
+  showLegend?: boolean;
+  excludeDeleted?: boolean;
+  onEventSelect?: (evt: CalendarEvent) => void;
+  onEventDelete?: (evt: CalendarEvent) => void;
+};
 
-interface CalendarEvent {
+type CalendarEventType = "appointment" | "task";
+
+type AppointmentRow = {
   id: string;
-  entityType: 'appointment' | 'task';
+  group_id: string | null;
+  date_time: string; // ISO
+  duration_minutes: number | null;
+  description: string | null;
+  location: string | null;
+  category: string | null;
+  created_by_email: string | null;
+  is_deleted?: boolean;
+};
+
+type TaskRow = {
+  id: string;
+  group_id: string | null;
   title: string;
-  startTime?: Date;
-  dueDate?: Date;
-  category: string;
-  status?: string;
-  isCompleted: boolean;
-  isOverdue: boolean;
-  location?: string;
-  description?: string;
-  createdBy?: string;
-  isRecurring?: boolean;
-  primaryOwnerName?: string;
-  secondaryOwnerName?: string;
+  description: string | null;
+  due_date: string | null; // ISO date
+  status: string;
+  priority: string | null;
+  created_by_email: string | null;
+  is_deleted?: boolean;
+};
+
+export type CalendarEvent = {
+  id: string;
+  type: CalendarEventType;
+  title: string;
+  start: Date;
+  end?: Date;
+  raw: any;
+};
+
+function toMidnight(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
-export default function SharedCalendar({
-  view,
-  selectedDate,
-  onSelectedDateChange,
-  showLegend = true,
-  filters = {},
-  colorMap = {},
-  groupId
-}: SharedCalendarProps) {
-  const [activeView, setActiveView] = useState(view);
-  const [selectedTask, setSelectedTask] = useState<any>(null);
-  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
-  const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
-  const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
-  const queryClient = useQueryClient();
-  const { isDemo } = useDemo();
-  const demoAppointments = useDemoAppointments(groupId);
-  const demoTasks = useDemoTasks(groupId);
+function monthRange(d: Date) {
+  const start = startOfWeek(startOfMonth(d), { weekStartsOn: 0 });
+  const end = endOfWeek(endOfMonth(d), { weekStartsOn: 0 });
+  return { start, end };
+}
 
-  useEffect(() => {
-    setActiveView(view);
-  }, [view]);
+function weekRange(d: Date) {
+  return { start: startOfWeek(d, { weekStartsOn: 0 }), end: endOfWeek(d, { weekStartsOn: 0 }) };
+}
 
-  // Use demo data if in demo mode, otherwise use real queries
-  const { data: fetchedAppointments = [] } = useQuery({
-    queryKey: ['appointments', groupId],
+function dayRange(d: Date) {
+  return { start: startOfDay(d), end: endOfDay(d) };
+}
+
+export default function SharedCalendar(props: SharedCalendarProps) {
+  const {
+    view, selectedDate, onSelectedDateChange, groupId,
+    showLegend = true, excludeDeleted = true,
+    onEventSelect, onEventDelete
+  } = props;
+
+  // Compute fetch window based on view
+  const { start, end } = useMemo(() => {
+    if (view === "month") return monthRange(selectedDate);
+    if (view === "week") return weekRange(selectedDate);
+    if (view === "day") return dayRange(selectedDate);
+    // list view: show 60 days centered on selected date
+    const s = startOfDay(addDays(selectedDate, -30));
+    const e = endOfDay(addDays(selectedDate, 30));
+    return { start: s, end: e };
+  }, [view, selectedDate]);
+
+  // Fetch appointments
+  const apptQuery = useQuery({
+    queryKey: ["calendar-appointments", groupId, view, start.toISOString(), end.toISOString(), excludeDeleted],
+    enabled: !!groupId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('appointments')
-        .select('*')
-        .eq('group_id', groupId)
-        .order('date_time', { ascending: true });
-      
+      let q = supabase
+        .from("appointments")
+        .select("id, group_id, date_time, duration_minutes, description, location, category, created_by_email, is_deleted")
+        .eq("group_id", groupId)
+        .gte("date_time", start.toISOString())
+        .lte("date_time", end.toISOString())
+        .order("date_time", { ascending: true });
+
+      if (excludeDeleted) {
+        q = q.eq("is_deleted", false);
+      }
+
+      const { data, error } = await q;
       if (error) throw error;
-      return data || [];
-    },
-    enabled: !!groupId && !isDemo,
+      return (data ?? []) as AppointmentRow[];
+    }
   });
 
-  // Use demo data if in demo mode, otherwise use fetched data
-  const appointments = useMemo(() => demoAppointments.isDemo ? demoAppointments.data || [] : fetchedAppointments, [demoAppointments.isDemo, demoAppointments.data, fetchedAppointments]);
-
-  // Fetch tasks with recurrence rules and owner names
-  const { data: fetchedTasks = [] } = useQuery({
-    queryKey: ['tasks', groupId],
+  // Fetch tasks (by due_date)
+  const taskQuery = useQuery({
+    queryKey: ["calendar-tasks", groupId, view, start.toISOString(), end.toISOString(), excludeDeleted],
+    enabled: !!groupId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('tasks')
-        .select(`
-          *,
-          task_recurrence_rules (
-            id,
-            pattern_type
-          ),
-          primary_owner:profiles!tasks_primary_owner_id_fkey(first_name, last_name),
-          secondary_owner:profiles!tasks_secondary_owner_id_fkey(first_name, last_name)
-        `)
-        .eq('group_id', groupId)
-        .order('created_at', { ascending: false });
-      
+      let q = supabase
+        .from("tasks")
+        .select("id, group_id, title, description, due_date, status, priority, created_by_email, is_deleted")
+        .eq("group_id", groupId)
+        .not("due_date", "is", null)
+        .gte("due_date", format(start, "yyyy-MM-dd"))
+        .lte("due_date", format(end, "yyyy-MM-dd"))
+        .order("due_date", { ascending: true });
+
+      if (excludeDeleted) {
+        q = q.eq("is_deleted", false);
+      }
+
+      const { data, error } = await q;
       if (error) throw error;
-      return data || [];
-    },
-    enabled: !!groupId && !isDemo,
+      return (data ?? []) as TaskRow[];
+    }
   });
 
-  // Use demo data if in demo mode, otherwise use fetched data
-  const tasks = useMemo(() => demoTasks.isDemo ? demoTasks.data || [] : fetchedTasks, [demoTasks.isDemo, demoTasks.data, fetchedTasks]);
+  const isLoading = apptQuery.isLoading || taskQuery.isLoading;
+  const hasError = apptQuery.isError || taskQuery.isError;
 
-  // Transform data into calendar events
-  const calendarEvents: CalendarEvent[] = useMemo(() => {
-    console.log('🗓️ Building calendar events:', { 
-      isDemo, 
-      appointmentsCount: appointments.length, 
-      tasksCount: tasks.length,
-      appointments: appointments.slice(0, 2), // Log first 2 for debugging
-      tasks: tasks.slice(0, 2)
+  // Normalize to events
+  const events: CalendarEvent[] = useMemo(() => {
+    const appts: CalendarEvent[] = (apptQuery.data ?? []).map(a => {
+      const start = new Date(a.date_time);
+      const dur = a.duration_minutes ?? 60;
+      const end = new Date(start.getTime() + dur * 60 * 1000);
+      const title = a.category ? `Appt: ${a.category}` : "Appointment";
+      return {
+        id: a.id, type: "appointment", title, start, end, raw: a
+      };
     });
 
-    const events = [
-      ...appointments.map(apt => ({
-        id: apt.id,
-        entityType: 'appointment' as const,
-        title: apt.description || 'Appointment',
-        startTime: new Date(apt.date_time),
-        category: apt.category || 'Other',
-        isCompleted: false,
-        isOverdue: isBefore(new Date(apt.date_time), new Date()) && !apt.outcome_notes,
-        location: apt.location,
-        description: apt.description,
-        createdBy: apt.created_by_email
-      })),
-      ...tasks.map(task => ({
-        id: task.id,
-        entityType: 'task' as const,
-        title: task.title,
-        dueDate: task.due_date ? new Date(task.due_date) : undefined,
-        category: task.category || 'Other',
-        status: task.status,
-        isCompleted: task.status === 'Completed',
-        isOverdue: task.due_date && task.status !== 'Completed' ? isBefore(new Date(task.due_date), new Date()) : false,
-        description: task.description,
-        createdBy: task.created_by_email,
-        isRecurring: task.task_recurrence_rules && task.task_recurrence_rules.length > 0,
-        primaryOwnerName: task.primary_owner ? `${task.primary_owner.first_name || ''} ${task.primary_owner.last_name || ''}`.trim() : undefined,
-        secondaryOwnerName: task.secondary_owner ? `${task.secondary_owner.first_name || ''} ${task.secondary_owner.last_name || ''}`.trim() : undefined
-      }))
-    ];
+    const tasks: CalendarEvent[] = (taskQuery.data ?? []).map(t => {
+      const start = t.due_date ? new Date(`${t.due_date}T00:00:00`) : toMidnight(selectedDate);
+      const prefix = t.status ? `${t.status}: ` : "";
+      return {
+        id: t.id, type: "task", title: `${prefix}${t.title}`, start, raw: t
+      };
+    });
 
-    console.log('🗓️ Calendar events built:', { eventsCount: events.length, events: events.slice(0, 3) });
-    return events;
-  }, [appointments, tasks, isDemo]);
+    // For list view we want both. For day/week/month we also show both.
+    return [...appts, ...tasks].sort((a, b) => a.start.getTime() - b.start.getTime());
+  }, [apptQuery.data, taskQuery.data, selectedDate]);
 
-  // Apply filters
-  const filteredEvents = useMemo(() => calendarEvents.filter(event => {
-    if (filters.category && event.category !== filters.category) return false;
-    if (filters.status && event.status !== filters.status) return false;
-    if (!filters.showCompleted && event.isCompleted) return false;
-    if (filters.showOverdueOnly && !event.isOverdue) return false;
-    return true;
-  }), [calendarEvents, filters]);
+  // Selection + modal
+  const [open, setOpen] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
 
+  function openEvent(evt: CalendarEvent) {
+    setSelectedEvent(evt);
+    setOpen(true);
+    onEventSelect?.(evt);
+  }
 
-  const handleDateSelect = (date: Date | undefined) => {
-    if (date) {
-      onSelectedDateChange(date);
+  function closeEvent() {
+    setOpen(false);
+    setSelectedEvent(null);
+  }
+
+  function handleDelete() {
+    if (selectedEvent) {
+      onEventDelete?.(selectedEvent);
+      closeEvent();
     }
-  };
+  }
 
-  const handleTaskClick = (taskId: string) => {
-    const task = tasks.find(t => t.id === taskId);
-    if (task) {
-      setSelectedTask(task);
-      setIsTaskModalOpen(true);
-    }
-  };
+  // Navigation
+  function goPrev() {
+    if (view === "month") onSelectedDateChange(addMonths(selectedDate, -1));
+    else if (view === "week") onSelectedDateChange(addWeeks(selectedDate, -1));
+    else onSelectedDateChange(addDays(selectedDate, -1));
+  }
+  function goNext() {
+    if (view === "month") onSelectedDateChange(addMonths(selectedDate, 1));
+    else if (view === "week") onSelectedDateChange(addWeeks(selectedDate, 1));
+    else onSelectedDateChange(addDays(selectedDate, 1));
+  }
 
-  const handleTaskModalClose = () => {
-    setIsTaskModalOpen(false);
-    setSelectedTask(null);
-    // Invalidate queries to refresh the calendar
-    queryClient.invalidateQueries({ queryKey: ['tasks', groupId] });
-    
-    // Return focus to the last focused calendar item
-    setTimeout(() => {
-      const focusTarget = document.querySelector(`[data-calendar-item-id="${selectedTask?.id}"]`) as HTMLElement;
-      if (focusTarget) {
-        focusTarget.focus();
-      }
-    }, 100);
-  };
+  // Rendering helpers
+  function DayCell({ date }: { date: Date }) {
+    const dayEvents = events.filter(e => isSameDay(e.start, date));
+    const faded = !isSameMonth(date, selectedDate) && view === "month";
+    return (
+      <div className={`border p-2 min-h-[110px] ${faded ? "bg-muted/30" : ""}`}>
+        <div className="text-xs font-semibold mb-1">{format(date, "d")}</div>
+        <div className="space-y-1">
+          {dayEvents.map(ev => (
+            <button
+              key={`${ev.type}-${ev.id}`}
+              className={`w-full text-left text-xs px-2 py-1 rounded hover:bg-accent`}
+              onClick={() => openEvent(ev)}
+              title={ev.title}
+            >
+              <span className={`inline-block mr-2 align-middle text-[10px] px-1 rounded 
+                ${ev.type === "appointment" ? "bg-blue-200" : "bg-green-200"}`}>
+                {ev.type === "appointment" ? "Appt" : "Task"}
+              </span>
+              <span className="align-middle">
+                {ev.type === "appointment" ? format(ev.start, "p") + " • " : ""}
+                {ev.title}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
-  const handleItemClick = (event: any) => {
-    if (event.entityType === 'task') {
-      // Find the original task data
-      const task = tasks.find(t => t.id === event.id);
-      if (task) {
-        setSelectedTask(task);
-        setIsTaskModalOpen(true);
-      }
-    } else if (event.entityType === 'appointment') {
-      // Find the original appointment data
-      const appointment = appointments.find(a => a.id === event.id);
-      if (appointment) {
-        setSelectedAppointment(appointment);
-        setIsAppointmentModalOpen(true);
-      }
-    }
-  };
+  function MonthView() {
+    const days = eachDayOfInterval({ start, end });
+    return (
+      <div className="grid grid-cols-7 gap-px bg-border">
+        {days.map((d) => <DayCell key={d.toISOString()} date={d} />)}
+      </div>
+    );
+  }
 
-  const handleAppointmentModalClose = () => {
-    setIsAppointmentModalOpen(false);
-    setSelectedAppointment(null);
-    // Invalidate queries to refresh data
-    queryClient.invalidateQueries({ queryKey: ["appointments"] });
-    queryClient.invalidateQueries({ queryKey: ["calendarEvents"] });
-  };
+  function WeekView() {
+    const days = eachDayOfInterval({ start, end });
+    return (
+      <div className="grid grid-cols-7 gap-px bg-border">
+        {days.map((d) => <DayCell key={d.toISOString()} date={d} />)}
+      </div>
+    );
+  }
+
+  function DayView() {
+    const days = eachDayOfInterval({ start, end }); // one day
+    return (
+      <div className="grid grid-cols-1 gap-px bg-border">
+        {days.map((d) => <DayCell key={d.toISOString()} date={d} />)}
+      </div>
+    );
+  }
+
+  function ListView() {
+    // group by date
+    const byDay = new Map<string, CalendarEvent[]>();
+    events.forEach(e => {
+      const key = format(e.start, "yyyy-MM-dd");
+      if (!byDay.has(key)) byDay.set(key, []);
+      byDay.get(key)!.push(e);
+    });
+
+    const keys = Array.from(byDay.keys()).sort();
+    return (
+      <div className="space-y-4">
+        {keys.map(k => {
+          const date = new Date(`${k}T00:00:00`);
+          const dayEvents = byDay.get(k)!;
+          return (
+            <Card key={k}>
+              <CardHeader>
+                <CardTitle className="text-base">{format(date, "EEEE, MMM d")}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {dayEvents.map(ev => (
+                  <button
+                    key={`${ev.type}-${ev.id}`}
+                    className="w-full text-left px-3 py-2 rounded border hover:bg-accent"
+                    onClick={() => openEvent(ev)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Badge variant={ev.type === "appointment" ? "secondary" : "outline"}>
+                        {ev.type === "appointment" ? "Appointment" : "Task"}
+                      </Badge>
+                      <div className="text-sm font-medium">{ev.title}</div>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
+                      <Clock className="h-3 w-3" />
+                      {ev.type === "appointment"
+                        ? `${format(ev.start, "PPpp")}`
+                        : `Due ${format(ev.start, "PP")}`}
+                    </div>
+                  </button>
+                ))}
+              </CardContent>
+            </Card>
+          );
+        })}
+        {keys.length === 0 && (
+          <Card>
+            <CardContent className="p-6 text-center text-muted-foreground">
+              No items in this range.
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      {(activeView === 'day' || view === 'day') && (
-        <div className="flex items-center justify-end">
-          {/* Big date picker */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="justify-start">
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {format(selectedDate, "MMMM yyyy")}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="end">
-              <Calendar 
-                mode="single" 
-                selected={selectedDate} 
-                onSelect={handleDateSelect} 
-                initialFocus 
-                className={cn("p-3 pointer-events-auto")} 
-              />
-            </PopoverContent>
-          </Popover>
+    <div className="space-y-4">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="icon" onClick={goPrev}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <div className="mx-2 text-sm font-medium">
+            {view === "month" && format(selectedDate, "MMMM yyyy")}
+            {view === "week" && `${format(start, "MMM d")} – ${format(end, "MMM d, yyyy")}`}
+            {view === "day" && format(selectedDate, "PPP")}
+            {view === "list" && `±30 days around ${format(selectedDate, "PPP")}`}
+          </div>
+          <Button variant="outline" size="icon" onClick={goNext}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
         </div>
+        {showLegend && (
+          <div className="flex items-center gap-3 text-xs">
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block w-3 h-3 rounded bg-blue-300" />
+              Appointments
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block w-3 h-3 rounded bg-green-300" />
+              Tasks (with due date)
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Body */}
+      {isLoading && (
+        <Card>
+          <CardContent className="p-6 text-center text-muted-foreground">
+            Loading…
+          </CardContent>
+        </Card>
+      )}
+      {hasError && (
+        <Card>
+          <CardContent className="p-6 text-center text-destructive">
+            Could not load calendar data.
+          </CardContent>
+        </Card>
+      )}
+      {!isLoading && !hasError && (
+        <>
+          {view === "month" && <MonthView />}
+          {view === "week" && <WeekView />}
+          {view === "day" && <DayView />}
+          {view === "list" && <ListView />}
+        </>
       )}
 
-      <CalendarViews 
-        view={activeView}
-        selectedDate={selectedDate}
-        events={filteredEvents}
-        onDateChange={onSelectedDateChange}
-        groupId={groupId}
-        onItemClick={handleItemClick}
-      />
+      {/* Event modal */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarDays className="h-4 w-4" />
+              {selectedEvent?.type === "appointment" ? "Appointment" : "Task"}
+            </DialogTitle>
+            <DialogDescription>{selectedEvent?.title}</DialogDescription>
+          </DialogHeader>
 
-      {showLegend && (
-        <CalendarLegend 
-          layout={activeView === 'month' ? 'horizontal' : 'compact'}
-        />
-      )}
+          {selectedEvent && (
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Clock className="h-4 w-4" />
+                {selectedEvent.type === "appointment"
+                  ? `${format(selectedEvent.start, "PPpp")}`
+                  : `Due ${format(selectedEvent.start, "PP")}`}
+              </div>
+              {/* You can render more fields from selectedEvent.raw if needed */}
+            </div>
+          )}
 
-      {/* Task Modal */}
-      <TaskModal
-        task={selectedTask}
-        isOpen={isTaskModalOpen}
-        onClose={handleTaskModalClose}
-        groupId={groupId}
-      />
-
-      {/* Appointment Modal */}
-      <AppointmentModal
-        appointment={selectedAppointment}
-        isOpen={isAppointmentModalOpen}
-        onClose={handleAppointmentModalClose}
-        groupId={groupId}
-      />
+          <DialogFooter className="flex items-center justify-between">
+            <Button variant="outline" onClick={closeEvent}>Close</Button>
+            {selectedEvent && (
+              <Button variant="destructive" onClick={handleDelete}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
