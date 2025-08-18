@@ -8,6 +8,7 @@ import { UnifiedTableView } from "@/components/shared/UnifiedTableView";
 import ActivityLogForm from "@/components/activity-log/ActivityLogForm";
 import { useToast } from "@/hooks/use-toast";
 import { useDemoOperations } from "@/hooks/useDemoOperations";
+import { ActivityModal } from "@/components/activities/ActivityModal";
 import { softDeleteEntity } from "@/lib/delete/rpc";
 import { format } from "date-fns";
 
@@ -15,10 +16,11 @@ export default function ActivityListPage() {
   const { groupId } = useParams();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { blockOperation } = useDemoOperations();
   const [showForm, setShowForm] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState<any>(null);
   const [showEditModal, setShowEditModal] = useState(false);
-  const { blockOperation } = useDemoOperations();
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const { data: activities = [], isLoading } = useQuery({
     queryKey: ["activities", groupId],
@@ -126,6 +128,10 @@ export default function ActivityListPage() {
   const handleEdit = (activity: any) => {
     setSelectedActivity(activity);
     setShowEditModal(true);
+  };
+
+  const handleCreateNew = () => {
+    setShowCreateModal(true);
   };
 
   const handleDelete = async (activityId: string) => {
@@ -249,7 +255,7 @@ export default function ActivityListPage() {
           defaultSortBy="date_time"
           emptyMessage="No activities found"
           emptyDescription="Start by adding your first activity entry."
-          onCreateNew={() => setShowForm(true)}
+          onCreateNew={handleCreateNew}
           createButtonLabel="Add Activity"
         />
 
@@ -264,135 +270,26 @@ export default function ActivityListPage() {
         )}
 
         {showEditModal && selectedActivity && (
-          <ActivityEditModal
+          <ActivityModal
             activity={selectedActivity}
             isOpen={showEditModal}
             onClose={() => {
               setShowEditModal(false);
               setSelectedActivity(null);
             }}
-            onSave={() => {
-              queryClient.invalidateQueries({ queryKey: ["activities"] });
-              setShowEditModal(false);
-              setSelectedActivity(null);
-            }}
+            groupId={groupId!}
+          />
+        )}
+
+        {showCreateModal && (
+          <ActivityModal
+            activity={null}
+            isOpen={showCreateModal}
+            onClose={() => setShowCreateModal(false)}
+            groupId={groupId!}
           />
         )}
       </div>
     </>
-  );
-}
-
-// Simple Activity Edit Modal
-function ActivityEditModal({ activity, isOpen, onClose, onSave }: {
-  activity: any;
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: () => void;
-}) {
-  const { toast } = useToast();
-  const [title, setTitle] = useState(activity.title || '');
-  const [type, setType] = useState(activity.type || '');
-  const [notes, setNotes] = useState(activity.notes || '');
-  const [dateTime, setDateTime] = useState(
-    activity.date_time ? format(new Date(activity.date_time), "yyyy-MM-dd'T'HH:mm") : ''
-  );
-
-  const updateMutation = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase
-        .from('activity_logs')
-        .update({ 
-          title, 
-          type, 
-          notes,
-          date_time: new Date(dateTime).toISOString()
-        })
-        .eq('id', activity.id);
-      
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast({ title: "Success", description: "Activity updated successfully." });
-      onSave();
-    },
-    onError: (error: any) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    }
-  });
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-background border rounded-xl shadow-xl p-6 w-[600px] max-w-[90vw]">
-        <h3 className="text-lg font-semibold mb-4">Edit Activity</h3>
-        
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-2">Date & Time *</label>
-            <input
-              type="datetime-local"
-              value={dateTime}
-              onChange={(e) => setDateTime(e.target.value)}
-              className="w-full p-2 border rounded-md"
-              required
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium mb-2">Type *</label>
-            <select
-              value={type}
-              onChange={(e) => setType(e.target.value)}
-              className="w-full p-2 border rounded-md"
-              required
-            >
-              <option value="">Select type</option>
-              <option value="Medical">Medical</option>
-              <option value="Personal">Personal</option>
-              <option value="Communication">Communication</option>
-              <option value="Appointment">Appointment</option>
-              <option value="Medication">Medication</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium mb-2">Title *</label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full p-2 border rounded-md"
-              placeholder="Activity title"
-              required
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium mb-2">Notes</label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="w-full p-2 border rounded-md h-24"
-              placeholder="Additional notes..."
-            />
-          </div>
-        </div>
-        
-        <div className="flex justify-end gap-2 mt-6">
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button 
-            onClick={() => updateMutation.mutate()}
-            disabled={updateMutation.isPending || !title || !type || !dateTime}
-          >
-            Save Changes
-          </Button>
-        </div>
-      </div>
-    </div>
   );
 }

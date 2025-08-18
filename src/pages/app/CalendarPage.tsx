@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, CheckSquare, Square, Trash2, X } from "lucide-react";
 import SharedCalendar, { CalendarEvent } from "@/components/calendar/SharedCalendar";
 import { AppointmentModal } from "@/components/appointments/AppointmentModal";
+import { EnhancedAppointmentModal } from "@/components/appointments/EnhancedAppointmentModal";
 import { useDemoOperations } from "@/hooks/useDemoOperations";
 import { GroupWelcomeModal } from "@/components/welcome/GroupWelcomeModal";
 import { useGroupWelcome } from "@/hooks/useGroupWelcome";
@@ -360,7 +361,7 @@ const CalendarPage = () => {
       />
 
       {/* Create appointment modal */}
-      <AppointmentModal
+      <EnhancedAppointmentModal
         isOpen={showAppointmentModal}
         onClose={() => setShowAppointmentModal(false)}
         appointment={undefined}

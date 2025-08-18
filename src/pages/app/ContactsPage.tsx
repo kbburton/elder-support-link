@@ -8,11 +8,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Search, Plus, Users, Phone, Mail } from "lucide-react";
 import SEO from "@/components/layout/SEO";
+import { ContactModal } from "@/components/contacts/ContactModal";
 
 export default function ContactsPage() {
   const { groupId } = useParams();
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const { data: contacts = [], isLoading } = useQuery({
     queryKey: ["contacts", groupId],
@@ -82,7 +84,7 @@ export default function ContactsPage() {
             <Button onClick={() => navigate(`/app/${groupId}/contacts/import`)} variant="outline">
               Import Contacts
             </Button>
-            <Button onClick={() => navigate(`/app/${groupId}/contacts/new`)}>
+            <Button onClick={() => setShowCreateModal(true)}>
               <Plus className="h-4 w-4 mr-2" />
               Add Contact
             </Button>
@@ -125,7 +127,7 @@ export default function ContactsPage() {
               <p className="text-muted-foreground mb-4">
                 {searchTerm ? "No contacts match your search." : "Start by adding your first contact."}
               </p>
-              <Button onClick={() => navigate(`/app/${groupId}/contacts/new`)}>
+              <Button onClick={() => setShowCreateModal(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Contact
               </Button>
@@ -169,6 +171,13 @@ export default function ContactsPage() {
             ))}
           </div>
         )}
+
+        <ContactModal
+          contact={null}
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          groupId={groupId || ''}
+        />
       </div>
     </>
   );

@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { TaskList } from "@/components/tasks/TaskList";
 import { TaskModal } from "@/components/tasks/TaskModal";
+import { EnhancedTaskModal } from "@/components/tasks/EnhancedTaskModal";
 // TaskFilters component will be used inline since it needs different props
 import SEO from "@/components/layout/SEO";
 
@@ -205,7 +206,7 @@ export default function TasksPage() {
         </TabsContent>
       </Tabs>
 
-      <TaskModal
+      <EnhancedTaskModal
         task={null}
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
