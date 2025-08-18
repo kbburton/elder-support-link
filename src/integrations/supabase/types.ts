@@ -51,8 +51,12 @@ export type Database = {
           created_by_email: string | null
           created_by_user_id: string | null
           date_time: string
+          deleted_at: string | null
+          deleted_by_email: string | null
+          deleted_by_user_id: string | null
           group_id: string | null
           id: string
+          is_deleted: boolean
           linked_appointment_id: string | null
           linked_task_id: string | null
           notes: string | null
@@ -65,8 +69,12 @@ export type Database = {
           created_by_email?: string | null
           created_by_user_id?: string | null
           date_time: string
+          deleted_at?: string | null
+          deleted_by_email?: string | null
+          deleted_by_user_id?: string | null
           group_id?: string | null
           id?: string
+          is_deleted?: boolean
           linked_appointment_id?: string | null
           linked_task_id?: string | null
           notes?: string | null
@@ -79,8 +87,12 @@ export type Database = {
           created_by_email?: string | null
           created_by_user_id?: string | null
           date_time?: string
+          deleted_at?: string | null
+          deleted_by_email?: string | null
+          deleted_by_user_id?: string | null
           group_id?: string | null
           id?: string
+          is_deleted?: boolean
           linked_appointment_id?: string | null
           linked_task_id?: string | null
           notes?: string | null
@@ -272,10 +284,14 @@ export type Database = {
           created_by_email: string | null
           created_by_user_id: string | null
           date_time: string
+          deleted_at: string | null
+          deleted_by_email: string | null
+          deleted_by_user_id: string | null
           description: string | null
           duration_minutes: number | null
           group_id: string | null
           id: string
+          is_deleted: boolean
           location: string | null
           outcome_notes: string | null
           reminder_days_before: number | null
@@ -287,10 +303,14 @@ export type Database = {
           created_by_email?: string | null
           created_by_user_id?: string | null
           date_time: string
+          deleted_at?: string | null
+          deleted_by_email?: string | null
+          deleted_by_user_id?: string | null
           description?: string | null
           duration_minutes?: number | null
           group_id?: string | null
           id?: string
+          is_deleted?: boolean
           location?: string | null
           outcome_notes?: string | null
           reminder_days_before?: number | null
@@ -302,10 +322,14 @@ export type Database = {
           created_by_email?: string | null
           created_by_user_id?: string | null
           date_time?: string
+          deleted_at?: string | null
+          deleted_by_email?: string | null
+          deleted_by_user_id?: string | null
           description?: string | null
           duration_minutes?: number | null
           group_id?: string | null
           id?: string
+          is_deleted?: boolean
           location?: string | null
           outcome_notes?: string | null
           reminder_days_before?: number | null
@@ -652,6 +676,9 @@ export type Database = {
           contact_type: Database["public"]["Enums"]["contact_type_enum"]
           created_at: string | null
           created_by_user_id: string
+          deleted_at: string | null
+          deleted_by_email: string | null
+          deleted_by_user_id: string | null
           email_personal: string | null
           email_work: string | null
           emergency_notes: string | null
@@ -661,6 +688,7 @@ export type Database = {
           first_name: string | null
           gender: Database["public"]["Enums"]["gender_enum"] | null
           id: string
+          is_deleted: boolean
           is_emergency_contact: boolean | null
           last_name: string | null
           notes: string | null
@@ -686,6 +714,9 @@ export type Database = {
           contact_type: Database["public"]["Enums"]["contact_type_enum"]
           created_at?: string | null
           created_by_user_id: string
+          deleted_at?: string | null
+          deleted_by_email?: string | null
+          deleted_by_user_id?: string | null
           email_personal?: string | null
           email_work?: string | null
           emergency_notes?: string | null
@@ -695,6 +726,7 @@ export type Database = {
           first_name?: string | null
           gender?: Database["public"]["Enums"]["gender_enum"] | null
           id?: string
+          is_deleted?: boolean
           is_emergency_contact?: boolean | null
           last_name?: string | null
           notes?: string | null
@@ -720,6 +752,9 @@ export type Database = {
           contact_type?: Database["public"]["Enums"]["contact_type_enum"]
           created_at?: string | null
           created_by_user_id?: string
+          deleted_at?: string | null
+          deleted_by_email?: string | null
+          deleted_by_user_id?: string | null
           email_personal?: string | null
           email_work?: string | null
           emergency_notes?: string | null
@@ -729,6 +764,7 @@ export type Database = {
           first_name?: string | null
           gender?: Database["public"]["Enums"]["gender_enum"] | null
           id?: string
+          is_deleted?: boolean
           is_emergency_contact?: boolean | null
           last_name?: string | null
           notes?: string | null
@@ -755,6 +791,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      deletion_audit: {
+        Row: {
+          action: string
+          entity: string
+          group_id: string | null
+          id: string
+          performed_at: string
+          performed_by_email: string | null
+          performed_by_user_id: string
+          previous_links: Json | null
+          record_id: string
+        }
+        Insert: {
+          action: string
+          entity: string
+          group_id?: string | null
+          id?: string
+          performed_at?: string
+          performed_by_email?: string | null
+          performed_by_user_id: string
+          previous_links?: Json | null
+          record_id: string
+        }
+        Update: {
+          action?: string
+          entity?: string
+          group_id?: string | null
+          id?: string
+          performed_at?: string
+          performed_by_email?: string | null
+          performed_by_user_id?: string
+          previous_links?: Json | null
+          record_id?: string
+        }
+        Relationships: []
       }
       demo_analytics: {
         Row: {
@@ -887,12 +959,16 @@ export type Database = {
         Row: {
           category: string | null
           created_at: string
+          deleted_at: string | null
+          deleted_by_email: string | null
+          deleted_by_user_id: string | null
           file_size: number | null
           file_type: string | null
           file_url: string | null
           full_text: string | null
           group_id: string | null
           id: string
+          is_deleted: boolean
           notes: string | null
           original_filename: string | null
           processing_status: string | null
@@ -905,12 +981,16 @@ export type Database = {
         Insert: {
           category?: string | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by_email?: string | null
+          deleted_by_user_id?: string | null
           file_size?: number | null
           file_type?: string | null
           file_url?: string | null
           full_text?: string | null
           group_id?: string | null
           id?: string
+          is_deleted?: boolean
           notes?: string | null
           original_filename?: string | null
           processing_status?: string | null
@@ -923,12 +1003,16 @@ export type Database = {
         Update: {
           category?: string | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by_email?: string | null
+          deleted_by_user_id?: string | null
           file_size?: number | null
           file_type?: string | null
           file_url?: string | null
           full_text?: string | null
           group_id?: string | null
           id?: string
+          is_deleted?: boolean
           notes?: string | null
           original_filename?: string | null
           processing_status?: string | null
@@ -1431,10 +1515,14 @@ export type Database = {
           created_at: string
           created_by_email: string | null
           created_by_user_id: string | null
+          deleted_at: string | null
+          deleted_by_email: string | null
+          deleted_by_user_id: string | null
           description: string | null
           due_date: string | null
           group_id: string | null
           id: string
+          is_deleted: boolean
           primary_owner_id: string | null
           priority: Database["public"]["Enums"]["task_priority"] | null
           secondary_owner_id: string | null
@@ -1450,10 +1538,14 @@ export type Database = {
           created_at?: string
           created_by_email?: string | null
           created_by_user_id?: string | null
+          deleted_at?: string | null
+          deleted_by_email?: string | null
+          deleted_by_user_id?: string | null
           description?: string | null
           due_date?: string | null
           group_id?: string | null
           id?: string
+          is_deleted?: boolean
           primary_owner_id?: string | null
           priority?: Database["public"]["Enums"]["task_priority"] | null
           secondary_owner_id?: string | null
@@ -1469,10 +1561,14 @@ export type Database = {
           created_at?: string
           created_by_email?: string | null
           created_by_user_id?: string | null
+          deleted_at?: string | null
+          deleted_by_email?: string | null
+          deleted_by_user_id?: string | null
           description?: string | null
           due_date?: string | null
           group_id?: string | null
           id?: string
+          is_deleted?: boolean
           primary_owner_id?: string | null
           priority?: Database["public"]["Enums"]["task_priority"] | null
           secondary_owner_id?: string | null
@@ -1584,6 +1680,10 @@ export type Database = {
           success: boolean
         }[]
       }
+      current_user_email: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       get_invitation_by_token: {
         Args: { invitation_token: string }
         Returns: {
@@ -1668,8 +1768,24 @@ export type Database = {
         }
         Returns: undefined
       }
+      log_deletion_action: {
+        Args: {
+          p_action: string
+          p_actor_email: string
+          p_actor_user_id: string
+          p_entity: string
+          p_group_id: string
+          p_previous_links?: Json
+          p_record_id: string
+        }
+        Returns: undefined
+      }
       log_group_access: {
         Args: { p_group_id: string }
+        Returns: undefined
+      }
+      purge_soft_deleted: {
+        Args: Record<PropertyKey, never>
         Returns: undefined
       }
       rebuild_search_index: {
@@ -1682,6 +1798,64 @@ export type Database = {
       }
       remove_from_index: {
         Args: { p_entity_id: string; p_entity_type: string }
+        Returns: undefined
+      }
+      restore_activity: {
+        Args:
+          | { p_activity_id: string }
+          | {
+              p_activity_id: string
+              p_actor_email: string
+              p_actor_user_id: string
+            }
+          | { p_activity_id: string; p_by_email: string; p_by_user_id: string }
+        Returns: undefined
+      }
+      restore_appointment: {
+        Args:
+          | {
+              p_actor_email: string
+              p_actor_user_id: string
+              p_appointment_id: string
+            }
+          | { p_appointment_id: string }
+          | {
+              p_appointment_id: string
+              p_by_email: string
+              p_by_user_id: string
+            }
+        Returns: undefined
+      }
+      restore_contact: {
+        Args:
+          | {
+              p_actor_email: string
+              p_actor_user_id: string
+              p_contact_id: string
+            }
+          | { p_contact_id: string }
+        Returns: undefined
+      }
+      restore_document: {
+        Args:
+          | {
+              p_actor_email: string
+              p_actor_user_id: string
+              p_document_id: string
+            }
+          | { p_by_email: string; p_by_user_id: string; p_document_id: string }
+          | { p_document_id: string }
+        Returns: undefined
+      }
+      restore_task: {
+        Args:
+          | {
+              p_actor_email: string
+              p_actor_user_id: string
+              p_task_id: string
+            }
+          | { p_by_email: string; p_by_user_id: string; p_task_id: string }
+          | { p_task_id: string }
         Returns: undefined
       }
       retry_search_job: {
@@ -1714,6 +1888,55 @@ export type Database = {
       show_trgm: {
         Args: { "": string }
         Returns: string[]
+      }
+      soft_delete_activity: {
+        Args:
+          | { p_activity_id: string }
+          | {
+              p_activity_id: string
+              p_actor_email: string
+              p_actor_user_id: string
+            }
+          | { p_activity_id: string; p_by_email: string; p_by_user_id: string }
+        Returns: undefined
+      }
+      soft_delete_appointment: {
+        Args:
+          | { p_appointment_id: string }
+          | {
+              p_appointment_id: string
+              p_by_email: string
+              p_by_user_id: string
+            }
+        Returns: undefined
+      }
+      soft_delete_contact: {
+        Args:
+          | { p_by_email: string; p_by_user_id: string; p_contact_id: string }
+          | { p_contact_id: string }
+        Returns: undefined
+      }
+      soft_delete_document: {
+        Args:
+          | {
+              p_actor_email: string
+              p_actor_user_id: string
+              p_document_id: string
+            }
+          | { p_by_email: string; p_by_user_id: string; p_document_id: string }
+          | { p_document_id: string }
+        Returns: undefined
+      }
+      soft_delete_task: {
+        Args:
+          | {
+              p_actor_email: string
+              p_actor_user_id: string
+              p_task_id: string
+            }
+          | { p_by_email: string; p_by_user_id: string; p_task_id: string }
+          | { p_task_id: string }
+        Returns: undefined
       }
       unaccent: {
         Args: { "": string }
