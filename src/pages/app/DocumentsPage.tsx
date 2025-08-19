@@ -32,10 +32,12 @@ export default function DocumentsPage() {
   const demo = useDemo();
 
   // Fetch documents with uploader profile information
-  const { data: documents = [], isLoading, refetch } = useQuery({
+  const { data: documents = [], isLoading, refetch, error: queryError } = useQuery({
     queryKey: ["documents", groupId],
     queryFn: async () => {
+      console.log("Documents query starting for groupId:", groupId);
       if (!groupId || groupId === ':groupId' || groupId === 'undefined' || groupId.startsWith(':')) {
+        console.log("Invalid groupId, returning empty array");
         return [];
       }
       
@@ -53,11 +55,17 @@ export default function DocumentsPage() {
         .eq("is_deleted", false)
         .order("created_at", { ascending: false });
       
-      if (error) throw error;
+      console.log("Documents query result:", { data, error, groupId });
+      if (error) {
+        console.error("Documents query error:", error);
+        throw error;
+      }
       return data || [];
     },
     enabled: !!groupId && groupId !== ':groupId' && groupId !== 'undefined' && !groupId.startsWith(':'),
   });
+
+  console.log("Documents component state:", { documents, isLoading, queryError, groupId });
 
   const blockOperation = () => {
     if (demo.isDemo) {
