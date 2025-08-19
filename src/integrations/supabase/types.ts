@@ -1824,6 +1824,18 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      get_group_members: {
+        Args: { p_group_id: string }
+        Returns: {
+          display_name: string
+          email: string
+          first_name: string
+          is_admin: boolean
+          last_name: string
+          role: string
+          user_id: string
+        }[]
+      }
       get_invitation_by_token: {
         Args: { invitation_token: string }
         Returns: {
