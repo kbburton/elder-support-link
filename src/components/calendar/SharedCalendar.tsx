@@ -303,8 +303,10 @@ export default function SharedCalendar(props: SharedCalendarProps) {
   }
 
   function ListView() {
+    // For list view, only show appointments, not tasks
+    const appointmentEvents = events.filter(e => e.type === "appointment");
     const byDay = new Map<string, CalendarEvent[]>();
-    events.forEach(e => {
+    appointmentEvents.forEach(e => {
       const key = format(e.start, "yyyy-MM-dd");
       if (!byDay.has(key)) byDay.set(key, []);
       byDay.get(key)!.push(e);

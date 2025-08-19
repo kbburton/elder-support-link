@@ -7,6 +7,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,12 +31,13 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { AssociationManager } from "@/components/shared/AssociationManager";
 import { useDemoOperations } from "@/hooks/useDemoOperations";
+import { softDeleteEntity } from "@/lib/delete/rpc";
 
 interface Appointment {
   id: string;
@@ -60,6 +71,7 @@ export function EnhancedAppointmentModal({
   });
   const [dateTime, setDateTime] = useState<Date>(new Date());
   const [timeValue, setTimeValue] = useState("09:00");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -110,6 +122,8 @@ export function EnhancedAppointmentModal({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["appointments-list"] });
+      queryClient.invalidateQueries({ queryKey: ["calendar-appointments"] });
       toast({
         title: "Appointment created",
         description: "Appointment has been created successfully.",
@@ -136,6 +150,8 @@ export function EnhancedAppointmentModal({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["appointments-list"] });
+      queryClient.invalidateQueries({ queryKey: ["calendar-appointments"] });
       toast({
         title: "Appointment updated",
         description: "Appointment has been updated successfully.",
@@ -146,6 +162,37 @@ export function EnhancedAppointmentModal({
       toast({
         title: "Error",
         description: "Failed to update appointment.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteAppointment = useMutation({
+    mutationFn: async () => {
+      if (!appointment) throw new Error("No appointment to delete");
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+      
+      const result = await softDeleteEntity('appointment', appointment.id, user.id, user.email!);
+      if (!result.success) {
+        throw new Error(result.error || 'Delete failed');
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["appointments-list"] });
+      queryClient.invalidateQueries({ queryKey: ["calendar-appointments"] });
+      toast({
+        title: "Appointment deleted",
+        description: "The appointment has been deleted and can be restored from group settings within 30 days.",
+      });
+      onClose();
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to delete appointment.",
         variant: "destructive",
       });
     },
@@ -171,6 +218,16 @@ export function EnhancedAppointmentModal({
     } else {
       createAppointment.mutate(submitData);
     }
+  };
+
+  const handleDelete = () => {
+    if (blockOperation()) return;
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = () => {
+    deleteAppointment.mutate();
+    setShowDeleteConfirm(false);
   };
 
   const handleNavigate = (type: string, id: string) => {
@@ -327,6 +384,17 @@ export function EnhancedAppointmentModal({
               <Button type="submit" disabled={createAppointment.isPending || updateAppointment.isPending}>
                 {appointment ? "Update" : "Create"} Appointment
               </Button>
+              {appointment && (
+                <Button 
+                  type="button" 
+                  variant="destructive" 
+                  onClick={handleDelete}
+                  disabled={deleteAppointment.isPending}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </Button>
+              )}
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
               </Button>
@@ -346,6 +414,27 @@ export function EnhancedAppointmentModal({
           )}
         </div>
       </DialogContent>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Appointment</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this appointment? This action will soft delete the item and it can be restored from group settings within 30 days.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete Appointment
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

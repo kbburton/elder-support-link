@@ -7,6 +7,7 @@ import { Plus, CheckSquare, Square, Trash2, X } from "lucide-react";
 import SharedCalendar, { CalendarEvent } from "@/components/calendar/SharedCalendar";
 import { EnhancedAppointmentModal } from "@/components/appointments/EnhancedAppointmentModal";
 import { EnhancedTaskModal } from "@/components/tasks/EnhancedTaskModal";
+import { AppointmentListView } from "@/components/calendar/AppointmentListView";
 import { useDemoOperations } from "@/hooks/useDemoOperations";
 import { GroupWelcomeModal } from "@/components/welcome/GroupWelcomeModal";
 import { useGroupWelcome } from "@/hooks/useGroupWelcome";
@@ -353,19 +354,12 @@ const CalendarPage = () => {
         </TabsContent>
 
         <TabsContent value="list">
-          <SharedCalendar
-            view="list"
-            selectedDate={selectedDate}
-            onSelectedDateChange={setSelectedDate}
-            showLegend={true}
+          <AppointmentListView
             groupId={groupId}
-            excludeDeleted={true}
-            selectMode={selectMode}
-            isSelected={isSelected}
-            onToggleSelect={onToggleSelect}
-            onEventDelete={singleDeleteHandler}
-            onEventsLoaded={setVisibleEvents}
-            onEventSelect={handleEventSelect}
+            onEdit={(appointment) => {
+              setSelectedAppointment(appointment);
+              setShowAppointmentModal(true);
+            }}
           />
         </TabsContent>
       </Tabs>
