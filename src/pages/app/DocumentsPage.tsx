@@ -43,7 +43,7 @@ export default function DocumentsPage() {
         .from("documents")
         .select(`
           *,
-          uploader:profiles!documents_uploaded_by_user_id_fkey(
+          uploader:profiles!uploaded_by_user_id(
             first_name,
             last_name,
             email
