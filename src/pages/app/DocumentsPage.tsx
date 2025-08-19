@@ -41,16 +41,10 @@ export default function DocumentsPage() {
         return [];
       }
       
+      // First get documents without the profiles join to make it work
       const { data, error } = await supabase
         .from("documents")
-        .select(`
-          *,
-          uploader:profiles!uploaded_by_user_id(
-            first_name,
-            last_name,
-            email
-          )
-        `)
+        .select("*")
         .eq("group_id", groupId)
         .eq("is_deleted", false)
         .order("created_at", { ascending: false });
@@ -60,6 +54,26 @@ export default function DocumentsPage() {
         console.error("Documents query error:", error);
         throw error;
       }
+
+      // Get uploader info separately if we have documents
+      if (data && data.length > 0) {
+        const uploaderIds = [...new Set(data.map(doc => doc.uploaded_by_user_id).filter(Boolean))];
+        if (uploaderIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("user_id, first_name, last_name, email")
+            .in("user_id", uploaderIds);
+          
+          // Attach uploader info to documents
+          const documentsWithUploaders = data.map(doc => ({
+            ...doc,
+            uploader: profiles?.find(p => p.user_id === doc.uploaded_by_user_id) || null
+          }));
+          
+          return documentsWithUploaders;
+        }
+      }
+      
       return data || [];
     },
     enabled: !!groupId && groupId !== ':groupId' && groupId !== 'undefined' && !groupId.startsWith(':'),
