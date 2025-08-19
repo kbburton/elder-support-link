@@ -16,16 +16,33 @@ interface Association {
 
 // Junction table mapping for all bidirectional relationships
 const JUNCTION_TABLES = {
+  // Activity associations
   "activity-appointment": "appointment_activities",
+  "appointment-activity": "appointment_activities",
   "activity-contact": "contact_activities",
+  "contact-activity": "contact_activities",
   "activity-document": "activity_documents",
+  "document-activity": "activity_documents",
   "activity-task": "task_activities",
+  "task-activity": "task_activities",
+  
+  // Appointment associations
   "appointment-contact": "contact_appointments",
+  "contact-appointment": "contact_appointments",
   "appointment-document": "appointment_documents", 
+  "document-appointment": "appointment_documents",
   "appointment-task": "appointment_tasks",
+  "task-appointment": "appointment_tasks",
+  
+  // Contact associations
   "contact-document": "contact_documents",
+  "document-contact": "contact_documents",
   "contact-task": "contact_tasks",
-  "document-task": "task_documents"
+  "task-contact": "contact_tasks",
+  
+  // Document-Task association
+  "document-task": "task_documents",
+  "task-document": "task_documents"
 } as const;
 
 // Column mapping for junction tables
@@ -74,24 +91,10 @@ export function useAssociations(entityId: string, entityType: EntityType) {
         let ourColumn: string;
         let targetColumn: string;
         
-        // Use explicit column mapping for problematic combinations
-        if (entityType === "task" && targetType === "document") {
-          ourColumn = "task_id";
-          targetColumn = "document_id";
-        } else if (entityType === "document" && targetType === "task") {
-          ourColumn = "document_id";
-          targetColumn = "task_id";
-        } else if (entityType === "activity" && targetType === "document") {
-          ourColumn = "activity_log_id";
-          targetColumn = "document_id";
-        } else if (entityType === "document" && targetType === "activity") {
-          ourColumn = "document_id";
-          targetColumn = "activity_log_id";
-        } else {
-          // For other combinations, use the alphabetical mapping
-          ourColumn = type1 === entityType ? columns.left : columns.right;
-          targetColumn = type1 === entityType ? columns.right : columns.left;
-        }
+        // Use the alphabetical mapping from COLUMN_MAPPING
+        const isFirstType = entityType === type1;
+        ourColumn = isFirstType ? columns.left : columns.right;
+        targetColumn = isFirstType ? columns.right : columns.left;
         
         // Build the query based on target entity type
         let selectClause = "";
@@ -251,28 +254,10 @@ export function useCreateAssociation() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
       
-      // Determine which ID goes in which column based on the actual entity types, not alphabetical order
-      let entityColumn: string;
-      let targetColumn: string;
-      
-      if (entityType === "task" && targetType === "document") {
-        entityColumn = "task_id";
-        targetColumn = "document_id";
-      } else if (entityType === "document" && targetType === "task") {
-        entityColumn = "document_id"; 
-        targetColumn = "task_id";
-      } else if (entityType === "activity" && targetType === "document") {
-        entityColumn = "activity_log_id";
-        targetColumn = "document_id";
-      } else if (entityType === "document" && targetType === "activity") {
-        entityColumn = "document_id";
-        targetColumn = "activity_log_id";
-      } else {
-        // For other combinations, use the alphabetical mapping
-        const isFirstType = entityType === type1;
-        entityColumn = isFirstType ? columns.left : columns.right;
-        targetColumn = isFirstType ? columns.right : columns.left;
-      }
+      // Determine which ID goes in which column using alphabetical mapping
+      const isFirstType = entityType === type1;
+      const entityColumn = isFirstType ? columns.left : columns.right;
+      const targetColumn = isFirstType ? columns.right : columns.left;
       
       // Build insert data - only include created_by_user_id for tables that have it
       const insertData: any = {
@@ -358,28 +343,10 @@ export function useRemoveAssociation() {
       const columns = COLUMN_MAPPING[junctionTable as keyof typeof COLUMN_MAPPING];
       const [type1, type2] = getJunctionTableKey(entityType, targetType).split('-') as [EntityType, EntityType];
       
-      // Determine which ID goes in which column based on the actual entity types, not alphabetical order
-      let entityColumn: string;
-      let targetColumn: string;
-      
-      if (entityType === "task" && targetType === "document") {
-        entityColumn = "task_id";
-        targetColumn = "document_id";
-      } else if (entityType === "document" && targetType === "task") {
-        entityColumn = "document_id"; 
-        targetColumn = "task_id";
-      } else if (entityType === "activity" && targetType === "document") {
-        entityColumn = "activity_log_id";
-        targetColumn = "document_id";
-      } else if (entityType === "document" && targetType === "activity") {
-        entityColumn = "document_id";
-        targetColumn = "activity_log_id";
-      } else {
-        // For other combinations, use the alphabetical mapping
-        const isFirstType = entityType === type1;
-        entityColumn = isFirstType ? columns.left : columns.right;
-        targetColumn = isFirstType ? columns.right : columns.left;
-      }
+      // Determine which ID goes in which column using alphabetical mapping
+      const isFirstType = entityType === type1;
+      const entityColumn = isFirstType ? columns.left : columns.right;
+      const targetColumn = isFirstType ? columns.right : columns.left;
       
       const { error } = await supabase
         .from(junctionTable as any)
