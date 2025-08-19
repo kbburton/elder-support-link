@@ -216,9 +216,7 @@ export function AssociationManager({
         
         if (documentQuery) {
           const { data: documentLinks, error: docError } = await documentQuery;
-          console.log('Document query debug:', { entityType, entityId, documentLinks, docError });
           documentLinks?.forEach((link: any) => {
-            console.log('Processing document link:', link);
             const doc = link.documents;
             if (doc) {
               associations.push({

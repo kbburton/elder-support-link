@@ -52,6 +52,8 @@ interface Task {
   completed_at?: string;
   completed_by_email?: string;
   completed_by_user_id?: string;
+  primary_owner_id?: string;
+  secondary_owner_id?: string;
 }
 
 interface EnhancedTaskModalProps {
@@ -78,15 +80,18 @@ export function EnhancedTaskModal({ task, isOpen, onClose, groupId }: EnhancedTa
   const [completedBy, setCompletedBy] = useState<string>(
     task?.completed_by_user_id || ""
   );
+  const [primaryOwner, setPrimaryOwner] = useState<string>(
+    task?.primary_owner_id || ""
+  );
+  const [secondaryOwner, setSecondaryOwner] = useState<string>(
+    task?.secondary_owner_id || ""
+  );
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const demo = useDemo();
   const { data: groupMembers = [], isLoading: membersLoading, error: membersError } = useGroupMembers(groupId);
-  
-  // Debug logging
-  console.log('GroupMembers Debug:', { groupId, groupMembers, membersLoading, membersError });
 
   const blockOperation = () => {
     if (demo.isDemo) {
@@ -113,6 +118,8 @@ export function EnhancedTaskModal({ task, isOpen, onClose, groupId }: EnhancedTa
       setDueDate(task.due_date ? new Date(task.due_date) : undefined);
       setCompletedAt(task.completed_at ? new Date(task.completed_at) : undefined);
       setCompletedBy(task.completed_by_user_id || "");
+      setPrimaryOwner(task.primary_owner_id || "");
+      setSecondaryOwner(task.secondary_owner_id || "");
     } else {
       setFormData({
         title: "",
@@ -124,6 +131,8 @@ export function EnhancedTaskModal({ task, isOpen, onClose, groupId }: EnhancedTa
       setDueDate(undefined);
       setCompletedAt(undefined);
       setCompletedBy("");
+      setPrimaryOwner("");
+      setSecondaryOwner("");
     }
   }, [task]);
 
@@ -133,8 +142,12 @@ export function EnhancedTaskModal({ task, isOpen, onClose, groupId }: EnhancedTa
       // Auto-populate completion fields when changing TO completed
       setCompletedAt(new Date());
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setCompletedBy(user.id);
+      if (user && groupMembers.length > 0) {
+        // Find the current user in the group members list
+        const currentMember = groupMembers.find(member => member.email === user.email);
+        if (currentMember) {
+          setCompletedBy(currentMember.id);
+        }
       }
     } else if (newStatus !== "Completed" && formData.status === "Completed") {
       // Clear completion fields when changing AWAY from completed
@@ -252,6 +265,8 @@ export function EnhancedTaskModal({ task, isOpen, onClose, groupId }: EnhancedTa
       due_date: dueDate ? dueDate.toISOString().split("T")[0] : null,
       completed_at: formData.status === "Completed" && completedAt ? completedAt.toISOString() : null,
       completed_by_user_id: formData.status === "Completed" && completedBy ? completedBy : null,
+      primary_owner_id: primaryOwner || null,
+      secondary_owner_id: secondaryOwner || null,
     };
 
     if (task) {
@@ -413,6 +428,46 @@ export function EnhancedTaskModal({ task, isOpen, onClose, groupId }: EnhancedTa
                       />
                     </PopoverContent>
                   </Popover>
+                </div>
+              </div>
+              {/* Assignment Fields */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Primary Owner</Label>
+                  <Select
+                    value={primaryOwner}
+                    onValueChange={setPrimaryOwner}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select primary owner" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {groupMembers.map((member) => (
+                        <SelectItem key={member.id} value={member.id}>
+                          {member.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label>Secondary Owner</Label>
+                  <Select
+                    value={secondaryOwner}
+                    onValueChange={setSecondaryOwner}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select secondary owner" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {groupMembers.map((member) => (
+                        <SelectItem key={member.id} value={member.id}>
+                          {member.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </div>

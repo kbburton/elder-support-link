@@ -5,9 +5,7 @@ export function useGroupMembers(groupId: string) {
   return useQuery({
     queryKey: ['group-members', groupId],
     queryFn: async () => {
-      console.log('useGroupMembers: Fetching members for groupId:', groupId);
       if (!groupId) {
-        console.log('useGroupMembers: No groupId provided');
         return [];
       }
       
@@ -20,11 +18,8 @@ export function useGroupMembers(groupId: string) {
         .eq('group_id', groupId);
 
       if (error) {
-        console.error('useGroupMembers: Error fetching members:', error);
         throw error;
       }
-
-      console.log('useGroupMembers: Raw members data:', members);
 
       const processedMembers = members?.map((member: any) => ({
         id: member.user_id,
@@ -32,7 +27,6 @@ export function useGroupMembers(groupId: string) {
         name: `${member.profiles?.first_name || ''} ${member.profiles?.last_name || ''}`.trim() || member.profiles?.email || 'Unknown'
       })) || [];
       
-      console.log('useGroupMembers: Processed members:', processedMembers);
       return processedMembers;
     },
     enabled: !!groupId
