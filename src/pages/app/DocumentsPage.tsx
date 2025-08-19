@@ -1,22 +1,37 @@
 import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useParams } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Search, Plus, FileText, Download, Calendar } from "lucide-react";
+import { Plus, FileText, Link as LinkIcon } from "lucide-react";
 import SEO from "@/components/layout/SEO";
 import { DocumentUpload } from "@/components/documents/DocumentUpload";
-import { format } from "date-fns";
+import { DocumentModal } from "@/components/documents/DocumentModal";
+import { UnifiedTableView, TableColumn } from "@/components/shared/UnifiedTableView";
+import { Badge } from "@/components/ui/badge";
+import { format, formatDistanceToNow } from "date-fns";
+import { softDeleteEntity, bulkSoftDelete } from "@/lib/delete/rpc";
+import { useToast } from "@/hooks/use-toast";
+import { useDemo } from "@/hooks/useDemo";
+
+const formatFileSize = (bytes?: number) => {
+  if (!bytes) return 'Unknown';
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+};
 
 export default function DocumentsPage() {
   const { groupId } = useParams();
-  const navigate = useNavigate();
-  const [searchTerm, setSearchTerm] = useState("");
   const [showUpload, setShowUpload] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState<any>(null);
+  const [showDocumentModal, setShowDocumentModal] = useState(false);
 
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const demo = useDemo();
+
+  // Fetch documents with uploader profile information
   const { data: documents = [], isLoading, refetch } = useQuery({
     queryKey: ["documents", groupId],
     queryFn: async () => {
@@ -26,7 +41,14 @@ export default function DocumentsPage() {
       
       const { data, error } = await supabase
         .from("documents")
-        .select("*")
+        .select(`
+          *,
+          uploader:profiles!documents_uploaded_by_user_id_fkey(
+            first_name,
+            last_name,
+            email
+          )
+        `)
         .eq("group_id", groupId)
         .eq("is_deleted", false)
         .order("created_at", { ascending: false });
@@ -37,38 +59,188 @@ export default function DocumentsPage() {
     enabled: !!groupId && groupId !== ':groupId' && groupId !== 'undefined' && !groupId.startsWith(':'),
   });
 
-  const filteredDocuments = documents.filter(doc => {
-    const searchLower = searchTerm.toLowerCase();
-    return (doc.title?.toLowerCase() || '').includes(searchLower) ||
-           (doc.category?.toLowerCase() || '').includes(searchLower) ||
-           (doc.original_filename?.toLowerCase() || '').includes(searchLower);
+  const blockOperation = () => {
+    if (demo.isDemo) {
+      toast({
+        title: "Demo Mode",
+        description: "This action is not available in demo mode.",
+        variant: "destructive",
+      });
+      return true;
+    }
+    return false;
+  };
+
+  // Delete mutations
+  const deleteDocumentMutation = useMutation({
+    mutationFn: async (documentId: string) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      
+      await softDeleteEntity("document", documentId, user.id, user.email || "");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      toast({
+        title: "Document deleted",
+        description: "Document has been moved to trash.",
+      });
+    },
+    onError: (error) => {
+      console.error("Delete error:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete document.",
+        variant: "destructive",
+      });
+    },
   });
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed': return 'bg-green-100 text-green-800';
-      case 'processing': return 'bg-yellow-100 text-yellow-800';
-      case 'pending': return 'bg-blue-100 text-blue-800';
-      case 'failed': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (documentIds: string[]) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      
+      await bulkSoftDelete("document", documentIds, user.id, user.email || "");
+    },
+    onSuccess: (_, documentIds) => {
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      toast({
+        title: "Documents deleted",
+        description: `${documentIds.length} document(s) moved to trash.`,
+      });
+    },
+    onError: (error) => {
+      console.error("Bulk delete error:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete documents.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleEditDocument = (document: any) => {
+    if (blockOperation()) return;
+    setSelectedDocument(document);
+    setShowDocumentModal(true);
+  };
+
+  const handleDeleteDocument = (documentId: string) => {
+    if (blockOperation()) return;
+    deleteDocumentMutation.mutate(documentId);
+  };
+
+  const handleBulkDelete = (documentIds: string[]) => {
+    if (blockOperation()) return;
+    bulkDeleteMutation.mutate(documentIds);
+  };
+
+  const getUploaderDisplay = (document: any) => {
+    if (document.uploader) {
+      const name = [document.uploader.first_name, document.uploader.last_name]
+        .filter(Boolean)
+        .join(' ') || document.uploader.email;
+      const timeAgo = formatDistanceToNow(new Date(document.upload_date || document.created_at), { addSuffix: true });
+      return `${name} uploaded ${timeAgo}`;
     }
+    return `Uploaded ${formatDistanceToNow(new Date(document.upload_date || document.created_at), { addSuffix: true })}`;
   };
 
   const getCategoryColor = (category: string) => {
     switch (category?.toLowerCase()) {
-      case 'medical': return 'bg-red-100 text-red-800';
-      case 'legal': return 'bg-purple-100 text-purple-800';
-      case 'financial': return 'bg-green-100 text-green-800';
-      case 'insurance': return 'bg-blue-100 text-blue-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'medical': return 'destructive';
+      case 'legal': return 'secondary';
+      case 'financial': return 'default';
+      case 'insurance': return 'outline';
+      default: return 'secondary';
     }
   };
 
-  const handleDownload = (doc: any) => {
-    if (doc.file_url) {
-      window.open(doc.file_url, '_blank');
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed': return 'default';
+      case 'processing': return 'secondary';
+      case 'pending': return 'outline';
+      case 'failed': return 'destructive';
+      default: return 'secondary';
     }
   };
+
+  // Define table columns
+  const columns: TableColumn[] = [
+    {
+      key: "title",
+      label: "Title",
+      sortable: true,
+      render: (value, row) => (
+        <div className="font-medium">
+          {value || row.original_filename || "Untitled Document"}
+        </div>
+      ),
+    },
+    {
+      key: "original_filename", 
+      label: "Original Filename",
+      sortable: true,
+      render: (value) => (
+        <div className="font-mono text-xs max-w-48 truncate" title={value}>
+          {value || "Unknown"}
+        </div>
+      ),
+    },
+    {
+      key: "file_type",
+      label: "Type",
+      render: (value) => (
+        <Badge variant="outline" className="font-mono text-xs">
+          {value || "Unknown"}
+        </Badge>
+      ),
+    },
+    {
+      key: "file_size",
+      label: "Size", 
+      sortable: true,
+      render: (value) => (
+        <span className="text-sm font-mono">{formatFileSize(value)}</span>
+      ),
+    },
+    {
+      key: "notes",
+      label: "Notes",
+      render: (value) => value ? (
+        <div className="max-w-xs">
+          <div className="line-clamp-2 text-sm text-muted-foreground">{value}</div>
+        </div>
+      ) : "-",
+    },
+    {
+      key: "summary",
+      label: "Summary",
+      render: (value) => value ? (
+        <div className="max-w-xs">
+          <div className="line-clamp-2 text-sm text-muted-foreground">{value}</div>
+        </div>
+      ) : "-",
+    },
+    {
+      key: "uploader",
+      label: "Uploader",
+      render: (_, row) => (
+        <div className="text-sm">{getUploaderDisplay(row)}</div>
+      ),
+    },
+    {
+      key: "category",
+      label: "Category",
+      type: "badge",
+      getBadgeVariant: getCategoryColor,
+      render: (value) => value ? (
+        <Badge variant={getCategoryColor(value)}>{value}</Badge>
+      ) : "-",
+    },
+  ];
 
   if (!groupId || groupId === ':groupId' || groupId === 'undefined' || groupId.startsWith(':')) {
     return (
@@ -85,108 +257,54 @@ export default function DocumentsPage() {
         title="Documents - Care Coordination"
         description="Manage and organize important documents for your care group."
       />
-      <div className="container mx-auto p-6">
-        <div className="flex items-center justify-between mb-6">
+      <div className="container mx-auto p-4 space-y-6">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <FileText className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold">Documents</h1>
+            <div>
+              <h1 className="text-3xl font-bold">Documents</h1>
+              <p className="text-muted-foreground">
+                Manage and organize important documents for your care group
+              </p>
+            </div>
           </div>
           <Button onClick={() => setShowUpload(true)}>
-            <Plus className="h-4 w-4 mr-2" />
+            <Plus className="mr-2 h-4 w-4" />
             Upload Document
           </Button>
         </div>
 
-        <div className="mb-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-            <Input
-              placeholder="Search documents..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </div>
-
-        {isLoading ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {[...Array(6)].map((_, i) => (
-              <Card key={i} className="animate-pulse">
-                <CardHeader>
-                  <div className="h-4 bg-muted rounded w-3/4"></div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <div className="h-3 bg-muted rounded"></div>
-                    <div className="h-3 bg-muted rounded w-1/2"></div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : filteredDocuments.length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-center">
-              <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No documents found</h3>
-              <p className="text-muted-foreground mb-4">
-                {searchTerm ? "No documents match your search." : "Start by uploading your first document."}
-              </p>
-              <Button onClick={() => setShowUpload(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Upload Document
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredDocuments.map((doc) => (
-              <Card key={doc.id} className="hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <CardTitle className="flex items-start justify-between">
-                    <span className="truncate">{doc.title || doc.original_filename || 'Untitled Document'}</span>
-                    <div className="flex gap-1 ml-2">
-                      {doc.category && (
-                        <Badge className={getCategoryColor(doc.category)} variant="secondary">
-                          {doc.category}
-                        </Badge>
-                      )}
-                      <Badge className={getStatusColor(doc.processing_status)} variant="secondary">
-                        {doc.processing_status}
-                      </Badge>
-                    </div>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {doc.summary && (
-                      <p className="text-sm text-muted-foreground line-clamp-2">
-                        {doc.summary}
-                      </p>
-                    )}
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Calendar className="h-4 w-4" />
-                      <span>Uploaded {format(new Date(doc.upload_date), 'MMM dd, yyyy')}</span>
-                    </div>
-                    <div className="flex gap-2">
-                      {doc.file_url && (
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleDownload(doc)}
-                        >
-                          <Download className="h-4 w-4 mr-1" />
-                          Download
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+        <UnifiedTableView
+          title=""
+          data={documents}
+          columns={columns}
+          loading={isLoading}
+          onEdit={handleEditDocument}
+          onDelete={handleDeleteDocument}
+          onBulkDelete={handleBulkDelete}
+          searchable={true}
+          searchPlaceholder="Search documents..."
+          defaultSortBy="created_at"
+          defaultSortOrder="desc"
+          entityType="document"
+          getItemTitle={(item) => item.title || item.original_filename || "Untitled Document"}
+          emptyMessage="No documents found"
+          emptyDescription="Start by uploading your first document."
+          customActions={(item) => (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSelectedDocument(item);
+                setShowDocumentModal(true);
+              }}
+              disabled={demo.isDemo}
+              title="Link to other items"
+            >
+              <LinkIcon className="h-4 w-4" />
+            </Button>
+          )}
+        />
 
         {showUpload && (
           <DocumentUpload
@@ -197,6 +315,16 @@ export default function DocumentsPage() {
             onClose={() => setShowUpload(false)}
           />
         )}
+
+        <DocumentModal
+          document={selectedDocument}
+          isOpen={showDocumentModal}
+          onClose={() => {
+            setShowDocumentModal(false);
+            setSelectedDocument(null);
+          }}
+          groupId={groupId}
+        />
       </div>
     </>
   );

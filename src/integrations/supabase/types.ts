@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_documents: {
+        Row: {
+          activity_log_id: string
+          created_at: string
+          created_by_user_id: string | null
+          document_id: string
+          id: string
+        }
+        Insert: {
+          activity_log_id: string
+          created_at?: string
+          created_by_user_id?: string | null
+          document_id: string
+          id?: string
+        }
+        Update: {
+          activity_log_id?: string
+          created_at?: string
+          created_by_user_id?: string | null
+          document_id?: string
+          id?: string
+        }
+        Relationships: []
+      }
       activity_log_comments: {
         Row: {
           activity_log_id: string

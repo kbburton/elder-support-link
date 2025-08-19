@@ -27,11 +27,25 @@ interface Appointment {
   date_time: string;
 }
 
+interface Contact {
+  id: string;
+  first_name: string;
+  last_name: string;
+  organization_name: string;
+}
+
+interface Activity {
+  id: string;
+  title: string;
+  type: string;
+  date_time: string;
+}
+
 export const DocumentLinker = ({ documentId, documentTitle, onLinksChange }: DocumentLinkerProps) => {
   const { groupId } = useParams();
   const { toast } = useToast();
   const [showDialog, setShowDialog] = useState(false);
-  const [linkType, setLinkType] = useState<'task' | 'appointment'>('task');
+  const [linkType, setLinkType] = useState<'task' | 'appointment' | 'contact' | 'activity'>('task');
   const [selectedId, setSelectedId] = useState<string>('');
   const [isLinking, setIsLinking] = useState(false);
 
@@ -69,32 +83,74 @@ export const DocumentLinker = ({ documentId, documentTitle, onLinksChange }: Doc
     enabled: !!groupId && showDialog && linkType === 'appointment',
   });
 
+  // Fetch contacts
+  const { data: contacts = [] } = useQuery({
+    queryKey: ['contacts', groupId],
+    queryFn: async () => {
+      if (!groupId) return [];
+      const { data, error } = await supabase
+        .from('contacts')
+        .select('id, first_name, last_name, organization_name')
+        .eq('care_group_id', groupId)
+        .eq('is_deleted', false)
+        .order('first_name', { ascending: true });
+      
+      if (error) throw error;
+      return data as Contact[];
+    },
+    enabled: !!groupId && showDialog && linkType === 'contact',
+  });
+
+  // Fetch activities
+  const { data: activities = [] } = useQuery({
+    queryKey: ['activities', groupId],
+    queryFn: async () => {
+      if (!groupId) return [];
+      const { data, error } = await supabase
+        .from('activity_logs')
+        .select('id, title, type, date_time')
+        .eq('group_id', groupId)
+        .eq('is_deleted', false)
+        .order('date_time', { ascending: false });
+      
+      if (error) throw error;
+      return data as Activity[];
+    },
+    enabled: !!groupId && showDialog && linkType === 'activity',
+  });
+
   // Fetch existing links
   const { data: existingLinks = [], refetch: refetchLinks } = useQuery({
     queryKey: ['document-links', documentId],
     queryFn: async () => {
-      // Fetch task links with task details
-      const { data: taskLinksData } = await supabase
-        .from('task_documents')
-        .select('task_id')
-        .eq('document_id', documentId);
+      // Fetch all link types
+      const [taskLinksData, appointmentLinksData, contactLinksData, activityLinksData] = await Promise.all([
+        supabase.from('task_documents').select('task_id').eq('document_id', documentId),
+        supabase.from('appointment_documents').select('appointment_id').eq('document_id', documentId),
+        supabase.from('contact_documents').select('contact_id').eq('document_id', documentId),
+        supabase.from('activity_documents').select('activity_log_id').eq('document_id', documentId),
+      ]);
 
-      const { data: appointmentLinksData } = await supabase
-        .from('appointment_documents')
-        .select('appointment_id')
-        .eq('document_id', documentId);
+      // Get IDs
+      const taskIds = taskLinksData.data?.map(link => link.task_id) || [];
+      const appointmentIds = appointmentLinksData.data?.map(link => link.appointment_id) || [];
+      const contactIds = contactLinksData.data?.map(link => link.contact_id) || [];
+      const activityIds = activityLinksData.data?.map(link => link.activity_log_id) || [];
 
-      // Fetch task details separately
-      const taskIds = taskLinksData?.map(link => link.task_id) || [];
-      const appointmentIds = appointmentLinksData?.map(link => link.appointment_id) || [];
-
-      const [tasksData, appointmentsData] = await Promise.all([
+      // Fetch details in parallel
+      const [tasksData, appointmentsData, contactsData, activitiesData] = await Promise.all([
         taskIds.length > 0 
           ? supabase.from('tasks').select('id, title').in('id', taskIds)
           : Promise.resolve({ data: [] }),
         appointmentIds.length > 0
           ? supabase.from('appointments').select('id, description').in('id', appointmentIds)
-          : Promise.resolve({ data: [] })
+          : Promise.resolve({ data: [] }),
+        contactIds.length > 0
+          ? supabase.from('contacts').select('id, first_name, last_name, organization_name').in('id', contactIds)
+          : Promise.resolve({ data: [] }),
+        activityIds.length > 0
+          ? supabase.from('activity_logs').select('id, title, type').in('id', activityIds)
+          : Promise.resolve({ data: [] }),
       ]);
 
       const links = [
@@ -107,6 +163,16 @@ export const DocumentLinker = ({ documentId, documentTitle, onLinksChange }: Doc
           type: 'appointment' as const,
           id: appointment.id,
           title: appointment.description || 'Unknown Appointment'
+        })),
+        ...(contactsData.data || []).map(contact => ({
+          type: 'contact' as const,
+          id: contact.id,
+          title: [contact.first_name, contact.last_name].filter(Boolean).join(' ') || contact.organization_name || 'Unknown Contact'
+        })),
+        ...(activitiesData.data || []).map(activity => ({
+          type: 'activity' as const,
+          id: activity.id,
+          title: activity.title || `${activity.type} Activity` || 'Unknown Activity'
         }))
       ];
 
@@ -123,25 +189,42 @@ export const DocumentLinker = ({ documentId, documentTitle, onLinksChange }: Doc
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
+      let error;
+      
       if (linkType === 'task') {
-        const { error } = await supabase
+        ({ error } = await supabase
           .from('task_documents')
           .insert({
             document_id: documentId,
             task_id: selectedId,
             created_by_user_id: user.id
-          });
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
+          }));
+      } else if (linkType === 'appointment') {
+        ({ error } = await supabase
           .from('appointment_documents')
           .insert({
             document_id: documentId,
             appointment_id: selectedId,
             created_by_user_id: user.id
-          });
-        if (error) throw error;
+          }));
+      } else if (linkType === 'contact') {
+        ({ error } = await supabase
+          .from('contact_documents')
+          .insert({
+            document_id: documentId,
+            contact_id: selectedId,
+          }));
+      } else if (linkType === 'activity') {
+        ({ error } = await supabase
+          .from('activity_documents')
+          .insert({
+            document_id: documentId,
+            activity_log_id: selectedId,
+            created_by_user_id: user.id
+          }));
       }
+      
+      if (error) throw error;
 
       toast({
         title: 'Document linked',
@@ -164,23 +247,37 @@ export const DocumentLinker = ({ documentId, documentTitle, onLinksChange }: Doc
     }
   };
 
-  const handleUnlink = async (linkType: 'task' | 'appointment', linkId: string) => {
+  const handleUnlink = async (linkType: 'task' | 'appointment' | 'contact' | 'activity', linkId: string) => {
     try {
+      let error;
+      
       if (linkType === 'task') {
-        const { error } = await supabase
+        ({ error } = await supabase
           .from('task_documents')
           .delete()
           .eq('document_id', documentId)
-          .eq('task_id', linkId);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
+          .eq('task_id', linkId));
+      } else if (linkType === 'appointment') {
+        ({ error } = await supabase
           .from('appointment_documents')
           .delete()
           .eq('document_id', documentId)
-          .eq('appointment_id', linkId);
-        if (error) throw error;
+          .eq('appointment_id', linkId));
+      } else if (linkType === 'contact') {
+        ({ error } = await supabase
+          .from('contact_documents')
+          .delete()
+          .eq('document_id', documentId)
+          .eq('contact_id', linkId));
+      } else if (linkType === 'activity') {
+        ({ error } = await supabase
+          .from('activity_documents')
+          .delete()
+          .eq('document_id', documentId)
+          .eq('activity_log_id', linkId));
       }
+      
+      if (error) throw error;
 
       toast({
         title: 'Link removed',
@@ -228,7 +325,7 @@ export const DocumentLinker = ({ documentId, documentTitle, onLinksChange }: Doc
         <DialogTrigger asChild>
           <Button size="sm" variant="outline" className="w-full">
             <Plus className="h-3 w-3 mr-1" />
-            Link to Task/Appointment
+            Link to Item
           </Button>
         </DialogTrigger>
         <DialogContent>
@@ -239,7 +336,7 @@ export const DocumentLinker = ({ documentId, documentTitle, onLinksChange }: Doc
           <div className="space-y-4">
             <div>
               <label className="text-sm font-medium">Link Type</label>
-              <Select value={linkType} onValueChange={(value: 'task' | 'appointment') => {
+              <Select value={linkType} onValueChange={(value: 'task' | 'appointment' | 'contact' | 'activity') => {
                 setLinkType(value);
                 setSelectedId('');
               }}>
@@ -249,31 +346,41 @@ export const DocumentLinker = ({ documentId, documentTitle, onLinksChange }: Doc
                 <SelectContent>
                   <SelectItem value="task">Task</SelectItem>
                   <SelectItem value="appointment">Appointment</SelectItem>
+                  <SelectItem value="contact">Contact</SelectItem>
+                  <SelectItem value="activity">Activity</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div>
               <label className="text-sm font-medium">
-                Select {linkType === 'task' ? 'Task' : 'Appointment'}
+                Select {linkType.charAt(0).toUpperCase() + linkType.slice(1)}
               </label>
               <Select value={selectedId} onValueChange={setSelectedId}>
                 <SelectTrigger>
                   <SelectValue placeholder={`Choose a ${linkType}...`} />
                 </SelectTrigger>
                 <SelectContent>
-                  {linkType === 'task' 
-                    ? tasks.map((task) => (
-                        <SelectItem key={task.id} value={task.id}>
-                          {task.title} ({task.status})
-                        </SelectItem>
-                      ))
-                    : appointments.map((appointment) => (
-                        <SelectItem key={appointment.id} value={appointment.id}>
-                          {appointment.description} ({new Date(appointment.date_time).toLocaleDateString()})
-                        </SelectItem>
-                      ))
-                  }
+                  {linkType === 'task' && tasks.map((task) => (
+                    <SelectItem key={task.id} value={task.id}>
+                      {task.title} ({task.status})
+                    </SelectItem>
+                  ))}
+                  {linkType === 'appointment' && appointments.map((appointment) => (
+                    <SelectItem key={appointment.id} value={appointment.id}>
+                      {appointment.description} ({new Date(appointment.date_time).toLocaleDateString()})
+                    </SelectItem>
+                  ))}
+                  {linkType === 'contact' && contacts.map((contact) => (
+                    <SelectItem key={contact.id} value={contact.id}>
+                      {[contact.first_name, contact.last_name].filter(Boolean).join(' ') || contact.organization_name || 'Unknown Contact'}
+                    </SelectItem>
+                  ))}
+                  {linkType === 'activity' && activities.map((activity) => (
+                    <SelectItem key={activity.id} value={activity.id}>
+                      {activity.title || `${activity.type} Activity`} ({new Date(activity.date_time).toLocaleDateString()})
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
