@@ -6,7 +6,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { AssociationManager } from "@/components/shared/AssociationManager";
+import { UnifiedAssociationManager } from "@/components/shared/UnifiedAssociationManager";
 import { Link, ExternalLink, FileText } from "lucide-react";
 
 interface Document {
@@ -77,7 +77,7 @@ export function DocumentAssociationsModal({ document, isOpen, onClose, groupId }
             </div>
           </div>
 
-          <AssociationManager
+          <UnifiedAssociationManager
             entityId={document.id}
             entityType="document"
             groupId={groupId}

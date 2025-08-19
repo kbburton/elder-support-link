@@ -1,12 +1,13 @@
 import { supabase } from "@/integrations/supabase/client";
 
-export async function triggerReindex(entityType: "tasks" | "appointments" | "activity_logs" | "documents", entityId: string) {
+export async function triggerReindex(entityType: "tasks" | "appointments" | "activity_logs" | "documents" | "contacts", entityId: string) {
   try {
     const entityTypeMap = {
       tasks: "task",
       appointments: "appointment", 
       activity_logs: "activity",
       documents: "document",
+      contacts: "contact",
     };
     
     const mappedType = entityTypeMap[entityType];

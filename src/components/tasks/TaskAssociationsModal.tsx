@@ -6,7 +6,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { AssociationManager } from "@/components/shared/AssociationManager";
+import { UnifiedAssociationManager } from "@/components/shared/UnifiedAssociationManager";
 import { Link, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 
@@ -89,7 +89,7 @@ export function TaskAssociationsModal({ task, isOpen, onClose, groupId }: TaskAs
             </div>
           </div>
 
-          <AssociationManager
+          <UnifiedAssociationManager
             entityId={task.id}
             entityType="task"
             groupId={groupId}
