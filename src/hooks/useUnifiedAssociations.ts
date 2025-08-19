@@ -244,7 +244,26 @@ export function useCreateAssociation() {
     }) => {
       const junctionTable = getJunctionTable(entityType, targetType);
       if (!junctionTable) {
-        throw new Error(`No junction table found for ${entityType} ↔ ${targetType}`);
+        throw new Error(`Unsupported association: ${entityType} ↔ ${targetType}. This combination is not available.`);
+      }
+      
+      // Validate both entities exist using security definer function
+      const { data: entityExists } = await supabase.rpc('validate_entity_exists', {
+        p_entity_type: entityType,
+        p_entity_id: entityId
+      });
+      
+      const { data: targetExists } = await supabase.rpc('validate_entity_exists', {
+        p_entity_type: targetType,
+        p_entity_id: targetId
+      });
+      
+      if (!entityExists) {
+        throw new Error(`${entityType} not found or has been deleted`);
+      }
+      
+      if (!targetExists) {
+        throw new Error(`${targetType} not found or has been deleted`);
       }
       
       const columns = COLUMN_MAPPING[junctionTable as keyof typeof COLUMN_MAPPING];
@@ -279,10 +298,12 @@ export function useCreateAssociation() {
       
       if (error) {
         console.error("Association creation error:", error);
-        // If it's a duplicate, that's ok
-        if (error.message?.includes("duplicate") || error.message?.includes("unique")) {
-          return;
+        
+        // Handle Postgres duplicate key error (23505)
+        if (error.code === '23505' || error.message?.includes("duplicate") || error.message?.includes("unique")) {
+          throw new Error("Already linked.");
         }
+        
         throw error;
       }
       
