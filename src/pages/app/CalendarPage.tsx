@@ -275,17 +275,6 @@ const CalendarPage = () => {
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Calendar</h2>
         <div className="flex items-center gap-2">
-          {!selectMode ? (
-            <Button variant="outline" onClick={() => toggleSelectMode(true)}>
-              <Square className="h-4 w-4 mr-2" />
-              Select
-            </Button>
-          ) : (
-            <Button variant="outline" onClick={() => toggleSelectMode(false)}>
-              <X className="h-4 w-4 mr-2" />
-              Cancel Select
-            </Button>
-          )}
           <Button variant="hero" onClick={handleNewAppointment}>
             <Plus className="h-4 w-4 mr-2" />
             New Appointment
@@ -353,7 +342,8 @@ const CalendarPage = () => {
           />
         </TabsContent>
 
-        <TabsContent value="list">
+        <TabsContent value="list" className="space-y-4">
+          <h3 className="text-lg font-medium">Full List - Appointments</h3>
           <AppointmentListView
             groupId={groupId}
             onEdit={(appointment) => {
