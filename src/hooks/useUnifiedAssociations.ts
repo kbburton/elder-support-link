@@ -274,11 +274,17 @@ export function useCreateAssociation() {
         targetColumn = isFirstType ? columns.right : columns.left;
       }
       
-      const insertData = {
+      // Build insert data - only include created_by_user_id for tables that have it
+      const insertData: any = {
         [entityColumn]: entityId,
-        [targetColumn]: targetId,
-        created_by_user_id: user.id
+        [targetColumn]: targetId
       };
+      
+      // Only certain junction tables have created_by_user_id column
+      const tablesWithCreatedBy = ['activity_documents', 'task_activities', 'appointment_activities', 'appointment_documents', 'appointment_tasks'];
+      if (tablesWithCreatedBy.includes(junctionTable)) {
+        insertData.created_by_user_id = user.id;
+      }
       
       const { error } = await supabase
         .from(junctionTable as any)
