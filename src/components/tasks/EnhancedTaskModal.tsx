@@ -21,7 +21,18 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Trash2 } from "lucide-react";
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { softDeleteEntity } from "@/lib/delete/rpc";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -36,6 +47,9 @@ interface Task {
   priority?: "High" | "Medium" | "Low";
   category?: string;
   due_date?: string;
+  completed_at?: string;
+  completed_by_email?: string;
+  completed_by_user_id?: string;
 }
 
 interface EnhancedTaskModalProps {
@@ -46,6 +60,7 @@ interface EnhancedTaskModalProps {
 }
 
 export function EnhancedTaskModal({ task, isOpen, onClose, groupId }: EnhancedTaskModalProps) {
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -118,6 +133,23 @@ export function EnhancedTaskModal({ task, isOpen, onClose, groupId }: EnhancedTa
 
   const updateTask = useMutation({
     mutationFn: async (data: any) => {
+      // Handle completion fields based on status
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        if (data.status === "Completed") {
+          // If marking as completed and fields are empty, populate them
+          if (!data.completed_at) {
+            data.completed_at = new Date().toISOString();
+            data.completed_by_user_id = user.id;
+            data.completed_by_email = user.email;
+          }
+        } else {
+          // If changing from completed to another status, clear completion fields
+          data.completed_at = null;
+          data.completed_by_user_id = null;
+          data.completed_by_email = null;
+        }
+      }
       const { error } = await supabase
         .from("tasks")
         .update(data)
@@ -142,6 +174,33 @@ export function EnhancedTaskModal({ task, isOpen, onClose, groupId }: EnhancedTa
     },
   });
 
+  const deleteTask = useMutation({
+    mutationFn: async () => {
+      if (!task) throw new Error("No task to delete");
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      await softDeleteEntity("task", task.id, user.id, user.email || "");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks-list"] });
+      toast({
+        title: "Task deleted",
+        description: "Task has been moved to trash and can be restored within 30 days.",
+      });
+      onClose();
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to delete task.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -157,6 +216,16 @@ export function EnhancedTaskModal({ task, isOpen, onClose, groupId }: EnhancedTa
     } else {
       createTask.mutate(submitData);
     }
+  };
+
+  const handleDelete = () => {
+    if (blockOperation()) return;
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = () => {
+    deleteTask.mutate();
+    setShowDeleteConfirm(false);
   };
 
   const handleNavigate = (type: string, id: string) => {
@@ -304,10 +373,49 @@ export function EnhancedTaskModal({ task, isOpen, onClose, groupId }: EnhancedTa
               </div>
             </div>
 
+            {/* Completion Fields - Only show if task is completed */}
+            {formData.status === "Completed" && task && (
+              <>
+                <Separator />
+                <div className="space-y-4">
+                  <h4 className="text-sm font-medium text-muted-foreground">Completion Details</h4>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Completed Date</Label>
+                      <div className="text-sm p-2 bg-muted rounded">
+                        {task.completed_at ? format(new Date(task.completed_at), "PPP") : "Not set"}
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label>Completed By</Label>
+                      <div className="text-sm p-2 bg-muted rounded">
+                        {task.completed_by_email || "Not set"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            <Separator />
+
             <div className="flex gap-2">
               <Button type="submit" disabled={createTask.isPending || updateTask.isPending}>
                 {task ? "Update" : "Create"} Task
               </Button>
+              {task && (
+                <Button 
+                  type="button" 
+                  variant="destructive" 
+                  onClick={handleDelete}
+                  disabled={deleteTask.isPending}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </Button>
+              )}
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
               </Button>
@@ -327,6 +435,27 @@ export function EnhancedTaskModal({ task, isOpen, onClose, groupId }: EnhancedTa
           )}
         </div>
       </DialogContent>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Task</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this task? This action will soft delete the item and it can be restored from group settings within 30 days.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete Task
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

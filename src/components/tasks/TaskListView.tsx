@@ -1,13 +1,17 @@
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { UnifiedTableView, TableColumn } from "@/components/shared/UnifiedTableView";
-import { format } from "date-fns";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { softDeleteEntity } from "@/lib/delete/rpc";
 import { useToast } from "@/hooks/use-toast";
+import { UnifiedTableView, TableColumn } from "@/components/shared/UnifiedTableView";
+import { softDeleteEntity } from "@/lib/delete/rpc";
 import { triggerReindex } from "@/utils/reindex";
 import { useDemoOperations } from "@/hooks/useDemoOperations";
+import { Link } from "lucide-react";
+import { TaskAssociationsModal } from "./TaskAssociationsModal";
+import { cn } from "@/lib/utils";
 
 interface TaskListViewProps {
   groupId: string;
@@ -18,6 +22,8 @@ export function TaskListView({ groupId, onEdit }: TaskListViewProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { blockOperation } = useDemoOperations();
+  const [selectedTaskForAssociations, setSelectedTaskForAssociations] = useState<any>(null);
+  const [isAssociationsModalOpen, setIsAssociationsModalOpen] = useState(false);
 
   const { data: tasks = [], refetch, isLoading } = useQuery({
     queryKey: ["tasks-list", groupId],
@@ -264,25 +270,64 @@ export function TaskListView({ groupId, onEdit }: TaskListViewProps) {
       sortable: false,
       type: "text",
       render: (value, row) => formatUserName(row.created_by)
+    },
+    {
+      key: "actions",
+      label: "Associations",
+      sortable: false,
+      type: "actions",
+      render: (value, row) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelectedTaskForAssociations(row);
+            setIsAssociationsModalOpen(true);
+          }}
+          className="h-8 w-8 p-0"
+        >
+          <Link className="h-4 w-4" />
+        </Button>
+      )
     }
   ];
 
   return (
-    <UnifiedTableView
-      title="All Tasks"
-      data={tasks}
-      columns={columns}
-      loading={isLoading}
-      onEdit={onEdit}
-      onDelete={handleDelete}
-      onBulkDelete={handleBulkDelete}
-      searchable={true}
-      searchPlaceholder="Search tasks..."
-      defaultSortBy="created_at"
-      defaultSortOrder="desc"
-      entityType="task"
-      emptyMessage="No tasks found"
-      emptyDescription="Create your first task to get started."
-    />
+    <>
+      <UnifiedTableView
+        title="All Tasks"
+        data={tasks}
+        columns={columns}
+        loading={isLoading}
+        onEdit={onEdit}
+        onDelete={handleDelete}
+        onBulkDelete={handleBulkDelete}
+        searchable={true}
+        searchPlaceholder="Search tasks..."
+        defaultSortBy="created_at"
+        defaultSortOrder="desc"
+        entityType="task"
+        emptyMessage="No tasks found"
+        emptyDescription="Create your first task to get started."
+        rowClassName={(row) => {
+          const completed = row.status === "Completed";
+          return cn(
+            completed && "opacity-60",
+            completed && "[&_td:not(:last-child)_*]:line-through [&_td:not(:last-child)_span]:line-through"
+          );
+        }}
+      />
+
+      <TaskAssociationsModal
+        task={selectedTaskForAssociations}
+        isOpen={isAssociationsModalOpen}
+        onClose={() => {
+          setIsAssociationsModalOpen(false);
+          setSelectedTaskForAssociations(null);
+        }}
+        groupId={groupId}
+      />
+    </>
   );
 }
