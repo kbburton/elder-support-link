@@ -239,6 +239,42 @@ export default function SharedCalendar(props: SharedCalendarProps) {
     }
   }
 
+  // Color utility function matching CalendarLegend
+  function getItemColor(event: CalendarEvent) {
+    if (event.type === "task") {
+      const task = event.raw as any;
+      const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== "Completed";
+      return isOverdue ? "bg-blue-100 border-l-4 border-l-red-500" : "bg-blue-100";
+    }
+    
+    // Appointment colors based on category
+    const appointment = event.raw as any;
+    const category = appointment.category?.toLowerCase();
+    
+    switch (category) {
+      case "medical":
+        return "bg-purple-100";
+      case "financial/legal":
+      case "financial":
+      case "legal":
+        return "bg-red-100";
+      case "personal/social":
+      case "personal":
+      case "social":
+        return "bg-teal-100";
+      case "dental":
+        return "bg-green-100";
+      case "therapy":
+        return "bg-orange-100";
+      case "consultation":
+        return "bg-indigo-100";
+      case "follow-up":
+        return "bg-yellow-100";
+      default:
+        return "bg-gray-100";
+    }
+  }
+
   function goPrev() {
     if (view === "month") onSelectedDateChange(addMonths(selectedDate, -1));
     else if (view === "week") onSelectedDateChange(addWeeks(selectedDate, -1));
@@ -268,11 +304,13 @@ export default function SharedCalendar(props: SharedCalendarProps) {
                 onClick={() => openEvent(ev)}
                 title={ev.title}
               >
-                <span className="inline-flex items-center gap-1 mr-2 align-middle text-[10px] px-1 rounded bg-secondary">
+                <span className={`inline-flex items-center gap-1 mr-2 align-middle text-[10px] px-1 rounded ${getItemColor(ev)}`}>
                   {selectMode ? (
                     active ? <CheckSquare className="h-3 w-3" /> : <Square className="h-3 w-3" />
                   ) : (
-                    <span className={`inline-block w-2 h-2 rounded ${ev.type === "appointment" ? "bg-blue-400" : "bg-green-400"}`} />
+                    <>
+                      {ev.type === "appointment" ? <Clock className="h-3 w-3" /> : <CheckSquare className="h-3 w-3" />}
+                    </>
                   )}
                   {ev.type === "appointment" ? "Appt" : "Task"}
                 </span>
