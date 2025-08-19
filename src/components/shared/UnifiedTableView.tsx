@@ -370,7 +370,7 @@ export function UnifiedTableView({
                 ))}
                 {(onEdit || onDelete || customActions) && (
                   <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center justify-end gap-1">
                       {customActions && customActions(item)}
                       {onEdit && (
                         <Button

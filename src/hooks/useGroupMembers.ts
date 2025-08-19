@@ -5,7 +5,11 @@ export function useGroupMembers(groupId: string) {
   return useQuery({
     queryKey: ['group-members', groupId],
     queryFn: async () => {
-      if (!groupId) return [];
+      console.log('useGroupMembers: Fetching members for groupId:', groupId);
+      if (!groupId) {
+        console.log('useGroupMembers: No groupId provided');
+        return [];
+      }
       
       const { data: members, error } = await supabase
         .from('care_group_members')
@@ -15,13 +19,21 @@ export function useGroupMembers(groupId: string) {
         `)
         .eq('group_id', groupId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('useGroupMembers: Error fetching members:', error);
+        throw error;
+      }
 
-      return members?.map((member: any) => ({
+      console.log('useGroupMembers: Raw members data:', members);
+
+      const processedMembers = members?.map((member: any) => ({
         id: member.user_id,
         email: member.profiles?.email || '',
         name: `${member.profiles?.first_name || ''} ${member.profiles?.last_name || ''}`.trim() || member.profiles?.email || 'Unknown'
       })) || [];
+      
+      console.log('useGroupMembers: Processed members:', processedMembers);
+      return processedMembers;
     },
     enabled: !!groupId
   });

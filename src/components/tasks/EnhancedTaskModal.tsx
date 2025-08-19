@@ -83,7 +83,10 @@ export function EnhancedTaskModal({ task, isOpen, onClose, groupId }: EnhancedTa
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const demo = useDemo();
-  const { data: groupMembers = [] } = useGroupMembers(groupId);
+  const { data: groupMembers = [], isLoading: membersLoading, error: membersError } = useGroupMembers(groupId);
+  
+  // Debug logging
+  console.log('GroupMembers Debug:', { groupId, groupMembers, membersLoading, membersError });
 
   const blockOperation = () => {
     if (demo.isDemo) {

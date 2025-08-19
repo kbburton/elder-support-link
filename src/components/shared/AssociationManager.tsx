@@ -215,16 +215,20 @@ export function AssociationManager({
         }
         
         if (documentQuery) {
-          const { data: documentLinks } = await documentQuery;
+          const { data: documentLinks, error: docError } = await documentQuery;
+          console.log('Document query debug:', { entityType, entityId, documentLinks, docError });
           documentLinks?.forEach((link: any) => {
+            console.log('Processing document link:', link);
             const doc = link.documents;
-            associations.push({
-              id: doc.id,
-              title: doc.title || doc.original_filename || 'Untitled Document',
-              type: 'document',
-              date: doc.upload_date,
-              category: doc.category
-            });
+            if (doc) {
+              associations.push({
+                id: doc.id,
+                title: doc.title || doc.original_filename || 'Untitled Document',
+                type: 'document',
+                date: doc.upload_date,
+                category: doc.category
+              });
+            }
           });
         }
       }
