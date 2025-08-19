@@ -32,12 +32,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useDemo } from "@/hooks/useDemo";
 import { softDeleteEntity } from "@/lib/delete/rpc";
+import { triggerReindex } from "@/utils/reindex";
+import { AssociationManager } from "@/components/shared/AssociationManager";
+import { useGroupMembers } from "@/hooks/useGroupMembers";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { AssociationManager } from "@/components/shared/AssociationManager";
-import { useDemoOperations } from "@/hooks/useDemoOperations";
 
 interface Task {
   id: string;
@@ -60,30 +62,54 @@ interface EnhancedTaskModalProps {
 }
 
 export function EnhancedTaskModal({ task, isOpen, onClose, groupId }: EnhancedTaskModalProps) {
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [formData, setFormData] = useState({
-    title: "",
-    description: "",
-    status: "Open" as Task['status'],
-    priority: "Medium" as Task['priority'],
-    category: "",
+    title: task?.title || "",
+    description: task?.description || "",
+    status: task?.status || "Open",
+    priority: task?.priority || "Medium",
+    category: task?.category || "",
   });
-  const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
-  
+  const [dueDate, setDueDate] = useState<Date | undefined>(
+    task?.due_date ? new Date(task.due_date) : undefined
+  );
+  const [completedAt, setCompletedAt] = useState<Date | undefined>(
+    task?.completed_at ? new Date(task.completed_at) : undefined
+  );
+  const [completedBy, setCompletedBy] = useState<string>(
+    task?.completed_by_user_id || ""
+  );
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { blockOperation } = useDemoOperations();
+  const demo = useDemo();
+  const { data: groupMembers = [] } = useGroupMembers(groupId);
 
+  const blockOperation = () => {
+    if (demo.isDemo) {
+      toast({
+        title: "Demo Mode",
+        description: "This action is not available in demo mode.",
+        variant: "destructive",
+      });
+      return true;
+    }
+    return false;
+  };
+
+  // Reset form when task changes
   useEffect(() => {
     if (task) {
       setFormData({
-        title: task.title,
+        title: task.title || "",
         description: task.description || "",
-        status: task.status,
+        status: task.status || "Open",
         priority: task.priority || "Medium",
         category: task.category || "",
       });
       setDueDate(task.due_date ? new Date(task.due_date) : undefined);
+      setCompletedAt(task.completed_at ? new Date(task.completed_at) : undefined);
+      setCompletedBy(task.completed_by_user_id || "");
     } else {
       setFormData({
         title: "",
@@ -93,8 +119,28 @@ export function EnhancedTaskModal({ task, isOpen, onClose, groupId }: EnhancedTa
         category: "",
       });
       setDueDate(undefined);
+      setCompletedAt(undefined);
+      setCompletedBy("");
     }
   }, [task]);
+
+  // Handle status changes - auto-populate or clear completion fields
+  const handleStatusChange = async (newStatus: string) => {
+    if (newStatus === "Completed" && formData.status !== "Completed") {
+      // Auto-populate completion fields when changing TO completed
+      setCompletedAt(new Date());
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setCompletedBy(user.id);
+      }
+    } else if (newStatus !== "Completed" && formData.status === "Completed") {
+      // Clear completion fields when changing AWAY from completed
+      setCompletedAt(undefined);
+      setCompletedBy("");
+    }
+    
+    setFormData({ ...formData, status: newStatus as "Open" | "InProgress" | "Completed" });
+  };
 
   const createTask = useMutation({
     mutationFn: async (data: any) => {
@@ -116,6 +162,7 @@ export function EnhancedTaskModal({ task, isOpen, onClose, groupId }: EnhancedTa
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks-list"] });
       toast({
         title: "Task created",
         description: "Task has been created successfully.",
@@ -133,32 +180,23 @@ export function EnhancedTaskModal({ task, isOpen, onClose, groupId }: EnhancedTa
 
   const updateTask = useMutation({
     mutationFn: async (data: any) => {
-      // Handle completion fields based on status
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        if (data.status === "Completed") {
-          // If marking as completed and fields are empty, populate them
-          if (!data.completed_at) {
-            data.completed_at = new Date().toISOString();
-            data.completed_by_user_id = user.id;
-            data.completed_by_email = user.email;
-          }
-        } else {
-          // If changing from completed to another status, clear completion fields
-          data.completed_at = null;
-          data.completed_by_user_id = null;
-          data.completed_by_email = null;
-        }
-      }
       const { error } = await supabase
         .from("tasks")
         .update(data)
         .eq("id", task!.id);
 
       if (error) throw error;
+
+      // Trigger reindex
+      try {
+        await triggerReindex('tasks', task!.id);
+      } catch (error) {
+        console.warn('Failed to trigger reindex:', error);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks-list"] });
       toast({
         title: "Task updated",
         description: "Task has been updated successfully.",
@@ -209,6 +247,8 @@ export function EnhancedTaskModal({ task, isOpen, onClose, groupId }: EnhancedTa
     const submitData = {
       ...formData,
       due_date: dueDate ? dueDate.toISOString().split("T")[0] : null,
+      completed_at: formData.status === "Completed" && completedAt ? completedAt.toISOString() : null,
+      completed_by_user_id: formData.status === "Completed" && completedBy ? completedBy : null,
     };
 
     if (task) {
@@ -238,7 +278,7 @@ export function EnhancedTaskModal({ task, isOpen, onClose, groupId }: EnhancedTa
         url = `${baseUrl}/contacts`;
         break;
       case 'appointment':
-        url = `${baseUrl}/appointments`;
+        url = `${baseUrl}/calendar`;
         break;
       case 'document':
         url = `${baseUrl}/documents`;
@@ -294,7 +334,7 @@ export function EnhancedTaskModal({ task, isOpen, onClose, groupId }: EnhancedTa
                   <Label htmlFor="status">Status</Label>
                   <Select
                     value={formData.status}
-                    onValueChange={(value) => setFormData({ ...formData, status: value as any })}
+                    onValueChange={handleStatusChange}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -366,6 +406,7 @@ export function EnhancedTaskModal({ task, isOpen, onClose, groupId }: EnhancedTa
                         selected={dueDate}
                         onSelect={setDueDate}
                         initialFocus
+                        className={cn("p-3 pointer-events-auto")}
                       />
                     </PopoverContent>
                   </Popover>
@@ -374,7 +415,7 @@ export function EnhancedTaskModal({ task, isOpen, onClose, groupId }: EnhancedTa
             </div>
 
             {/* Completion Fields - Only show if task is completed */}
-            {formData.status === "Completed" && task && (
+            {formData.status === "Completed" && (
               <>
                 <Separator />
                 <div className="space-y-4">
@@ -383,16 +424,48 @@ export function EnhancedTaskModal({ task, isOpen, onClose, groupId }: EnhancedTa
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label>Completed Date</Label>
-                      <div className="text-sm p-2 bg-muted rounded">
-                        {task.completed_at ? format(new Date(task.completed_at), "PPP") : "Not set"}
-                      </div>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "w-full justify-start text-left font-normal",
+                              !completedAt && "text-muted-foreground"
+                            )}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {completedAt ? format(completedAt, "PPP") : <span>Pick a date</span>}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={completedAt}
+                            onSelect={setCompletedAt}
+                            initialFocus
+                            className={cn("p-3 pointer-events-auto")}
+                          />
+                        </PopoverContent>
+                      </Popover>
                     </div>
 
                     <div>
                       <Label>Completed By</Label>
-                      <div className="text-sm p-2 bg-muted rounded">
-                        {task.completed_by_email || "Not set"}
-                      </div>
+                      <Select
+                        value={completedBy}
+                        onValueChange={setCompletedBy}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select user" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {groupMembers.map((member) => (
+                            <SelectItem key={member.id} value={member.id}>
+                              {member.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                 </div>

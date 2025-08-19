@@ -44,6 +44,7 @@ interface UnifiedTableViewProps {
   onCreateNew?: () => void;
   createButtonLabel?: string;
   rowClassName?: (item: any) => string;
+  customActions?: (item: any) => React.ReactNode;
 }
 
 export function UnifiedTableView({
@@ -65,7 +66,8 @@ export function UnifiedTableView({
   emptyDescription = "Start by creating your first item.",
   onCreateNew,
   createButtonLabel = "Create New",
-  rowClassName
+  rowClassName,
+  customActions
 }: UnifiedTableViewProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState(defaultSortBy || columns.find(c => c.sortable)?.key || "");
@@ -366,9 +368,10 @@ export function UnifiedTableView({
                     {renderCellValue(column, item[column.key], item)}
                   </TableCell>
                 ))}
-                {(onEdit || onDelete) && (
+                {(onEdit || onDelete || customActions) && (
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
+                      {customActions && customActions(item)}
                       {onEdit && (
                         <Button
                           variant="ghost"

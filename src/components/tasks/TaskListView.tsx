@@ -270,26 +270,6 @@ export function TaskListView({ groupId, onEdit }: TaskListViewProps) {
       sortable: false,
       type: "text",
       render: (value, row) => formatUserName(row.created_by)
-    },
-    {
-      key: "actions",
-      label: "Associations",
-      sortable: false,
-      type: "actions",
-      render: (value, row) => (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            setSelectedTaskForAssociations(row);
-            setIsAssociationsModalOpen(true);
-          }}
-          className="h-8 w-8 p-0"
-        >
-          <Link className="h-4 w-4" />
-        </Button>
-      )
     }
   ];
 
@@ -303,6 +283,20 @@ export function TaskListView({ groupId, onEdit }: TaskListViewProps) {
         onEdit={onEdit}
         onDelete={handleDelete}
         onBulkDelete={handleBulkDelete}
+        customActions={(row) => (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedTaskForAssociations(row);
+              setIsAssociationsModalOpen(true);
+            }}
+            className="h-8 w-8 p-0"
+          >
+            <Link className="h-4 w-4" />
+          </Button>
+        )}
         searchable={true}
         searchPlaceholder="Search tasks..."
         defaultSortBy="created_at"

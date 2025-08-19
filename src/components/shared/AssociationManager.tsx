@@ -367,8 +367,8 @@ export function AssociationManager({
         targetColumn = 'document_id';
       } else if (entityType === 'document' && selectedType === 'task') {
         tableName = 'task_documents';
-        sourceColumn = 'task_id';
-        targetColumn = 'document_id';
+        sourceColumn = 'document_id';
+        targetColumn = 'task_id';
       } else if (entityType === 'appointment' && selectedType === 'task') {
         tableName = 'appointment_tasks';
         sourceColumn = 'appointment_id';
@@ -462,8 +462,8 @@ export function AssociationManager({
         targetColumn = 'document_id';
       } else if (entityType === 'document' && association.type === 'task') {
         tableName = 'task_documents';
-        sourceColumn = 'task_id';
-        targetColumn = 'document_id';
+        sourceColumn = 'document_id';
+        targetColumn = 'task_id';
       } else if (entityType === 'appointment' && association.type === 'task') {
         tableName = 'appointment_tasks';
         sourceColumn = 'appointment_id';
