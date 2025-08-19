@@ -271,11 +271,14 @@ export function useCreateAssociation() {
         insertData.created_by_user_id = user.id;
       }
       
+      console.log("Creating association:", { junctionTable, insertData, entityType, targetType });
+      
       const { error } = await supabase
         .from(junctionTable as any)
         .insert(insertData);
       
       if (error) {
+        console.error("Association creation error:", error);
         // If it's a duplicate, that's ok
         if (error.message?.includes("duplicate") || error.message?.includes("unique")) {
           return;
@@ -348,13 +351,18 @@ export function useRemoveAssociation() {
       const entityColumn = isFirstType ? columns.left : columns.right;
       const targetColumn = isFirstType ? columns.right : columns.left;
       
+      console.log("Removing association:", { junctionTable, entityColumn, targetColumn, entityId, targetId });
+      
       const { error } = await supabase
         .from(junctionTable as any)
         .delete()
         .eq(entityColumn, entityId)
         .eq(targetColumn, targetId);
       
-      if (error) throw error;
+      if (error) {
+        console.error("Association removal error:", error);
+        throw error;
+      }
       
       // Trigger reindex for both entities - map entity types to table names
       const entityToTable = (type: EntityType) => {
