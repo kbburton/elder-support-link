@@ -228,6 +228,45 @@ export type Database = {
         }
         Relationships: []
       }
+      appointment_activities: {
+        Row: {
+          activity_log_id: string
+          appointment_id: string
+          created_at: string
+          created_by_user_id: string | null
+          id: string
+        }
+        Insert: {
+          activity_log_id: string
+          appointment_id: string
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+        }
+        Update: {
+          activity_log_id?: string
+          appointment_id?: string
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_activities_activity_log_id_fkey"
+            columns: ["activity_log_id"]
+            isOneToOne: false
+            referencedRelation: "activity_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_activities_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       appointment_documents: {
         Row: {
           appointment_id: string
@@ -275,6 +314,45 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      appointment_tasks: {
+        Row: {
+          appointment_id: string
+          created_at: string
+          created_by_user_id: string | null
+          id: string
+          task_id: string
+        }
+        Insert: {
+          appointment_id: string
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          task_id: string
+        }
+        Update: {
+          appointment_id?: string
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_tasks_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_tasks_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       appointments: {
         Row: {
@@ -1377,6 +1455,45 @@ export type Database = {
           url_path?: string
         }
         Relationships: []
+      }
+      task_activities: {
+        Row: {
+          activity_log_id: string
+          created_at: string
+          created_by_user_id: string | null
+          id: string
+          task_id: string
+        }
+        Insert: {
+          activity_log_id: string
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          task_id: string
+        }
+        Update: {
+          activity_log_id?: string
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_activities_activity_log_id_fkey"
+            columns: ["activity_log_id"]
+            isOneToOne: false
+            referencedRelation: "activity_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_activities_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       task_documents: {
         Row: {
