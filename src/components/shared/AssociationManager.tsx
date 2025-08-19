@@ -305,6 +305,14 @@ export function AssociationManager({
         tableName = 'appointment_documents';
         sourceColumn = 'appointment_id';
         targetColumn = 'document_id';
+      } else if (entityType === 'task' && selectedType === 'document') {
+        tableName = 'task_documents';
+        sourceColumn = 'task_id';
+        targetColumn = 'document_id';
+      } else if (entityType === 'document' && selectedType === 'task') {
+        tableName = 'task_documents';
+        sourceColumn = 'task_id';
+        targetColumn = 'document_id';
       }
 
       if (!tableName) {
