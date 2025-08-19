@@ -18,8 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { Trash2, RefreshCw, Download } from "lucide-react";
+import { Download, Trash2, RefreshCw } from "lucide-react";
 import { 
   AlertDialog,
   AlertDialogAction,
@@ -30,11 +29,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Separator } from "@/components/ui/separator";
+import { format } from "date-fns";
 import { useDemo } from "@/hooks/useDemo";
 import { softDeleteEntity } from "@/lib/delete/rpc";
 import { AssociationManager } from "@/components/shared/AssociationManager";
-import { format } from "date-fns";
-import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
 interface Document {
@@ -181,13 +180,13 @@ export function DocumentModal({ document, isOpen, onClose, groupId }: DocumentMo
   });
 
   const regenerateSummary = async () => {
-    if (!document?.summary && !document?.id) return;
+    if (!document) return;
     
     setIsRegenerating(true);
     try {
-        const { data, error } = await supabase.functions.invoke('regenerate-summary', {
-          body: { documentId: document.id }
-        });
+      const { data, error } = await supabase.functions.invoke('regenerate-summary', {
+        body: { documentId: document.id }
+      });
       
       if (error) throw error;
       
@@ -274,8 +273,8 @@ export function DocumentModal({ document, isOpen, onClose, groupId }: DocumentMo
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Document Details</DialogTitle>
+        <DialogHeader className="space-y-3">
+          <DialogTitle className="text-lg font-semibold">Document Details</DialogTitle>
         </DialogHeader>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

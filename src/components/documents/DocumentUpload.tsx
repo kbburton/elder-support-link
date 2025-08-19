@@ -168,6 +168,19 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
         currentProgress += progressPerFile;
         setUploadProgress(Math.round(currentProgress));
 
+        // Enhance file type with AI
+        try {
+          await supabase.functions.invoke('enhance-document-metadata', {
+            body: { 
+              documentId: documentData.id,
+              filename: file.name,
+              currentFileType: file.type
+            }
+          });
+        } catch (error) {
+          console.warn(`File type enhancement failed for ${file.name}:`, error);
+        }
+
         // Process document with AI (don't await to avoid blocking)
         supabase.functions.invoke('process-document', {
           body: { documentId: documentData.id }
@@ -211,7 +224,7 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
 
       toast({
         title: 'Upload successful',
-        description: `${totalFiles} document${totalFiles > 1 ? 's' : ''} uploaded and being processed`
+        description: `${totalFiles} document${totalFiles > 1 ? 's' : ''} uploaded successfully. AI processing and text extraction will complete shortly.`
       });
 
       onUploadComplete();
