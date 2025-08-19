@@ -413,7 +413,7 @@ export function AssociationManager({
 
       const { error } = await supabase
         .from(tableName as any)
-        .insert(insertData);
+        .upsert(insertData, { onConflict: Object.keys(insertData).join(',') });
 
       if (error) throw error;
     },
