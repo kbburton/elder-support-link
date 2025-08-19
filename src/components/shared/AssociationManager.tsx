@@ -159,12 +159,11 @@ export function AssociationManager({
             .eq('appointment_id', entityId);
         } else if (entityType === 'document') {
           taskQuery = supabase
-            .from('document_links')
+            .from('task_documents')
             .select(`
               tasks!inner(id, title, due_date, status, priority)
             `)
-            .eq('document_id', entityId)
-            .eq('linked_item_type', 'task');
+            .eq('document_id', entityId);
         } else if (entityType === 'activity') {
           taskQuery = supabase
             .from('document_links')
@@ -209,20 +208,18 @@ export function AssociationManager({
             .eq('appointment_id', entityId);
         } else if (entityType === 'task') {
           documentQuery = supabase
-            .from('document_links')
+            .from('task_documents')
             .select(`
               documents!inner(id, title, original_filename, upload_date, category)
             `)
-            .eq('linked_item_id', entityId)
-            .eq('linked_item_type', 'task');
+            .eq('task_id', entityId);
         } else if (entityType === 'activity') {
           documentQuery = supabase
-            .from('document_links')
+            .from('activity_documents')
             .select(`
               documents!inner(id, title, original_filename, upload_date, category)
             `)
-            .eq('linked_item_id', entityId)
-            .eq('linked_item_type', 'activity_log');
+            .eq('activity_log_id', entityId);
         }
         
         if (documentQuery) {
@@ -266,15 +263,14 @@ export function AssociationManager({
               activity_logs!inner(id, title, type, date_time)
             `)
             .eq('linked_item_id', entityId)
-            .eq('linked_item_type', 'task');
+            .eq('linked_item_type', 'activity_log');
         } else if (entityType === 'document') {
           activityQuery = supabase
-            .from('document_links')
+            .from('activity_documents')
             .select(`
               activity_logs!inner(id, title, type, date_time)
             `)
-            .eq('document_id', entityId)
-            .eq('linked_item_type', 'activity_log');
+            .eq('document_id', entityId);
         }
         
         if (activityQuery) {
@@ -384,21 +380,21 @@ export function AssociationManager({
         sourceColumn = 'appointment_id';
         targetColumn = 'document_id';
       } else if (entityType === 'task' && selectedType === 'document') {
-        tableName = 'document_links';
-        sourceColumn = 'document_id';
-        targetColumn = 'linked_item_id';
+        tableName = 'task_documents';
+        sourceColumn = 'task_id';
+        targetColumn = 'document_id';
       } else if (entityType === 'document' && selectedType === 'task') {
-        tableName = 'document_links';
-        sourceColumn = 'document_id';
-        targetColumn = 'linked_item_id';
+        tableName = 'task_documents';
+        sourceColumn = 'task_id';
+        targetColumn = 'document_id';
       } else if (entityType === 'activity' && selectedType === 'document') {
-        tableName = 'document_links';
-        sourceColumn = 'document_id';
-        targetColumn = 'linked_item_id';
+        tableName = 'activity_documents';
+        sourceColumn = 'activity_log_id';
+        targetColumn = 'document_id';
       } else if (entityType === 'document' && selectedType === 'activity') {
-        tableName = 'document_links';
-        sourceColumn = 'document_id';
-        targetColumn = 'linked_item_id';
+        tableName = 'activity_documents';
+        sourceColumn = 'activity_log_id';
+        targetColumn = 'document_id';
       } else if (entityType === 'appointment' && selectedType === 'task') {
         tableName = 'appointment_tasks';
         sourceColumn = 'appointment_id';
@@ -439,17 +435,11 @@ export function AssociationManager({
             ? { appointment_id: entityType === 'appointment' ? entityId : targetId, activity_log_id: entityType === 'activity' ? entityId : targetId }
         : (entityType === 'appointment' && selectedType === 'document') || (entityType === 'document' && selectedType === 'appointment')
             ? { appointment_id: entityType === 'appointment' ? entityId : targetId, document_id: entityType === 'document' ? entityId : targetId }
-        : tableName === 'document_links'
-            ? (entityType === 'document' && selectedType === 'task')
-                ? { document_id: entityId, linked_item_id: targetId, linked_item_type: 'task' }
-            : (entityType === 'task' && selectedType === 'document')
-                ? { document_id: targetId, linked_item_id: entityId, linked_item_type: 'task' }
-            : (entityType === 'document' && selectedType === 'activity')
-                ? { document_id: entityId, linked_item_id: targetId, linked_item_type: 'activity_log' }
-            : (entityType === 'activity' && selectedType === 'document')
-                ? { document_id: targetId, linked_item_id: entityId, linked_item_type: 'activity_log' }
-            : { [sourceColumn]: entityId, [targetColumn]: targetId }
-        : { [sourceColumn]: entityId, [targetColumn]: targetId };
+        : tableName === 'task_documents'
+            ? { task_id: entityType === 'task' ? entityId : targetId, document_id: entityType === 'document' ? entityId : targetId }
+        : tableName === 'activity_documents'
+            ? { activity_log_id: entityType === 'activity' ? entityId : targetId, document_id: entityType === 'document' ? entityId : targetId }
+            : { [sourceColumn]: entityId, [targetColumn]: targetId };
 
       const { error } = await supabase
         .from(tableName as any)
@@ -497,21 +487,21 @@ export function AssociationManager({
         sourceColumn = 'appointment_id'; 
         targetColumn = 'document_id';
       } else if (entityType === 'task' && association.type === 'document') {
-        tableName = 'document_links';
-        sourceColumn = 'document_id';
-        targetColumn = 'linked_item_id';
+        tableName = 'task_documents';
+        sourceColumn = 'task_id';
+        targetColumn = 'document_id';
       } else if (entityType === 'document' && association.type === 'task') {
-        tableName = 'document_links';
-        sourceColumn = 'document_id';
-        targetColumn = 'linked_item_id';
+        tableName = 'task_documents';
+        sourceColumn = 'task_id'; 
+        targetColumn = 'document_id';
       } else if (entityType === 'activity' && association.type === 'document') {
-        tableName = 'document_links';
-        sourceColumn = 'document_id';
-        targetColumn = 'linked_item_id';
+        tableName = 'activity_documents';
+        sourceColumn = 'activity_log_id';
+        targetColumn = 'document_id';
       } else if (entityType === 'document' && association.type === 'activity') {
-        tableName = 'document_links';
-        sourceColumn = 'document_id';
-        targetColumn = 'linked_item_id';
+        tableName = 'activity_documents';
+        sourceColumn = 'activity_log_id';
+        targetColumn = 'document_id';
       } else if (entityType === 'appointment' && association.type === 'task') {
         tableName = 'appointment_tasks';
         sourceColumn = 'appointment_id';
@@ -529,13 +519,13 @@ export function AssociationManager({
         sourceColumn = 'appointment_id';
         targetColumn = 'activity_log_id';
       } else if (entityType === 'task' && association.type === 'activity') {
-        tableName = 'task_activities';
-        sourceColumn = 'task_id';
-        targetColumn = 'activity_log_id';
+        tableName = 'document_links';
+        sourceColumn = 'linked_item_id';
+        targetColumn = 'document_id';
       } else if (entityType === 'activity' && association.type === 'task') {
-        tableName = 'task_activities';
-        sourceColumn = 'task_id';
-        targetColumn = 'activity_log_id';
+        tableName = 'document_links';
+        sourceColumn = 'linked_item_id';
+        targetColumn = 'document_id';
       }
 
       if (!tableName) return;
@@ -550,6 +540,10 @@ export function AssociationManager({
             ? { appointment_id: entityType === 'appointment' ? entityId : association.id, activity_log_id: entityType === 'activity' ? entityId : association.id }
         : (entityType === 'appointment' && association.type === 'document') || (entityType === 'document' && association.type === 'appointment')
             ? { appointment_id: entityType === 'appointment' ? entityId : association.id, document_id: entityType === 'document' ? entityId : association.id }
+        : tableName === 'task_documents'
+            ? { task_id: entityType === 'task' ? entityId : association.id, document_id: entityType === 'document' ? entityId : association.id }
+        : tableName === 'activity_documents'
+            ? { activity_log_id: entityType === 'activity' ? entityId : association.id, document_id: entityType === 'document' ? entityId : association.id }
         : tableName === 'document_links'
             ? (entityType === 'document' && association.type === 'task')
                 ? { document_id: entityId, linked_item_id: association.id, linked_item_type: 'task' }
@@ -559,6 +553,10 @@ export function AssociationManager({
                 ? { document_id: entityId, linked_item_id: association.id, linked_item_type: 'activity_log' }
             : (entityType === 'activity' && association.type === 'document')
                 ? { document_id: association.id, linked_item_id: entityId, linked_item_type: 'activity_log' }
+            : (entityType === 'task' && association.type === 'activity')
+                ? { linked_item_id: entityId, document_id: association.id, linked_item_type: 'activity_log' }
+            : (entityType === 'activity' && association.type === 'task')
+                ? { linked_item_id: association.id, document_id: entityId, linked_item_type: 'task' }
             : { [sourceColumn]: entityId, [targetColumn]: association.id }
         : { [sourceColumn]: entityId, [targetColumn]: association.id };
 

@@ -230,9 +230,30 @@ export function DocumentModal({ document, isOpen, onClose, groupId }: DocumentMo
     setShowDeleteConfirm(false);
   };
 
-  const handleDownload = () => {
-    if (document?.file_url) {
-      window.open(document.file_url, '_blank');
+  const handleDownload = async () => {
+    if (!document?.file_url) return;
+    
+    try {
+      const { data } = await supabase.storage
+        .from('documents')
+        .createSignedUrl(document.file_url, 600); // 10 minutes
+        
+      if (data?.signedUrl) {
+        window.open(data.signedUrl, '_blank');
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to generate download link.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Download error:', error);
+      toast({
+        title: "Error", 
+        description: "Failed to download document.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -261,7 +282,7 @@ export function DocumentModal({ document, isOpen, onClose, groupId }: DocumentMo
 
   const getUploadDate = () => {
     if (document?.upload_date) {
-      return format(new Date(document.upload_date), 'MMM dd, yyyy');
+      return format(new Date(document.upload_date), 'MM/dd/yy');
     }
     return 'Unknown';
   };
@@ -274,7 +295,7 @@ export function DocumentModal({ document, isOpen, onClose, groupId }: DocumentMo
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader className="space-y-3">
-          <DialogTitle className="text-lg font-semibold">Document Details</DialogTitle>
+          <DialogTitle className="text-xl font-semibold">Document Details</DialogTitle>
         </DialogHeader>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -282,7 +303,7 @@ export function DocumentModal({ document, isOpen, onClose, groupId }: DocumentMo
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Editable Fields */}
             <div className="space-y-4">
-              <h3 className="text-sm font-medium">Document Information</h3>
+              <h3 className="text-base font-semibold">Document Information</h3>
               
               <div>
                 <Label htmlFor="title">Title</Label>
@@ -357,7 +378,7 @@ export function DocumentModal({ document, isOpen, onClose, groupId }: DocumentMo
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <Label className="text-muted-foreground">Original Filename</Label>
-                  <p className="font-mono text-xs bg-muted p-2 rounded break-all">
+                  <p className="text-sm bg-muted p-2 rounded break-all">
                     {document.original_filename || 'Unknown'}
                   </p>
                 </div>
@@ -371,14 +392,14 @@ export function DocumentModal({ document, isOpen, onClose, groupId }: DocumentMo
                 
                 <div>
                   <Label className="text-muted-foreground">File Size</Label>
-                  <p className="font-mono text-xs bg-muted p-2 rounded">
+                  <p className="text-sm bg-muted p-2 rounded">
                     {formatFileSize(document.file_size)}
                   </p>
                 </div>
                 
                 <div>
                   <Label className="text-muted-foreground">Uploader Email</Label>
-                  <p className="font-mono text-xs bg-muted p-2 rounded break-all">
+                  <p className="text-sm bg-muted p-2 rounded break-all">
                     {getUploaderEmail()}
                   </p>
                 </div>
@@ -425,8 +446,9 @@ export function DocumentModal({ document, isOpen, onClose, groupId }: DocumentMo
             </div>
           </form>
 
-          {/* Associations Panel */}
+          {/* Associations Panel - aligned with form fields */}
           <div className="space-y-4">
+            <h3 className="text-base font-semibold">Related Items</h3>
             <AssociationManager
               entityId={document.id}
               entityType="document"
@@ -464,13 +486,13 @@ export function DocumentModal({ document, isOpen, onClose, groupId }: DocumentMo
             <AlertDialogHeader>
               <AlertDialogTitle>Delete Document</AlertDialogTitle>
               <AlertDialogDescription>
-                Are you sure you want to delete this document? It will be moved to trash and can be restored within 30 days.
+                Are you sure you want to delete "{document.title || document.original_filename || 'this document'}"? It will be moved to trash and can be restored within 30 days.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90">
-                Delete Document
+                Delete "{document.title || document.original_filename || 'Document'}"
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

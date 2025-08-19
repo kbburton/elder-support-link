@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from "@/hooks/use-toast";
 import { supabase } from '@/integrations/supabase/client';
 import { Progress } from '@/components/ui/progress';
 import { validateFile, validateBatch, FILE_LIMITS } from '@/utils/file-limits';
@@ -131,92 +131,89 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
         const timestamp = Date.now();
         const fileName = `${baseName}_${timestamp}_${i}.${fileExt}`;
 
-        // Upload file to storage
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('documents')
-          .upload(fileName, file);
-
-        if (uploadError) {
-          throw new Error(`Upload failed for ${file.name}: ${uploadError.message}`);
-        }
-
-        // Create document record
-        const documentTitle = selectedFiles.length === 1 && title ? title : file.name;
-        
-        const { data: documentData, error: dbError } = await supabase
-          .from('documents')
-          .insert({
-            title: documentTitle,
-            category,
-            file_url: uploadData.path,
-            file_type: file.type,
-            file_size: file.size,
-            notes,
-            uploaded_by_user_id: user.id,
-            group_id: groupId,
-            processing_status: 'pending',
-            original_filename: file.name
-          })
-          .select()
-          .single();
-
-        if (dbError) {
-          throw new Error(`Database error for ${file.name}: ${dbError.message}`);
-        }
-
-        uploadedDocuments.push(documentData);
-        currentProgress += progressPerFile;
-        setUploadProgress(Math.round(currentProgress));
-
-        // Enhance file type with AI
+        // Upload file to storage with improved error handling
         try {
-          await supabase.functions.invoke('enhance-document-metadata', {
-            body: { 
-              documentId: documentData.id,
-              filename: file.name,
-              currentFileType: file.type
-            }
-          });
-        } catch (error) {
-          console.warn(`File type enhancement failed for ${file.name}:`, error);
-        }
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('documents')
+            .upload(fileName, file);
 
-        // Process document with AI (don't await to avoid blocking)
-        supabase.functions.invoke('process-document', {
-          body: { documentId: documentData.id }
-        }).catch(error => {
-          console.warn(`AI processing failed for ${file.name}:`, error);
-        });
-
-        // Send notifications for new document
-        try {
-          console.log('Sending notification for new document:', { documentId: documentData.id, groupId });
-          
-          // Get current session for authentication
-          const { data: { session } } = await supabase.auth.getSession();
-          
-          const notifyResponse = await supabase.functions.invoke("notify", {
-            body: {
-              type: "immediate",
-              entity: "documents",
-              group_id: groupId,
-              item_id: documentData.id,
-              baseUrl: typeof window !== "undefined" ? window.location.origin : undefined,
-            },
-            headers: session?.access_token ? {
-              'Authorization': `Bearer ${session.access_token}`
-            } : {},
-          });
-          console.log('Document notification response:', notifyResponse);
-          
-          if (notifyResponse.error) {
-            console.error('Document notification failed:', notifyResponse.error);
-          } else {
-            console.log('Document notification sent successfully:', notifyResponse.data);
+          if (uploadError) {
+            console.error('Storage upload failed:', uploadError);
+            throw new Error(`Storage upload failed for ${file.name}: ${uploadError.message}`);
           }
-        } catch (notifyError) {
-          console.error('Failed to send document notification:', notifyError);
-          // Continue silently - don't block user experience
+
+          // Create document record
+          const documentTitle = selectedFiles.length === 1 && title ? title : file.name;
+          
+          const { data: documentData, error: dbError } = await supabase
+            .from('documents')
+            .insert({
+              title: documentTitle,
+              category,
+              file_url: uploadData.path,
+              file_type: file.type,
+              file_size: file.size,
+              notes,
+              uploaded_by_user_id: user.id,
+              group_id: groupId,
+              processing_status: 'pending',
+              original_filename: file.name
+            })
+            .select()
+            .single();
+
+          if (dbError) {
+            console.error('Database insert failed:', dbError);
+            // Delete uploaded file since DB insert failed
+            await supabase.storage
+              .from('documents')
+              .remove([uploadData.path]);
+            throw new Error(`Database error for ${file.name}: ${dbError.message}`);
+          }
+
+          uploadedDocuments.push(documentData);
+          currentProgress += progressPerFile;
+          setUploadProgress(Math.round(currentProgress));
+
+          // Enhance file type with AI
+          try {
+            await supabase.functions.invoke('enhance-document-metadata', {
+              body: { 
+                documentId: documentData.id,
+                filename: file.name,
+                currentFileType: file.type
+              }
+            });
+          } catch (error) {
+            console.warn(`File type enhancement failed for ${file.name}:`, error);
+          }
+
+          // Process document with AI (don't await to avoid blocking)  
+          try {
+            const { data: processResult, error: processError } = await supabase.functions.invoke('process-document', {
+              body: { documentId: documentData.id }
+            });
+            
+            if (processError) {
+              console.error(`AI processing failed for ${file.name}:`, processError);
+              // Update document to show processing failed
+              await supabase
+                .from('documents')
+                .update({ processing_status: 'failed' })
+                .eq('id', documentData.id);
+            }
+          } catch (error) {
+            console.error(`AI processing error for ${file.name}:`, error);
+            // Update document to show processing failed
+            await supabase
+              .from('documents')
+              .update({ processing_status: 'failed' })
+              .eq('id', documentData.id);
+          }
+
+        } catch (fileError) {
+          console.error(`File processing failed for ${file.name}:`, fileError);
+          throw fileError; // Re-throw to be handled by outer catch
         }
       }
 

@@ -169,7 +169,7 @@ export default function DocumentsPage() {
 
   const getUploadDate = (document: any) => {
     const date = new Date(document.upload_date || document.created_at);
-    return format(date, 'MMM dd, yyyy');
+    return format(date, 'MM/dd/yy');
   };
 
   const getReadableFileType = (filename?: string, fileType?: string) => {
@@ -231,10 +231,29 @@ export default function DocumentsPage() {
         <div className="max-w-48">
           <Button
             variant="link"
-            className="p-0 h-auto text-left font-mono text-xs text-wrap break-all"
-            onClick={() => {
-              if (row.file_url) {
-                window.open(row.file_url, '_blank');
+            className="p-0 h-auto text-left text-sm text-wrap break-all"
+            onClick={async () => {
+              try {
+                const { data } = await supabase.storage
+                  .from('documents')
+                  .createSignedUrl(row.file_url, 600); // 10 minutes
+                
+                if (data?.signedUrl) {
+                  window.open(data.signedUrl, '_blank');
+                } else {
+                  toast({
+                    title: "Error",
+                    description: "Failed to generate file preview link.",
+                    variant: "destructive",
+                  });
+                }
+              } catch (error) {
+                console.error('File preview error:', error);
+                toast({
+                  title: "Error",
+                  description: "Failed to open file preview.",
+                  variant: "destructive",
+                });
               }
             }}
             title="Click to view document"
@@ -247,6 +266,7 @@ export default function DocumentsPage() {
     {
       key: "file_type",
       label: "Type",
+      sortable: true,
       render: (value, row) => (
         <Badge variant="outline" className="text-xs">
           {getReadableFileType(row.original_filename, value)}
@@ -258,7 +278,7 @@ export default function DocumentsPage() {
       label: "Size", 
       sortable: true,
       render: (value) => (
-        <span className="text-sm font-mono">{formatFileSize(value)}</span>
+        <span className="text-sm">{formatFileSize(value)}</span>
       ),
     },
     {
@@ -273,6 +293,7 @@ export default function DocumentsPage() {
     {
       key: "summary",
       label: "Summary",
+      sortable: true,
       render: (value) => value ? (
         <div className="max-w-xs">
           <div className="line-clamp-2 text-sm text-muted-foreground">{value}</div>
@@ -282,8 +303,9 @@ export default function DocumentsPage() {
     {
       key: "uploader_email",
       label: "Uploader Email",
+      sortable: true,
       render: (_, row) => (
-        <div className="text-sm font-mono">{getUploaderEmail(row)}</div>
+        <div className="text-sm">{getUploaderEmail(row)}</div>
       ),
     },
     {
@@ -297,6 +319,7 @@ export default function DocumentsPage() {
     {
       key: "category",
       label: "Category",
+      sortable: true,
       type: "badge",
       getBadgeVariant: getCategoryColor,
       render: (value) => value ? (
