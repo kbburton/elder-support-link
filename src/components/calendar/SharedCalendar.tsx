@@ -178,9 +178,15 @@ export default function SharedCalendar(props: SharedCalendarProps) {
       onToggleSelect?.(evt);
       return;
     }
+    // Only open the basic dialog if no custom onEventSelect handler is provided
+    // When onEventSelect is provided (like in CalendarPage), use that instead
+    if (onEventSelect) {
+      onEventSelect(evt);
+      return;
+    }
+    // Fallback to basic dialog for backwards compatibility
     setSelectedEvent(evt);
     setOpen(true);
-    onEventSelect?.(evt);
   }
 
   function closeEvent() {
