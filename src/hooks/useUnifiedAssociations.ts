@@ -228,12 +228,16 @@ export function useCreateAssociation() {
       const columns = COLUMN_MAPPING[junctionTable as keyof typeof COLUMN_MAPPING];
       const [type1, type2] = getJunctionTableKey(entityType, targetType).split('-') as [EntityType, EntityType];
       
+      // Get user ID first
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      
       // Determine which ID goes in which column
       const isFirstType = entityType === type1;
       const insertData = {
         [isFirstType ? columns.left : columns.right]: entityId,
         [isFirstType ? columns.right : columns.left]: targetId,
-        created_by_user_id: (await supabase.auth.getUser()).data.user?.id
+        created_by_user_id: user.id
       };
       
       const { error } = await supabase
