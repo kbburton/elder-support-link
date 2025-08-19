@@ -165,13 +165,8 @@ export function AssociationManager({
             `)
             .eq('document_id', entityId);
         } else if (entityType === 'activity') {
-          taskQuery = supabase
-            .from('document_links')
-            .select(`
-              tasks!inner(id, title, due_date, status, priority)
-            `)
-            .eq('linked_item_id', entityId)
-            .eq('linked_item_type', 'task');
+          // Activities and tasks don't have direct associations  
+          taskQuery = null;
         }
         
         if (taskQuery) {
@@ -257,13 +252,8 @@ export function AssociationManager({
             `)
             .eq('appointment_id', entityId);
         } else if (entityType === 'task') {
-          activityQuery = supabase
-            .from('document_links')
-            .select(`
-              activity_logs!inner(id, title, type, date_time)
-            `)
-            .eq('linked_item_id', entityId)
-            .eq('linked_item_type', 'activity_log');
+          // Tasks and activities don't have direct associations
+          activityQuery = null;
         } else if (entityType === 'document') {
           activityQuery = supabase
             .from('activity_documents')
@@ -412,13 +402,11 @@ export function AssociationManager({
         sourceColumn = 'appointment_id';
         targetColumn = 'activity_log_id';
       } else if (entityType === 'task' && selectedType === 'activity') {
-        tableName = 'document_links';
-        sourceColumn = 'linked_item_id';
-        targetColumn = 'document_id';
+        // Task-Activity associations are not directly supported
+        throw new Error('Task-Activity associations are not supported yet');
       } else if (entityType === 'activity' && selectedType === 'task') {
-        tableName = 'document_links';
-        sourceColumn = 'linked_item_id';
-        targetColumn = 'document_id';
+        // Activity-Task associations are not directly supported  
+        throw new Error('Activity-Task associations are not supported yet');
       }
 
       if (!tableName) {
@@ -453,7 +441,10 @@ export function AssociationManager({
       setSelectedType('');
       setSearchTerm('');
       setShowAddForm(false);
-      toast({ title: "Success", description: "Association created successfully." });
+      toast({ 
+        title: "Success", 
+        description: `Association created successfully! ${selectedType} has been linked.`
+      });
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -699,9 +690,9 @@ export function AssociationManager({
                   <SelectContent>
                     {entityType !== 'contact' && <SelectItem value="contact">Contacts</SelectItem>}
                     {entityType !== 'appointment' && <SelectItem value="appointment">Appointments</SelectItem>}
-                    {entityType !== 'task' && <SelectItem value="task">Tasks</SelectItem>}
+                     {entityType !== 'task' && entityType !== 'activity' && <SelectItem value="task">Tasks</SelectItem>}
                     {entityType !== 'document' && <SelectItem value="document">Documents</SelectItem>}
-                    {entityType !== 'activity' && <SelectItem value="activity">Activities</SelectItem>}
+                    {entityType !== 'activity' && entityType !== 'task' && <SelectItem value="activity">Activities</SelectItem>}
                   </SelectContent>
                 </Select>
               </div>

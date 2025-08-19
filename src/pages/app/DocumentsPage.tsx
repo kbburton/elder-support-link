@@ -234,24 +234,27 @@ export default function DocumentsPage() {
             className="p-0 h-auto text-left text-sm text-wrap break-all"
             onClick={async () => {
               try {
-                const { data } = await supabase.storage
-                  .from('documents')
-                  .createSignedUrl(row.file_url, 600); // 10 minutes
-                
-                if (data?.signedUrl) {
-                  window.open(data.signedUrl, '_blank');
-                } else {
-                  toast({
-                    title: "Error",
-                    description: "Failed to generate file preview link.",
-                    variant: "destructive",
-                  });
+                // Extract filename from file_url which should be like "documents/filename"
+                const fileName = row.file_url?.split('/').pop() || row.original_filename;
+                if (!fileName) {
+                  throw new Error('No filename found');
                 }
-              } catch (error) {
+                
+                const { data, error } = await supabase.storage
+                  .from('documents')
+                  .createSignedUrl(fileName, 600); // 10 minutes
+                
+                if (error || !data?.signedUrl) {
+                  console.error('Signed URL error:', error);
+                  throw new Error(error?.message || 'Failed to generate signed URL');
+                }
+                
+                window.open(data.signedUrl, '_blank');
+              } catch (error: any) {
                 console.error('File preview error:', error);
                 toast({
                   title: "Error",
-                  description: "Failed to open file preview.",
+                  description: error.message || "Failed to open file preview.",
                   variant: "destructive",
                 });
               }

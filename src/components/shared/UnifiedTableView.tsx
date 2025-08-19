@@ -112,11 +112,11 @@ export function UnifiedTableView({
           bVal = new Date(bVal).getTime();
         }
 
-        // Handle strings
+        // Handle strings (case insensitive for better grouping)
         if (typeof aVal === 'string' && typeof bVal === 'string') {
           return sortOrder === 'asc' 
-            ? aVal.localeCompare(bVal)
-            : bVal.localeCompare(aVal);
+            ? aVal.toLowerCase().localeCompare(bVal.toLowerCase())
+            : bVal.toLowerCase().localeCompare(aVal.toLowerCase());
         }
 
         // Handle numbers

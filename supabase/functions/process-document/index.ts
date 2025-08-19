@@ -104,6 +104,9 @@ serve(async (req) => {
         extractedText = await processPPTX(fileBuffer);
       } else if (fileType.includes('xlsx') || mimeType.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')) {
         extractedText = await processXLSX(fileBuffer);
+      } else if (fileType.includes('xls') || mimeType.includes('application/vnd.ms-excel')) {
+        // For older Excel files, try text extraction or OCR
+        extractedText = await processXLSX(fileBuffer);
       } else if (fileType.includes('image') || fileType.includes('png') || fileType.includes('jpg') || fileType.includes('jpeg') || fileType.includes('webp') || mimeType.startsWith('image/')) {
         // For image files, use OpenAI vision for OCR
         const base64File = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)));
