@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Trash2, Edit, ChevronUp, ChevronDown, Search, SortAsc } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { DeleteConfirm } from "@/components/delete/DeleteConfirm";
+import { EnhancedDeleteConfirm } from "@/components/delete/EnhancedDeleteConfirm";
 import { BulkDeleteBar } from "@/components/delete/BulkDeleteBar";
 
 export interface TableColumn {
@@ -411,7 +411,7 @@ export function UnifiedTableView({
       )}
 
       {/* Delete Confirmation */}
-      <DeleteConfirm
+      <EnhancedDeleteConfirm
         isOpen={showDeleteConfirm}
         onClose={() => setShowDeleteConfirm(false)}
         onConfirm={confirmBulkDelete}

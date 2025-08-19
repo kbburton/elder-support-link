@@ -74,15 +74,6 @@ export function DocumentAssociationsModal({ document, isOpen, onClose, groupId }
                   Type: {document.file_type || 'Unknown'} | Category: {document.category || 'Uncategorized'}
                 </p>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => window.open(`/app/${groupId}/documents`, '_blank')}
-                className="gap-2"
-              >
-                <ExternalLink className="h-4 w-4" />
-                Open Documents
-              </Button>
             </div>
           </div>
 

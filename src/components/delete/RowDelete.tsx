@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { DeleteConfirm } from '@/components/delete/DeleteConfirm';
+import { EnhancedDeleteConfirm } from '@/components/delete/EnhancedDeleteConfirm';
 import { useDeletion } from '@/hooks/useDeletion';
 import type { EntityType } from '@/lib/delete/types';
 
@@ -51,7 +51,7 @@ export default function RowDelete({ id, type, label='item(s)', onDone, variant='
         </Button>
       )}
 
-      <DeleteConfirm
+      <EnhancedDeleteConfirm
         isOpen={open}
         onClose={() => setOpen(false)}
         entityType={type}

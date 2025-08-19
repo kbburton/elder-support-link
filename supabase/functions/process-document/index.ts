@@ -98,7 +98,7 @@ serve(async (req) => {
       // Process based on file type
       if (fileType.includes('pdf') || mimeType.includes('application/pdf')) {
         extractedText = await processPDF(fileBuffer);
-      } else if (fileType.includes('docx') || mimeType.includes('application/vnd.openxmlformats-officedocument.wordprocessingml.document')) {
+      } else if (fileType.includes('docx') || fileType.includes('word document') || mimeType.includes('application/vnd.openxmlformats-officedocument.wordprocessingml.document') || mimeType.includes('Word Document')) {
         extractedText = await processDOCX(fileBuffer);
       } else if (fileType.includes('pptx') || mimeType.includes('application/vnd.openxmlformats-officedocument.presentationml.presentation')) {
         extractedText = await processPPTX(fileBuffer);

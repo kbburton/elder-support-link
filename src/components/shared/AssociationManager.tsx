@@ -165,8 +165,12 @@ export function AssociationManager({
             `)
             .eq('document_id', entityId);
         } else if (entityType === 'activity') {
-          // Activities and tasks don't have direct associations  
-          taskQuery = null;
+          taskQuery = supabase
+            .from('task_activities')
+            .select(`
+              tasks!inner(id, title, due_date, status, priority)
+            `)
+            .eq('activity_log_id', entityId);
         }
         
         if (taskQuery) {
@@ -252,8 +256,12 @@ export function AssociationManager({
             `)
             .eq('appointment_id', entityId);
         } else if (entityType === 'task') {
-          // Tasks and activities don't have direct associations
-          activityQuery = null;
+          activityQuery = supabase
+            .from('task_activities')
+            .select(`
+              activity_logs!inner(id, title, type, date_time)
+            `)
+            .eq('task_id', entityId);
         } else if (entityType === 'document') {
           activityQuery = supabase
             .from('activity_documents')
@@ -402,11 +410,13 @@ export function AssociationManager({
         sourceColumn = 'appointment_id';
         targetColumn = 'activity_log_id';
       } else if (entityType === 'task' && selectedType === 'activity') {
-        // Task-Activity associations are not directly supported
-        throw new Error('Task-Activity associations are not supported yet');
+        tableName = 'task_activities';
+        sourceColumn = 'task_id';
+        targetColumn = 'activity_log_id';
       } else if (entityType === 'activity' && selectedType === 'task') {
-        // Activity-Task associations are not directly supported  
-        throw new Error('Activity-Task associations are not supported yet');
+        tableName = 'task_activities';
+        sourceColumn = 'task_id';
+        targetColumn = 'activity_log_id';
       }
 
       if (!tableName) {
@@ -421,6 +431,8 @@ export function AssociationManager({
             ? { appointment_id: entityType === 'appointment' ? entityId : targetId, task_id: entityType === 'task' ? entityId : targetId }
         : (entityType === 'appointment' && selectedType === 'activity') || (entityType === 'activity' && selectedType === 'appointment')
             ? { appointment_id: entityType === 'appointment' ? entityId : targetId, activity_log_id: entityType === 'activity' ? entityId : targetId }
+        : (entityType === 'task' && selectedType === 'activity') || (entityType === 'activity' && selectedType === 'task')
+            ? { task_id: entityType === 'task' ? entityId : targetId, activity_log_id: entityType === 'activity' ? entityId : targetId }
         : (entityType === 'appointment' && selectedType === 'document') || (entityType === 'document' && selectedType === 'appointment')
             ? { appointment_id: entityType === 'appointment' ? entityId : targetId, document_id: entityType === 'document' ? entityId : targetId }
         : tableName === 'task_documents'
@@ -510,13 +522,13 @@ export function AssociationManager({
         sourceColumn = 'appointment_id';
         targetColumn = 'activity_log_id';
       } else if (entityType === 'task' && association.type === 'activity') {
-        tableName = 'document_links';
-        sourceColumn = 'linked_item_id';
-        targetColumn = 'document_id';
+        tableName = 'task_activities';
+        sourceColumn = 'task_id';
+        targetColumn = 'activity_log_id';
       } else if (entityType === 'activity' && association.type === 'task') {
-        tableName = 'document_links';
-        sourceColumn = 'linked_item_id';
-        targetColumn = 'document_id';
+        tableName = 'task_activities';
+        sourceColumn = 'task_id';
+        targetColumn = 'activity_log_id';
       }
 
       if (!tableName) return;
@@ -535,20 +547,8 @@ export function AssociationManager({
             ? { task_id: entityType === 'task' ? entityId : association.id, document_id: entityType === 'document' ? entityId : association.id }
         : tableName === 'activity_documents'
             ? { activity_log_id: entityType === 'activity' ? entityId : association.id, document_id: entityType === 'document' ? entityId : association.id }
-        : tableName === 'document_links'
-            ? (entityType === 'document' && association.type === 'task')
-                ? { document_id: entityId, linked_item_id: association.id, linked_item_type: 'task' }
-            : (entityType === 'task' && association.type === 'document')
-                ? { document_id: association.id, linked_item_id: entityId, linked_item_type: 'task' }
-            : (entityType === 'document' && association.type === 'activity')
-                ? { document_id: entityId, linked_item_id: association.id, linked_item_type: 'activity_log' }
-            : (entityType === 'activity' && association.type === 'document')
-                ? { document_id: association.id, linked_item_id: entityId, linked_item_type: 'activity_log' }
-            : (entityType === 'task' && association.type === 'activity')
-                ? { linked_item_id: entityId, document_id: association.id, linked_item_type: 'activity_log' }
-            : (entityType === 'activity' && association.type === 'task')
-                ? { linked_item_id: association.id, document_id: entityId, linked_item_type: 'task' }
-            : { [sourceColumn]: entityId, [targetColumn]: association.id }
+        : tableName === 'task_activities'
+            ? { task_id: entityType === 'task' ? entityId : association.id, activity_log_id: entityType === 'activity' ? entityId : association.id }
         : { [sourceColumn]: entityId, [targetColumn]: association.id };
 
       const { error } = await supabase
