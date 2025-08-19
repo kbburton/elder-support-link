@@ -68,7 +68,8 @@ export function TaskList({ groupId, sortBy, filters, hideCompleted, searchQuery 
               *,
               task_recurrence_rules(id, pattern_type)
             `)
-            .eq("group_id", groupId);
+            .eq("group_id", groupId)
+            .eq("is_deleted", false);
 
           // Apply filters
           if (filters.status.length > 0) {

@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { ChevronLeft, ChevronRight, CalendarDays, Clock, Trash2, CheckSquare, Square } from "lucide-react";
 import { softDeleteEntity } from "@/lib/delete/rpc";
+import { CalendarLegend } from "./CalendarLegend";
 
 export type View = "month" | "week" | "day" | "list";
 
@@ -383,18 +384,7 @@ export default function SharedCalendar(props: SharedCalendarProps) {
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-        {showLegend && (
-          <div className="flex items-center gap-3 text-xs">
-            <span className="inline-flex items-center gap-1">
-              <span className="inline-block w-3 h-3 rounded bg-blue-400" />
-              Appointments
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="inline-block w-3 h-3 rounded bg-green-400" />
-              Tasks (with due date)
-            </span>
-          </div>
-        )}
+        {showLegend && <CalendarLegend />}
       </div>
 
       {/* Body */}

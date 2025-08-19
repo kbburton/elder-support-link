@@ -53,10 +53,11 @@ export default function MonthlyOverview({ className }: MonthlyOverviewProps) {
         .from("tasks")
         .select("id, title, due_date, category, status")
         .eq("group_id", groupId)
+        .eq("is_deleted", false)
         .not("due_date", "is", null)
         .gte("due_date", format(monthStart, "yyyy-MM-dd"))
         .lte("due_date", format(monthEnd, "yyyy-MM-dd"))
-        .order("due_date", { ascending: true });
+        .order("due_date", { ascending: true});
 
       if (tasksError) throw tasksError;
 
