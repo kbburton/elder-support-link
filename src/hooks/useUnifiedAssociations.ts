@@ -16,16 +16,16 @@ interface Association {
 
 // Junction table mapping for all bidirectional relationships
 const JUNCTION_TABLES = {
-  "contact-appointment": "contact_appointments",
-  "contact-task": "contact_tasks", 
-  "contact-document": "contact_documents",
-  "contact-activity": "contact_activities",
-  "appointment-task": "appointment_tasks",
+  "activity-appointment": "appointment_activities",
+  "activity-contact": "contact_activities",
+  "activity-document": "activity_documents",
+  "activity-task": "task_activities",
+  "appointment-contact": "contact_appointments",
   "appointment-document": "appointment_documents", 
-  "appointment-activity": "appointment_activities",
-  "task-document": "task_documents",
-  "task-activity": "task_activities",
-  "document-activity": "activity_documents"
+  "appointment-task": "appointment_tasks",
+  "contact-document": "contact_documents",
+  "contact-task": "contact_tasks",
+  "document-task": "task_documents"
 } as const;
 
 // Column mapping for junction tables
