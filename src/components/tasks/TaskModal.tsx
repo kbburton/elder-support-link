@@ -25,7 +25,7 @@ import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import ContactMultiSelect from "@/components/contacts/ContactMultiSelect";
-import { DocumentLinker } from "@/components/documents/DocumentLinker";
+import { TaskAppointmentDocumentLinker } from "@/components/documents/TaskAppointmentDocumentLinker";
 import { triggerReindex } from "@/utils/reindex";
 import { RecurrenceModal } from "./RecurrenceModal";
 import { useLinkedContacts } from "@/hooks/useLinkedContacts";
@@ -608,17 +608,16 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
             />
           </div>
 
-          {/* Related Documents - only show for existing tasks */}
-          {task && (
-            <div>
-              <Label>Related Documents</Label>
-              <DocumentLinker
-                documentId={task.id}
-                documentTitle={task.title}
-                onLinksChange={() => {}}
-              />
-            </div>
-          )}
+          {/* Related Documents */}
+          <div>
+            <Label>Documents</Label>
+            <TaskAppointmentDocumentLinker
+              itemId={task?.id || null}
+              itemType="task"
+              itemTitle={formData.title || "New Task"}
+              isCreationMode={!task}
+            />
+          </div>
 
           {/* Make Recurring - only show for existing tasks */}
           {task && (
