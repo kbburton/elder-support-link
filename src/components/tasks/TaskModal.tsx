@@ -25,7 +25,7 @@ import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import ContactMultiSelect from "@/components/contacts/ContactMultiSelect";
-import { TaskAppointmentDocumentLinker } from "@/components/documents/TaskAppointmentDocumentLinker";
+import { AssociationManager } from "@/components/shared/AssociationManager";
 import { triggerReindex } from "@/utils/reindex";
 import { RecurrenceModal } from "./RecurrenceModal";
 import { useLinkedContacts } from "@/hooks/useLinkedContacts";
@@ -608,16 +608,40 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
             />
           </div>
 
-          {/* Related Documents */}
-          <div>
-            <Label>Documents</Label>
-            <TaskAppointmentDocumentLinker
-              itemId={task?.id || null}
-              itemType="task"
-              itemTitle={formData.title || "New Task"}
-              isCreationMode={!task}
-            />
-          </div>
+          {/* Related Documents & Activities */}
+          {task && (
+            <div>
+              <Label>Related Items</Label>
+              <AssociationManager
+                entityId={task.id}
+                entityType="task"
+                groupId={groupId}
+                onNavigate={(type, id) => {
+                  const baseUrl = `/app/${groupId}`;
+                  let url = '';
+                  
+                  switch (type) {
+                    case 'contact':
+                      url = `${baseUrl}/contacts`;
+                      break;
+                    case 'appointment':
+                      url = `${baseUrl}/calendar`;
+                      break;
+                    case 'document':
+                      url = `${baseUrl}/documents`;
+                      break;
+                    case 'activity':
+                      url = `${baseUrl}/activities`;
+                      break;
+                    default:
+                      return;
+                  }
+                  
+                  window.open(url, '_blank');
+                }}
+              />
+            </div>
+          )}
 
           {/* Make Recurring - only show for existing tasks */}
           {task && (
