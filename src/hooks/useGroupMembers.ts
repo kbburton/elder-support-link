@@ -21,11 +21,18 @@ export function useGroupMembers(groupId: string) {
         throw error;
       }
 
-      const processedMembers = members?.map((member: any) => ({
-        id: member.user_id,
-        email: member.profiles?.email || '',
-        name: `${member.profiles?.first_name || ''} ${member.profiles?.last_name || ''}`.trim() || member.profiles?.email || 'Unknown'
-      })) || [];
+      const processedMembers = members?.map((member: any) => {
+        const profile = member.profiles;
+        const firstName = profile?.first_name || '';
+        const lastName = profile?.last_name || '';
+        const fullName = `${firstName} ${lastName}`.trim();
+        
+        return {
+          id: member.user_id,
+          email: profile?.email || '',
+          name: fullName || profile?.email || 'Unknown User'
+        };
+      }) || [];
       
       return processedMembers;
     },
