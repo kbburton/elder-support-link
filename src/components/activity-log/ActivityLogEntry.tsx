@@ -18,8 +18,6 @@ interface ActivityLogEntryProps {
     title: string;
     notes: string;
     attachment_url?: string;
-    linked_task_id?: string;
-    linked_appointment_id?: string;
     created_by_user_id: string;
     created_by_email?: string;
     created_at: string;
@@ -55,13 +53,12 @@ const ActivityLogEntry = ({ entry, onEdit, onDelete, currentUserId, isGroupAdmin
     queryKey: ["activity-log-documents", entry.id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("document_links")
+        .from("activity_documents")
         .select(`
           document_id,
           documents(id, title, category, original_filename)
         `)
-        .eq("linked_item_id", entry.id)
-        .eq("linked_item_type", "activity_log");
+        .eq("activity_log_id", entry.id);
       
       if (error) throw error;
       return data;
@@ -220,16 +217,6 @@ const ActivityLogEntry = ({ entry, onEdit, onDelete, currentUserId, isGroupAdmin
             </div>
           )}
 
-          {(entry.linked_task_id || entry.linked_appointment_id) && (
-            <div className="flex gap-2">
-              {entry.linked_task_id && (
-                <Badge variant="outline">Linked to Task</Badge>
-              )}
-              {entry.linked_appointment_id && (
-                <Badge variant="outline">Linked to Appointment</Badge>
-              )}
-            </div>
-          )}
 
           <div className="flex items-center gap-2 pt-2 border-t">
             <Button

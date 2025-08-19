@@ -107,10 +107,9 @@ export const TaskAppointmentDocumentLinker = ({
         })) || [];
       } else if (itemType === 'activity_log') {
         const { data: linksData } = await supabase
-          .from('document_links')
+          .from('activity_documents')
           .select('document_id')
-          .eq('linked_item_id', itemId)
-          .eq('linked_item_type', 'activity_log');
+          .eq('activity_log_id', itemId);
         
         if (!linksData || linksData.length === 0) return [];
         
@@ -178,7 +177,12 @@ export const TaskAppointmentDocumentLinker = ({
             task_id: itemId!,
             created_by_user_id: user.id
           });
-        if (error) throw error;
+        if (error) {
+          if (error.code === '23505') {
+            throw new Error('Already linked.');
+          }
+          throw error;
+        }
       } else if (itemType === 'appointment') {
         const { error } = await supabase
           .from('appointment_documents')
@@ -187,16 +191,26 @@ export const TaskAppointmentDocumentLinker = ({
             appointment_id: itemId!,
             created_by_user_id: user.id
           });
-        if (error) throw error;
+        if (error) {
+          if (error.code === '23505') {
+            throw new Error('Already linked.');
+          }
+          throw error;
+        }
       } else if (itemType === 'activity_log') {
         const { error } = await supabase
-          .from('document_links')
+          .from('activity_documents')
           .insert({
             document_id: selectedDocumentId,
-            linked_item_id: itemId!,
-            linked_item_type: 'activity_log'
+            activity_log_id: itemId!,
+            created_by_user_id: user.id
           });
-        if (error) throw error;
+        if (error) {
+          if (error.code === '23505') {
+            throw new Error('Already linked.');
+          }
+          throw error;
+        }
       }
 
       toast({
@@ -246,11 +260,10 @@ export const TaskAppointmentDocumentLinker = ({
         if (error) throw error;
       } else if (itemType === 'activity_log') {
         const { error } = await supabase
-          .from('document_links')
+          .from('activity_documents')
           .delete()
           .eq('document_id', documentId)
-          .eq('linked_item_id', itemId!)
-          .eq('linked_item_type', 'activity_log');
+          .eq('activity_log_id', itemId!);
         if (error) throw error;
       }
 

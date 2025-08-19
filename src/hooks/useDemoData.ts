@@ -177,8 +177,6 @@ export const useDemoActivities = (groupId?: string) => {
         date_time: activityDate.toISOString(),
         created_by_user_id: activity.createdByUserId,
         created_by_email: activity.createdByEmail,
-        linked_appointment_id: (activity as any).linkedAppointments?.[0] || null,
-        linked_task_id: (activity as any).linkedTasks?.[0] || null,
         created_at: stableTimestamp
       };
     });

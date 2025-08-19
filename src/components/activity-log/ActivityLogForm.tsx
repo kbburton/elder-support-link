@@ -29,8 +29,6 @@ const ActivityLogForm = ({ editingEntry, onSave, onCancel }: ActivityLogFormProp
     title: "",
     notes: "",
     attachment_url: "",
-    linked_task_id: "",
-    linked_appointment_id: "",
   });
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [currentUserEmail, setCurrentUserEmail] = useState<string>("");
@@ -59,8 +57,6 @@ const ActivityLogForm = ({ editingEntry, onSave, onCancel }: ActivityLogFormProp
         title: editingEntry.title || "",
         notes: editingEntry.notes || "",
         attachment_url: editingEntry.attachment_url || "",
-        linked_task_id: editingEntry.linked_task_id || "",
-        linked_appointment_id: editingEntry.linked_appointment_id || "",
       });
     } else {
       // Default to current time for new entries
@@ -71,43 +67,12 @@ const ActivityLogForm = ({ editingEntry, onSave, onCancel }: ActivityLogFormProp
         title: "",
         notes: "",
         attachment_url: "",
-        linked_task_id: "",
-        linked_appointment_id: "",
       });
       setDocumentLinks([]);
       setRelatedContacts([]);
     }
   }, [editingEntry]);
 
-  const { data: tasks } = useQuery({
-    queryKey: ["tasks", groupId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("tasks")
-        .select("id, title, status")
-        .eq("group_id", groupId)
-        .order("created_at", { ascending: false });
-      
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!groupId,
-  });
-
-  const { data: appointments } = useQuery({
-    queryKey: ["appointments", groupId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("appointments")
-        .select("id, category, description, date_time")
-        .eq("group_id", groupId)
-        .order("date_time", { ascending: false });
-      
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!groupId,
-  });
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -119,11 +84,9 @@ const ActivityLogForm = ({ editingEntry, onSave, onCancel }: ActivityLogFormProp
         created_by_email: currentUserEmail,
       };
 
-      // Clean up empty fields and handle special "none" values
+      // Clean up empty fields
       Object.keys(payload).forEach(key => {
-        if (payload[key as keyof typeof payload] === "" || 
-            payload[key as keyof typeof payload] === "no_task" ||
-            payload[key as keyof typeof payload] === "no_appointment") {
+        if (payload[key as keyof typeof payload] === "") {
           payload[key as keyof typeof payload] = null;
         }
       });
@@ -153,16 +116,23 @@ const ActivityLogForm = ({ editingEntry, onSave, onCancel }: ActivityLogFormProp
       // Handle document linking for new entries
       if (!editingEntry && documentLinks.length > 0) {
         try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) throw new Error("User not authenticated");
+
           const linkPromises = documentLinks.map((docId) =>
-            supabase.from("document_links").insert({
+            supabase.from("activity_documents").insert({
               document_id: docId,
-              linked_item_id: data.id,
-              linked_item_type: "activity_log",
+              activity_log_id: data.id,
+              created_by_user_id: user.id,
             })
           );
           await Promise.all(linkPromises);
-        } catch (error) {
-          console.warn("Document linking failed:", error);
+        } catch (error: any) {
+          if (error.code === "23505") {
+            toast({ title: "Already linked", description: "Some documents are already linked." });
+          } else {
+            console.warn("Document linking failed:", error);
+          }
         }
       }
 
@@ -375,48 +345,6 @@ const ActivityLogForm = ({ editingEntry, onSave, onCancel }: ActivityLogFormProp
             />
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="linked_task">Related Task (optional)</Label>
-              <Select 
-                value={formData.linked_task_id} 
-                onValueChange={(value) => setFormData({ ...formData, linked_task_id: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select related task" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="no_task">No task selected</SelectItem>
-                  {tasks?.map((task) => (
-                    <SelectItem key={task.id} value={task.id}>
-                      {task.title} ({task.status})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="linked_appointment">Related Appointment (optional)</Label>
-              <Select 
-                value={formData.linked_appointment_id} 
-                onValueChange={(value) => setFormData({ ...formData, linked_appointment_id: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select related appointment" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="no_appointment">No appointment selected</SelectItem>
-                  {appointments?.map((appointment) => (
-                    <SelectItem key={appointment.id} value={appointment.id}>
-                      {appointment.category} - {appointment.description} 
-                      ({format(new Date(appointment.date_time), "MMM d, yyyy")})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
 
           {currentUserEmail && (
             <div className="text-sm text-muted-foreground">
