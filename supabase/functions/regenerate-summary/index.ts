@@ -8,7 +8,6 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -25,100 +24,74 @@ serve(async (req) => {
     );
 
     const { documentId } = await req.json();
-    console.log('Processing summary regeneration for document:', documentId);
     
     if (!documentId) {
       throw new Error('Document ID is required');
     }
 
-    // Get document details
     const { data: document, error: docError } = await supabaseClient
       .from('documents')
-      .select('id, full_text, title, original_filename')
+      .select('*')
       .eq('id', documentId)
       .single();
 
-    if (docError || !document) {
-      throw new Error(`Document not found: ${docError?.message}`);
+    if (docError) {
+      throw new Error(`Document not found: ${docError.message}`);
     }
 
-    if (!document.full_text || document.full_text.trim().length === 0) {
+    let textContent = document.full_text;
+    
+    if (!textContent || textContent.trim().length === 0) {
       throw new Error('No text content available to summarize');
     }
 
-    console.log('Generating new AI summary for:', document.title || document.original_filename);
-
-    // Generate new summary using GPT
-    const summaryResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4.1-mini-2025-04-14',
         messages: [
           {
             role: 'system',
-            content: 'You are a helpful assistant that creates concise, informative summaries of documents. Focus on key points, important dates, and actionable information. Keep summaries under 200 words and make them useful for healthcare caregivers managing care coordination.'
+            content: 'You are a helpful assistant that creates concise summaries. Focus on key points, important dates, and actionable information.'
           },
           {
-            role: 'user', 
-            content: `Please create a comprehensive summary of this document:\n\n${document.full_text}`
+            role: 'user',
+            content: `Please create a comprehensive summary of this document:\n\n${textContent.substring(0, 10000)}`
           }
         ],
-        max_tokens: 300,
-        temperature: 0.3,
+        max_completion_tokens: 400,
       }),
     });
 
-    if (!summaryResponse.ok) {
-      const errorText = await summaryResponse.text();
-      throw new Error(`OpenAI API error: ${summaryResponse.status} - ${errorText}`);
+    if (!response.ok) {
+      throw new Error(`OpenAI API error: ${response.statusText}`);
     }
 
-    const summaryData = await summaryResponse.json();
-    const newSummary = summaryData.choices[0]?.message?.content || 'Could not generate summary';
+    const data = await response.json();
+    const newSummary = data.choices[0]?.message?.content || 'Summary could not be generated.';
 
-    // Update document with new summary
     const { error: updateError } = await supabaseClient
       .from('documents')
-      .update({
-        summary: newSummary,
-        updated_at: new Date().toISOString()
-      })
+      .update({ summary: newSummary })
       .eq('id', documentId);
 
     if (updateError) {
       throw new Error(`Failed to update document: ${updateError.message}`);
     }
 
-    console.log('Successfully regenerated summary for document:', documentId);
-
     return new Response(
-      JSON.stringify({
-        success: true,
-        documentId,
-        summary: newSummary,
-        message: 'Summary regenerated successfully'
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+      JSON.stringify({ success: true, summary: newSummary }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
-    console.error('Error regenerating summary:', error);
-    
     return new Response(
-      JSON.stringify({
-        success: false,
-        error: error.message || 'Failed to regenerate summary'
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+      JSON.stringify({ error: error.message, success: false }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

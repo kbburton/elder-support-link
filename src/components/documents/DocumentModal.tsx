@@ -237,19 +237,34 @@ export function DocumentModal({ document, isOpen, onClose, groupId }: DocumentMo
     }
   };
 
-  const getUploaderDisplay = () => {
-    if (uploaderProfile) {
-      const name = [uploaderProfile.first_name, uploaderProfile.last_name]
-        .filter(Boolean)
-        .join(' ') || uploaderProfile.email;
-      const timeAgo = formatDistanceToNow(new Date(document!.upload_date), { addSuffix: true });
-      return `${name} uploaded ${timeAgo}`;
+  const getReadableFileType = (filename?: string, fileType?: string) => {
+    if (!filename && !fileType) return 'Unknown';
+    
+    const extension = filename?.split('.').pop()?.toLowerCase() || fileType?.toLowerCase();
+    
+    switch (extension) {
+      case 'pdf': return 'PDF';
+      case 'doc': case 'docx': return 'Word';
+      case 'xls': case 'xlsx': return 'Excel';
+      case 'ppt': case 'pptx': return 'PowerPoint';
+      case 'txt': return 'Text';
+      case 'jpg': case 'jpeg': return 'JPEG Image';
+      case 'png': return 'PNG Image';
+      case 'gif': return 'GIF Image';
+      case 'zip': return 'ZIP Archive';
+      default: return extension?.toUpperCase() || 'Unknown';
     }
+  };
+
+  const getUploaderEmail = () => {
+    return uploaderProfile?.email || 'Unknown';
+  };
+
+  const getUploadDate = () => {
     if (document?.upload_date) {
-      const timeAgo = formatDistanceToNow(new Date(document.upload_date), { addSuffix: true });
-      return `Uploaded ${timeAgo}`;
+      return format(new Date(document.upload_date), 'MMM dd, yyyy');
     }
-    return 'Unknown uploader';
+    return 'Unknown';
   };
 
   const categories = ["Medical", "Legal", "Financial", "Insurance", "Personal", "Other"];
@@ -343,15 +358,15 @@ export function DocumentModal({ document, isOpen, onClose, groupId }: DocumentMo
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <Label className="text-muted-foreground">Original Filename</Label>
-                  <p className="font-mono text-xs bg-muted p-2 rounded">
+                  <p className="font-mono text-xs bg-muted p-2 rounded break-all">
                     {document.original_filename || 'Unknown'}
                   </p>
                 </div>
                 
                 <div>
                   <Label className="text-muted-foreground">File Type</Label>
-                  <p className="font-mono text-xs bg-muted p-2 rounded">
-                    {document.file_type || 'Unknown'}
+                  <p className="text-sm bg-muted p-2 rounded">
+                    {getReadableFileType(document.original_filename, document.file_type)}
                   </p>
                 </div>
                 
@@ -363,49 +378,83 @@ export function DocumentModal({ document, isOpen, onClose, groupId }: DocumentMo
                 </div>
                 
                 <div>
-                  <Label className="text-muted-foreground">Status</Label>
-                  <p className="font-mono text-xs bg-muted p-2 rounded">
-                    {document.processing_status || 'Unknown'}
+                  <Label className="text-muted-foreground">Uploader Email</Label>
+                  <p className="font-mono text-xs bg-muted p-2 rounded break-all">
+                    {getUploaderEmail()}
                   </p>
                 </div>
-              </div>
-
-              <div>
-                <Label className="text-muted-foreground">Uploader</Label>
-                <p className="text-sm">{getUploaderDisplay()}</p>
-              </div>
-
-              <div>
-                <Label className="text-muted-foreground">Upload Date</Label>
-                <p className="text-sm">{format(new Date(document.upload_date), 'PPP p')}</p>
+                
+                <div>
+                  <Label className="text-muted-foreground">Upload Date</Label>
+                  <p className="text-sm bg-muted p-2 rounded">
+                    {getUploadDate()}
+                  </p>
+                </div>
               </div>
             </div>
 
             {/* Action Buttons */}
-            <div className="flex space-x-2 pt-4">
-              <Button type="submit" disabled={updateDocument.isPending} className="flex-1">
-                {updateDocument.isPending ? 'Saving...' : 'Save Changes'}
+            <Separator />
+            <div className="flex flex-wrap gap-3">
+              <Button type="submit" disabled={updateDocument.isPending}>
+                {updateDocument.isPending ? 'Updating...' : 'Update Document'}
               </Button>
+              
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleDelete}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </Button>
+              
               {document.file_url && (
-                <Button type="button" variant="outline" onClick={handleDownload}>
-                  <Download className="h-4 w-4 mr-1" />
+                <Button
+                  type="button"
+                  variant="outline" 
+                  onClick={handleDownload}
+                >
+                  <Download className="mr-2 h-4 w-4" />
                   Download
                 </Button>
               )}
-              <Button type="button" variant="outline" onClick={handleDelete}>
-                <Trash2 className="h-4 w-4 mr-1" />
-                Delete
+              
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancel
               </Button>
             </div>
           </form>
 
           {/* Associations Panel */}
-          <div>
-            <h3 className="text-sm font-medium mb-4">Document Associations</h3>
+          <div className="space-y-4">
             <AssociationManager
               entityId={document.id}
               entityType="document"
               groupId={groupId}
+              onNavigate={(type, id) => {
+                const baseUrl = `/app/${groupId}`;
+                let url = '';
+                
+                switch (type) {
+                  case 'contact':
+                    url = `${baseUrl}/contacts`;
+                    break;
+                  case 'appointment':
+                    url = `${baseUrl}/calendar`;
+                    break;
+                  case 'task':
+                    url = `${baseUrl}/tasks`;
+                    break;
+                  case 'activity':
+                    url = `${baseUrl}/activities`;
+                    break;
+                  default:
+                    return;
+                }
+                
+                window.open(url, '_blank');
+              }}
             />
           </div>
         </div>

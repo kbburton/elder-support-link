@@ -102,13 +102,14 @@ export function AssociationManager({
               appointments!inner(id, description, date_time, category)
             `)
             .eq('contact_id', entityId);
-        } else if (entityType === 'document') {
+        } else if (entityType == 'document') {
           appointmentQuery = supabase
-            .from('appointment_documents')
+            .from('document_links')
             .select(`
               appointments!inner(id, description, date_time, category)
             `)
-            .eq('document_id', entityId);
+            .eq('document_id', entityId)
+            .eq('linked_item_type', 'appointment');
         } else if (entityType === 'task') {
           appointmentQuery = supabase
             .from('appointment_tasks')
@@ -159,11 +160,12 @@ export function AssociationManager({
             .eq('appointment_id', entityId);
         } else if (entityType === 'document') {
           taskQuery = supabase
-            .from('task_documents')
+            .from('document_links')
             .select(`
               tasks!inner(id, title, due_date, status, priority)
             `)
-            .eq('document_id', entityId);
+            .eq('document_id', entityId)
+            .eq('linked_item_type', 'task');
         } else if (entityType === 'activity') {
           taskQuery = supabase
             .from('task_activities')
@@ -207,11 +209,12 @@ export function AssociationManager({
             .eq('appointment_id', entityId);
         } else if (entityType === 'task') {
           documentQuery = supabase
-            .from('task_documents')
+            .from('document_links')
             .select(`
               documents!inner(id, title, original_filename, upload_date, category)
             `)
-            .eq('task_id', entityId);
+            .eq('linked_item_id', entityId)
+            .eq('linked_item_type', 'task');
         }
         
         if (documentQuery) {

@@ -7,6 +7,7 @@ import { Plus, FileText, Link as LinkIcon } from "lucide-react";
 import SEO from "@/components/layout/SEO";
 import { DocumentUpload } from "@/components/documents/DocumentUpload";
 import { DocumentModal } from "@/components/documents/DocumentModal";
+import { DocumentAssociationsModal } from "@/components/documents/DocumentAssociationsModal";
 import { UnifiedTableView, TableColumn } from "@/components/shared/UnifiedTableView";
 import { Badge } from "@/components/ui/badge";
 import { format, formatDistanceToNow } from "date-fns";
@@ -26,6 +27,8 @@ export default function DocumentsPage() {
   const [showUpload, setShowUpload] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<any>(null);
   const [showDocumentModal, setShowDocumentModal] = useState(false);
+  const [selectedDocumentForAssociations, setSelectedDocumentForAssociations] = useState<any>(null);
+  const [isAssociationsModalOpen, setIsAssociationsModalOpen] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -105,7 +108,7 @@ export default function DocumentsPage() {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
       toast({
         title: "Document deleted",
-        description: "Document has been moved to trash.",
+        description: "Document has been moved to trash and can be restored within 30 days.",
       });
     },
     onError: (error) => {
@@ -128,8 +131,8 @@ export default function DocumentsPage() {
     onSuccess: (_, documentIds) => {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
       toast({
-        title: "Documents deleted",
-        description: `${documentIds.length} document(s) moved to trash.`,
+        title: "Documents deleted", 
+        description: `${documentIds.length} document(s) moved to trash and can be restored within 30 days.`,
       });
     },
     onError: (error) => {
@@ -150,7 +153,9 @@ export default function DocumentsPage() {
 
   const handleDeleteDocument = (documentId: string) => {
     if (blockOperation()) return;
-    deleteDocumentMutation.mutate(documentId);
+    if (confirm("Are you sure you want to delete this document? It will be moved to trash and can be restored within 30 days.")) {
+      deleteDocumentMutation.mutate(documentId);
+    }
   };
 
   const handleBulkDelete = (documentIds: string[]) => {
@@ -158,15 +163,32 @@ export default function DocumentsPage() {
     bulkDeleteMutation.mutate(documentIds);
   };
 
-  const getUploaderDisplay = (document: any) => {
-    if (document.uploader) {
-      const name = [document.uploader.first_name, document.uploader.last_name]
-        .filter(Boolean)
-        .join(' ') || document.uploader.email;
-      const timeAgo = formatDistanceToNow(new Date(document.upload_date || document.created_at), { addSuffix: true });
-      return `${name} uploaded ${timeAgo}`;
+  const getUploaderEmail = (document: any) => {
+    return document.uploader?.email || 'Unknown';
+  };
+
+  const getUploadDate = (document: any) => {
+    const date = new Date(document.upload_date || document.created_at);
+    return format(date, 'MMM dd, yyyy');
+  };
+
+  const getReadableFileType = (filename?: string, fileType?: string) => {
+    if (!filename && !fileType) return 'Unknown';
+    
+    const extension = filename?.split('.').pop()?.toLowerCase() || fileType?.toLowerCase();
+    
+    switch (extension) {
+      case 'pdf': return 'PDF';
+      case 'doc': case 'docx': return 'Word';
+      case 'xls': case 'xlsx': return 'Excel';
+      case 'ppt': case 'pptx': return 'PowerPoint';
+      case 'txt': return 'Text';
+      case 'jpg': case 'jpeg': return 'JPEG Image';
+      case 'png': return 'PNG Image';
+      case 'gif': return 'GIF Image';
+      case 'zip': return 'ZIP Archive';
+      default: return extension?.toUpperCase() || 'Unknown';
     }
-    return `Uploaded ${formatDistanceToNow(new Date(document.upload_date || document.created_at), { addSuffix: true })}`;
   };
 
   const getCategoryColor = (category: string) => {
@@ -205,18 +227,29 @@ export default function DocumentsPage() {
       key: "original_filename", 
       label: "Original Filename",
       sortable: true,
-      render: (value) => (
-        <div className="font-mono text-xs max-w-48 truncate" title={value}>
-          {value || "Unknown"}
+      render: (value, row) => (
+        <div className="max-w-48">
+          <Button
+            variant="link"
+            className="p-0 h-auto text-left font-mono text-xs text-wrap break-all"
+            onClick={() => {
+              if (row.file_url) {
+                window.open(row.file_url, '_blank');
+              }
+            }}
+            title="Click to view document"
+          >
+            {value || "Unknown"}
+          </Button>
         </div>
       ),
     },
     {
       key: "file_type",
       label: "Type",
-      render: (value) => (
-        <Badge variant="outline" className="font-mono text-xs">
-          {value || "Unknown"}
+      render: (value, row) => (
+        <Badge variant="outline" className="text-xs">
+          {getReadableFileType(row.original_filename, value)}
         </Badge>
       ),
     },
@@ -247,10 +280,18 @@ export default function DocumentsPage() {
       ) : "-",
     },
     {
-      key: "uploader",
-      label: "Uploader",
+      key: "uploader_email",
+      label: "Uploader Email",
       render: (_, row) => (
-        <div className="text-sm">{getUploaderDisplay(row)}</div>
+        <div className="text-sm font-mono">{getUploaderEmail(row)}</div>
+      ),
+    },
+    {
+      key: "upload_date",
+      label: "Upload Date", 
+      sortable: true,
+      render: (_, row) => (
+        <div className="text-sm">{getUploadDate(row)}</div>
       ),
     },
     {
@@ -316,12 +357,14 @@ export default function DocumentsPage() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => {
-                setSelectedDocument(item);
-                setShowDocumentModal(true);
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedDocumentForAssociations(item);
+                setIsAssociationsModalOpen(true);
               }}
               disabled={demo.isDemo}
-              title="Link to other items"
+              title="Manage associations"
+              className="h-8 w-8 p-0"
             >
               <LinkIcon className="h-4 w-4" />
             </Button>
@@ -344,6 +387,16 @@ export default function DocumentsPage() {
           onClose={() => {
             setShowDocumentModal(false);
             setSelectedDocument(null);
+          }}
+          groupId={groupId}
+        />
+
+        <DocumentAssociationsModal
+          document={selectedDocumentForAssociations}
+          isOpen={isAssociationsModalOpen}
+          onClose={() => {
+            setIsAssociationsModalOpen(false);
+            setSelectedDocumentForAssociations(null);
           }}
           groupId={groupId}
         />
