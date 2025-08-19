@@ -232,7 +232,8 @@ export function useCreateAssociation() {
       const isFirstType = entityType === type1;
       const insertData = {
         [isFirstType ? columns.left : columns.right]: entityId,
-        [isFirstType ? columns.right : columns.left]: targetId
+        [isFirstType ? columns.right : columns.left]: targetId,
+        created_by_user_id: (await supabase.auth.getUser()).data.user?.id
       };
       
       const { error } = await supabase
