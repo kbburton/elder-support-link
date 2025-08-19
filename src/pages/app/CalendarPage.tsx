@@ -288,7 +288,7 @@ const CalendarPage = () => {
           <TabsTrigger value="month">Month</TabsTrigger>
           <TabsTrigger value="week">Week</TabsTrigger>
           <TabsTrigger value="day">Day</TabsTrigger>
-          <TabsTrigger value="list">Full List</TabsTrigger>
+          <TabsTrigger value="list">Full List - Appointments</TabsTrigger>
         </TabsList>
 
         <TabsContent value="month">
@@ -342,8 +342,7 @@ const CalendarPage = () => {
           />
         </TabsContent>
 
-        <TabsContent value="list" className="space-y-4">
-          <h3 className="text-lg font-medium">Full List - Appointments</h3>
+        <TabsContent value="list">
           <AppointmentListView
             groupId={groupId}
             onEdit={(appointment) => {
