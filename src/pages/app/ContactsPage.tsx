@@ -17,7 +17,8 @@ import { useDemo } from "@/hooks/useDemo";
 export default function ContactsPage() {
   const { groupId } = useParams();
   const navigate = useNavigate();
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [selectedContact, setSelectedContact] = useState<any>(null);
   const [selectedContactForAssociations, setSelectedContactForAssociations] = useState<any>(null);
   const [isAssociationsModalOpen, setIsAssociationsModalOpen] = useState(false);
 
@@ -108,7 +109,8 @@ export default function ContactsPage() {
 
   const handleEditContact = (contact: any) => {
     if (blockOperation()) return;
-    navigate(`/app/${groupId}/contacts/${contact.id}/edit`);
+    setSelectedContact(contact);
+    setShowContactModal(true);
   };
 
   const handleDeleteContact = (contactId: string) => {
@@ -232,7 +234,10 @@ export default function ContactsPage() {
             <Button onClick={() => navigate(`/app/${groupId}/contacts/import`)} variant="outline">
               Import Contacts
             </Button>
-            <Button onClick={() => setShowCreateModal(true)}>
+            <Button onClick={() => {
+              setSelectedContact(null);
+              setShowContactModal(true);
+            }}>
               <Plus className="h-4 w-4 mr-2" />
               Add Contact
             </Button>
@@ -274,9 +279,12 @@ export default function ContactsPage() {
         />
 
         <ContactModal
-          contact={null}
-          isOpen={showCreateModal}
-          onClose={() => setShowCreateModal(false)}
+          contact={selectedContact}
+          isOpen={showContactModal}
+          onClose={() => {
+            setShowContactModal(false);
+            setSelectedContact(null);
+          }}
           groupId={groupId || ''}
         />
 
