@@ -25,7 +25,8 @@ import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import ContactMultiSelect from "@/components/contacts/ContactMultiSelect";
-import { AssociationManager } from "@/components/shared/AssociationManager";
+import { UnifiedAssociationManager } from "@/components/shared/UnifiedAssociationManager";
+import { ENTITY } from "@/constants/entities";
 import { triggerReindex } from "@/utils/reindex";
 import { RecurrenceModal } from "./RecurrenceModal";
 import { useLinkedContacts } from "@/hooks/useLinkedContacts";
@@ -612,25 +613,25 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
           {task && (
             <div>
               <Label>Related Items</Label>
-              <AssociationManager
+              <UnifiedAssociationManager
                 entityId={task.id}
-                entityType="task"
+                entityType={ENTITY.task}
                 groupId={groupId}
                 onNavigate={(type, id) => {
                   const baseUrl = `/app/${groupId}`;
                   let url = '';
                   
                   switch (type) {
-                    case 'contact':
+                    case ENTITY.contact:
                       url = `${baseUrl}/contacts`;
                       break;
-                    case 'appointment':
+                    case ENTITY.appointment:
                       url = `${baseUrl}/calendar`;
                       break;
-                    case 'document':
+                    case ENTITY.document:
                       url = `${baseUrl}/documents`;
                       break;
-                    case 'activity':
+                    case ENTITY.activity_log:
                       url = `${baseUrl}/activities`;
                       break;
                     default:

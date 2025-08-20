@@ -314,7 +314,7 @@ export function ActivityModal({ activity, isOpen, onClose, groupId }: ActivityMo
             <div className="space-y-4">
               <AssociationManager
                 entityId={activity.id}
-                entityType="activity"
+                entityType="activity_log"
                 groupId={groupId}
                 onNavigate={handleNavigate}
               />

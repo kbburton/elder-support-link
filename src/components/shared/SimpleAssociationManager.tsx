@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAssociations, useAvailableItems, useCreateAssociation, useRemoveAssociation, EntityType } from "@/hooks/useUnifiedAssociations";
+import { ENTITY } from "@/constants/entities";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,37 +43,37 @@ export function SimpleAssociationManager({
 
   const getAssociationIcon = (type: EntityType) => {
     switch (type) {
-      case 'contact': return '👤';
-      case 'appointment': return '📅';
-      case 'task': return '✓';
-      case 'document': return '📄';
-      case 'activity': return '📝';
+      case ENTITY.contact: return '👤';
+      case ENTITY.appointment: return '📅';
+      case ENTITY.task: return '✓';
+      case ENTITY.document: return '📄';
+      case ENTITY.activity_log: return '📝';
       default: return '🔗';
     }
   };
 
   const getAssociationColor = (type: EntityType) => {
     switch (type) {
-      case 'contact': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'appointment': return 'bg-purple-100 text-purple-800 border-purple-200';
-      case 'task': return 'bg-green-100 text-green-800 border-green-200';
-      case 'document': return 'bg-orange-100 text-orange-800 border-orange-200';
-      case 'activity': return 'bg-gray-100 text-gray-800 border-gray-200';
+      case ENTITY.contact: return 'bg-blue-100 text-blue-800 border-blue-200';
+      case ENTITY.appointment: return 'bg-purple-100 text-purple-800 border-purple-200';
+      case ENTITY.task: return 'bg-green-100 text-green-800 border-green-200';
+      case ENTITY.document: return 'bg-orange-100 text-orange-800 border-orange-200';
+      case ENTITY.activity_log: return 'bg-gray-100 text-gray-800 border-gray-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
   const getItemDisplayName = (item: any, type: EntityType) => {
     switch (type) {
-      case 'contact':
+      case ENTITY.contact:
         return [item.first_name, item.last_name].filter(Boolean).join(' ') || item.organization_name || 'Unnamed Contact';
-      case 'appointment':
+      case ENTITY.appointment:
         return item.description || 'Untitled Appointment';
-      case 'task':
+      case ENTITY.task:
         return item.title || 'Untitled Task';
-      case 'document':
+      case ENTITY.document:
         return item.title || item.original_filename || 'Untitled Document';
-      case 'activity':
+      case ENTITY.activity_log:
         return item.title || `${item.type} Activity`;
       default:
         return item.name || item.title || 'Unnamed Item';
@@ -106,7 +107,7 @@ export function SimpleAssociationManager({
                 <div>
                   <div className="font-medium">{association.title}</div>
                   <div className="text-xs opacity-75 capitalize">
-                    {association.type}
+                    {association.type === ENTITY.activity_log ? 'Activity' : association.type}
                     {association.date && ` • ${new Date(association.date).toLocaleDateString()}`}
                     {association.status && ` • ${association.status}`}
                     {association.category && ` • ${association.category}`}
@@ -166,20 +167,20 @@ export function SimpleAssociationManager({
                     <SelectValue placeholder="Select type to add..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {entityType !== "contact" && <SelectItem value="contact">👤 Contact</SelectItem>}
-                    {entityType !== "appointment" && <SelectItem value="appointment">📅 Appointment</SelectItem>}
-                    {entityType !== "task" && <SelectItem value="task">✅ Task</SelectItem>}
-                    {entityType !== "document" && <SelectItem value="document">📄 Document</SelectItem>}
-                    {entityType !== "activity" && <SelectItem value="activity">📝 Activity</SelectItem>}
+                    {entityType !== ENTITY.contact && <SelectItem value={ENTITY.contact}>👤 Contact</SelectItem>}
+                    {entityType !== ENTITY.appointment && <SelectItem value={ENTITY.appointment}>📅 Appointment</SelectItem>}
+                    {entityType !== ENTITY.task && <SelectItem value={ENTITY.task}>✅ Task</SelectItem>}
+                    {entityType !== ENTITY.document && <SelectItem value={ENTITY.document}>📄 Document</SelectItem>}
+                    {entityType !== ENTITY.activity_log && <SelectItem value={ENTITY.activity_log}>📝 Activity</SelectItem>}
                   </SelectContent>
                 </Select>
               </div>
 
               {selectedType && (
                 <div>
-                  <Label>Search {selectedType}s</Label>
+                  <Label>Search {selectedType === ENTITY.activity_log ? 'activities' : selectedType + 's'}</Label>
                   <Input
-                    placeholder={`Search for ${selectedType}s...`}
+                    placeholder={`Search for ${selectedType === ENTITY.activity_log ? 'activities' : selectedType + 's'}...`}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />

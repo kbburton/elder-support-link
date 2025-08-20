@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { UnifiedAssociationManager } from "@/components/shared/UnifiedAssociationManager";
+import { ENTITY } from "@/constants/entities";
 import { Link, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 
@@ -91,7 +92,7 @@ export function TaskAssociationsModal({ task, isOpen, onClose, groupId }: TaskAs
 
           <UnifiedAssociationManager
             entityId={task.id}
-            entityType="task"
+            entityType={ENTITY.task}
             groupId={groupId}
             onNavigate={handleNavigate}
             showTitle={false}

@@ -2,8 +2,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { triggerReindex } from "@/utils/reindex";
+import { ENTITY, EntityType, ENTITY_TABLE_MAP, ENTITY_GROUP_COLUMN_MAP } from "@/constants/entities";
 
-export type EntityType = "contact" | "appointment" | "task" | "document" | "activity";
+export type { EntityType } from "@/constants/entities";
 
 interface Association {
   id: string;
@@ -17,14 +18,14 @@ interface Association {
 // Junction table mapping for all bidirectional relationships
 const JUNCTION_TABLES = {
   // Activity associations
-  "activity-appointment": "appointment_activities",
-  "appointment-activity": "appointment_activities",
-  "activity-contact": "contact_activities",
-  "contact-activity": "contact_activities",
-  "activity-document": "activity_documents",
-  "document-activity": "activity_documents",
-  "activity-task": "task_activities",
-  "task-activity": "task_activities",
+  "activity_log-appointment": "appointment_activities",
+  "appointment-activity_log": "appointment_activities",
+  "activity_log-contact": "contact_activities",
+  "contact-activity_log": "contact_activities",
+  "activity_log-document": "activity_documents",
+  "document-activity_log": "activity_documents",
+  "activity_log-task": "task_activities",
+  "task-activity_log": "task_activities",
   
   // Appointment associations
   "appointment-contact": "contact_appointments",
@@ -102,15 +103,15 @@ export function useAssociations(entityId: string, entityType: EntityType) {
         
         // Build the query based on target entity type
         let selectClause = "";
-        if (targetType === "contact") {
+        if (targetType === ENTITY.contact) {
           selectClause = `contacts!inner(id, first_name, last_name, organization_name)`;
-        } else if (targetType === "appointment") {
+        } else if (targetType === ENTITY.appointment) {
           selectClause = `appointments!inner(id, description, date_time, category)`;
-        } else if (targetType === "task") {
+        } else if (targetType === ENTITY.task) {
           selectClause = `tasks!inner(id, title, status, priority, due_date, category)`;
-        } else if (targetType === "document") {
+        } else if (targetType === ENTITY.document) {
           selectClause = `documents!inner(id, title, original_filename, category)`;
-        } else if (targetType === "activity") {
+        } else if (targetType === ENTITY.activity_log) {
           selectClause = `activity_logs!inner(id, title, type, date_time, notes)`;
         }
         
@@ -138,22 +139,22 @@ export function useAssociations(entityId: string, entityType: EntityType) {
           let status = "";
           let category = "";
           
-          if (targetType === "contact") {
+          if (targetType === ENTITY.contact) {
             title = [targetEntity.first_name, targetEntity.last_name].filter(Boolean).join(" ") || 
                    targetEntity.organization_name || "Unknown Contact";
-          } else if (targetType === "appointment") {
+          } else if (targetType === ENTITY.appointment) {
             title = targetEntity.description || "Appointment";
             date = targetEntity.date_time;
             category = targetEntity.category;
-          } else if (targetType === "task") {
+          } else if (targetType === ENTITY.task) {
             title = targetEntity.title || "Task";
             status = targetEntity.status;
             date = targetEntity.due_date;
             category = targetEntity.category;
-          } else if (targetType === "document") {
+          } else if (targetType === ENTITY.document) {
             title = targetEntity.title || targetEntity.original_filename || "Document";
             category = targetEntity.category;
-          } else if (targetType === "activity") {
+          } else if (targetType === ENTITY.activity_log) {
             title = targetEntity.title || `${targetEntity.type} - ${new Date(targetEntity.date_time).toLocaleDateString()}`;
             date = targetEntity.date_time;
           }
@@ -188,26 +189,26 @@ export function useAvailableItems(entityType: EntityType, targetType: EntityType
       let selectClause = "";
       let groupColumn = "";
       
-      if (targetType === "contact") {
-        tableName = "contacts";
+      if (targetType === ENTITY.contact) {
+        tableName = ENTITY_TABLE_MAP[ENTITY.contact];
         selectClause = "id, first_name, last_name, organization_name";
-        groupColumn = "care_group_id";
-      } else if (targetType === "appointment") {
-        tableName = "appointments";
+        groupColumn = ENTITY_GROUP_COLUMN_MAP[ENTITY.contact];
+      } else if (targetType === ENTITY.appointment) {
+        tableName = ENTITY_TABLE_MAP[ENTITY.appointment];
         selectClause = "id, description, date_time, category";
-        groupColumn = "group_id";
-      } else if (targetType === "task") {
-        tableName = "tasks";
+        groupColumn = ENTITY_GROUP_COLUMN_MAP[ENTITY.appointment];
+      } else if (targetType === ENTITY.task) {
+        tableName = ENTITY_TABLE_MAP[ENTITY.task];
         selectClause = "id, title, status, priority, due_date, category";
-        groupColumn = "group_id";
-      } else if (targetType === "document") {
-        tableName = "documents";
+        groupColumn = ENTITY_GROUP_COLUMN_MAP[ENTITY.task];
+      } else if (targetType === ENTITY.document) {
+        tableName = ENTITY_TABLE_MAP[ENTITY.document];
         selectClause = "id, title, original_filename, category";
-        groupColumn = "group_id";
-      } else if (targetType === "activity") {
-        tableName = "activity_logs";
+        groupColumn = ENTITY_GROUP_COLUMN_MAP[ENTITY.document];
+      } else if (targetType === ENTITY.activity_log) {
+        tableName = ENTITY_TABLE_MAP[ENTITY.activity_log];
         selectClause = "id, title, type, date_time, notes";
-        groupColumn = "group_id";
+        groupColumn = ENTITY_GROUP_COLUMN_MAP[ENTITY.activity_log];
       }
       
       let query = supabase
@@ -216,15 +217,15 @@ export function useAvailableItems(entityType: EntityType, targetType: EntityType
         .eq(groupColumn, groupId)
         .eq("is_deleted", false);
         
-      if (searchTerm && targetType === "contact") {
+      if (searchTerm && targetType === ENTITY.contact) {
         query = query.or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,organization_name.ilike.%${searchTerm}%`);
-      } else if (searchTerm && targetType === "appointment") {
+      } else if (searchTerm && targetType === ENTITY.appointment) {
         query = query.ilike("description", `%${searchTerm}%`);
-      } else if (searchTerm && targetType === "task") {
+      } else if (searchTerm && targetType === ENTITY.task) {
         query = query.ilike("title", `%${searchTerm}%`);
-      } else if (searchTerm && targetType === "document") {
+      } else if (searchTerm && targetType === ENTITY.document) {
         query = query.or(`title.ilike.%${searchTerm}%,original_filename.ilike.%${searchTerm}%`);
-      } else if (searchTerm && targetType === "activity") {
+      } else if (searchTerm && targetType === ENTITY.activity_log) {
         query = query.or(`title.ilike.%${searchTerm}%,type.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%`);
       }
       
@@ -238,7 +239,7 @@ export function useAvailableItems(entityType: EntityType, targetType: EntityType
         const existingIds = new Set<string>();
         
         // Build set of existing document_ids from task_documents for taskId
-        if (entityType === "task" && targetType === "document") {
+        if (entityType === ENTITY.task && targetType === ENTITY.document) {
           const { data: existingDocs } = await supabase
             .from("task_documents")
             .select("document_id")
@@ -250,7 +251,7 @@ export function useAvailableItems(entityType: EntityType, targetType: EntityType
         }
         
         // Build set of existing activity_log_ids from task_activities for taskId
-        if (entityType === "task" && targetType === "activity") {
+        if (entityType === ENTITY.task && targetType === ENTITY.activity_log) {
           const { data: existingActivities } = await supabase
             .from("task_activities")
             .select("activity_log_id")
@@ -388,20 +389,13 @@ export function useCreateAssociation() {
       
       console.log(`✅ [SUCCESS] Association created successfully!`);
       
-      // Trigger reindex for both entities - map entity types to table names
+      // Trigger reindex for both entities - use ENTITY_TABLE_MAP for consistency
       const entityToTable = (type: EntityType) => {
-        switch(type) {
-          case "contact": return "contacts";
-          case "appointment": return "appointments"; 
-          case "task": return "tasks";
-          case "document": return "documents";
-          case "activity": return "activity_logs";
-          default: return type;
-        }
+        return ENTITY_TABLE_MAP[type] || type;
       };
       
-      triggerReindex(entityToTable(entityType), entityId);
-      triggerReindex(entityToTable(targetType), targetId);
+      triggerReindex(entityToTable(entityType) as "tasks" | "appointments" | "activity_logs" | "documents" | "contacts", entityId);
+      triggerReindex(entityToTable(targetType) as "tasks" | "appointments" | "activity_logs" | "documents" | "contacts", targetId);
     },
     onSuccess: (_, { entityId, entityType, targetType }) => {
       // Invalidate association queries for both entities
@@ -470,20 +464,13 @@ export function useRemoveAssociation() {
       
       console.log(`✅ [DELETE SUCCESS] Association removed successfully!`);
       
-      // Trigger reindex for both entities - map entity types to table names
+      // Trigger reindex for both entities - use ENTITY_TABLE_MAP for consistency
       const entityToTable = (type: EntityType) => {
-        switch(type) {
-          case "contact": return "contacts";
-          case "appointment": return "appointments"; 
-          case "task": return "tasks";
-          case "document": return "documents";
-          case "activity": return "activity_logs";
-          default: return type;
-        }
+        return ENTITY_TABLE_MAP[type] || type;
       };
       
-      triggerReindex(entityToTable(entityType), entityId);
-      triggerReindex(entityToTable(targetType), targetId);
+      triggerReindex(entityToTable(entityType) as "tasks" | "appointments" | "activity_logs" | "documents" | "contacts", entityId);
+      triggerReindex(entityToTable(targetType) as "tasks" | "appointments" | "activity_logs" | "documents" | "contacts", targetId);
     },
     onSuccess: (_, { entityId, entityType }) => {
       // Invalidate association queries for both entities

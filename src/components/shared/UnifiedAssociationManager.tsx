@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useAssociations, useAvailableItems, useCreateAssociation, useRemoveAssociation, EntityType } from "@/hooks/useUnifiedAssociations";
+import { useAssociations, useAvailableItems, useCreateAssociation, useRemoveAssociation } from "@/hooks/useUnifiedAssociations";
+import { ENTITY, EntityType } from "@/constants/entities";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,42 +44,46 @@ export function UnifiedAssociationManager({
   const createAssociationMutation = useCreateAssociation();
   const removeAssociationMutation = useRemoveAssociation();
 
+  const availableTypes: EntityType[] = [ENTITY.contact, ENTITY.appointment, ENTITY.task, ENTITY.document, ENTITY.activity_log]
+    .filter(type => type !== entityType);
+
   const getAssociationIcon = (type: EntityType) => {
     switch (type) {
-      case 'contact': return '👤';
-      case 'appointment': return '📅';
-      case 'task': return '✓';
-      case 'document': return '📄';
-      case 'activity': return '📝';
-      default: return '🔗';
+      case ENTITY.contact: return "👤";
+      case ENTITY.appointment: return "📅";
+      case ENTITY.task: return "✓";
+      case ENTITY.document: return "📄";
+      case ENTITY.activity_log: return "📝";
+      default: return "🔗";
     }
   };
 
   const getAssociationColor = (type: EntityType) => {
     switch (type) {
-      case 'contact': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'appointment': return 'bg-purple-100 text-purple-800 border-purple-200';
-      case 'task': return 'bg-green-100 text-green-800 border-green-200';
-      case 'document': return 'bg-orange-100 text-orange-800 border-orange-200';
-      case 'activity': return 'bg-gray-100 text-gray-800 border-gray-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+      case ENTITY.contact: return "border-blue-200 bg-blue-50";
+      case ENTITY.appointment: return "border-green-200 bg-green-50";
+      case ENTITY.task: return "border-yellow-200 bg-yellow-50";
+      case ENTITY.document: return "border-purple-200 bg-purple-50";
+      case ENTITY.activity_log: return "border-orange-200 bg-orange-50";
+      default: return "border-gray-200 bg-gray-50";
     }
   };
 
   const getItemDisplayName = (item: any, type: EntityType) => {
     switch (type) {
-      case 'contact':
-        return [item.first_name, item.last_name].filter(Boolean).join(' ') || item.organization_name || 'Unnamed Contact';
-      case 'appointment':
-        return item.description || 'Untitled Appointment';
-      case 'task':
-        return item.title || 'Untitled Task';
-      case 'document':
-        return item.title || item.original_filename || 'Untitled Document';
-      case 'activity':
+      case ENTITY.contact:
+        return [item.first_name, item.last_name].filter(Boolean).join(" ") || 
+               item.organization_name || "Unknown Contact";
+      case ENTITY.appointment:
+        return item.description || "Appointment";
+      case ENTITY.task:
+        return item.title || "Task";
+      case ENTITY.document:
+        return item.title || item.original_filename || "Document";
+      case ENTITY.activity_log:
         return item.title || `${item.type} Activity`;
       default:
-        return item.name || item.title || 'Unnamed Item';
+        return "Unknown Item";
     }
   };
 
@@ -109,7 +114,7 @@ export function UnifiedAssociationManager({
                 <div>
                   <div className="font-medium">{association.title}</div>
                   <div className="text-xs opacity-75 capitalize">
-                    {association.type}
+                    {association.type === ENTITY.activity_log ? 'Activity' : association.type}
                     {association.date && ` • ${new Date(association.date).toLocaleDateString()}`}
                     {association.status && ` • ${association.status}`}
                     {association.category && ` • ${association.category}`}
@@ -166,28 +171,32 @@ export function UnifiedAssociationManager({
                 <Label>Type</Label>
                 <Select value={selectedType} onValueChange={(value) => setSelectedType(value as EntityType)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select type to add..." />
+                    <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {entityType !== "contact" && <SelectItem value="contact">👤 Contact</SelectItem>}
-                    {entityType !== "appointment" && <SelectItem value="appointment">📅 Appointment</SelectItem>}
-                    {entityType !== "task" && <SelectItem value="task">✅ Task</SelectItem>}
-                    {entityType !== "document" && <SelectItem value="document">📄 Document</SelectItem>}
-                    {entityType !== "activity" && <SelectItem value="activity">📝 Activity</SelectItem>}
+                    {availableTypes.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {getAssociationIcon(type)} {type === ENTITY.activity_log ? 'Activity' : type.charAt(0).toUpperCase() + type.slice(1)}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
 
               {selectedType && (
                 <div>
-                  <Label>Search {selectedType}s</Label>
+                  <Label>Search {selectedType === ENTITY.activity_log ? 'Activities' : selectedType + 's'}</Label>
                   <Input
-                    placeholder={`Search for ${selectedType}s...`}
+                    placeholder={`Search for ${selectedType === ENTITY.activity_log ? 'activities' : selectedType + 's'}...`}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
                   
-                  {availableItems.length > 0 && (
+                  {itemsLoading && (
+                    <div className="text-sm text-muted-foreground mt-2">Searching...</div>
+                  )}
+                  
+                  {!itemsLoading && availableItems.length > 0 && (
                     <div className="mt-2 max-h-48 overflow-y-auto space-y-1 border rounded-md p-2">
                       {availableItems.map((item: any) => (
                         <button
@@ -201,11 +210,20 @@ export function UnifiedAssociationManager({
                               targetType: selectedType as EntityType, 
                               targetId: item.id 
                             });
+                            setShowAddForm(false);
+                            setSelectedType('');
+                            setSearchTerm('');
                           }}
                         >
                           {getItemDisplayName(item, selectedType as EntityType)}
                         </button>
                       ))}
+                    </div>
+                  )}
+                  
+                  {!itemsLoading && selectedType && availableItems.length === 0 && (
+                    <div className="text-sm text-muted-foreground mt-2">
+                      No available {selectedType === ENTITY.activity_log ? 'activities' : selectedType + 's'} found
                     </div>
                   )}
                 </div>

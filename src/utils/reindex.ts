@@ -5,7 +5,7 @@ export async function triggerReindex(entityType: "tasks" | "appointments" | "act
     const entityTypeMap = {
       tasks: "task",
       appointments: "appointment", 
-      activity_logs: "activity",
+      activity_logs: "activity_log",
       documents: "document",
       contacts: "contact",
     };
