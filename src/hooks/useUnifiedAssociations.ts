@@ -370,9 +370,10 @@ export function useCreateAssociation() {
       console.log(`📝 [INSERT] Data:`, insertData);
       console.log(`🎯 [INSERT] Column mapping:`, { entityColumn, targetColumn });
       
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from(junctionTable as any)
-        .insert(insertData);
+        .insert(insertData)
+        .select();
       
       if (error) {
         console.error(`❌ [INSERT ERROR] Association creation failed:`, error);
@@ -387,7 +388,13 @@ export function useCreateAssociation() {
         throw error;
       }
       
-      console.log(`✅ [SUCCESS] Association created successfully!`);
+      // Verify the association was actually created
+      if (!data || data.length === 0) {
+        console.error(`❌ [INSERT ERROR] No data returned from insert operation`);
+        throw new Error("Failed to create association - no data returned");
+      }
+      
+      console.log(`✅ [SUCCESS] Association created successfully!`, data);
       
       // Trigger reindex for both entities - use ENTITY_TABLE_MAP for consistency
       const entityToTable = (type: EntityType) => {
@@ -396,16 +403,27 @@ export function useCreateAssociation() {
       
       triggerReindex(entityToTable(entityType) as "tasks" | "appointments" | "activity_logs" | "documents" | "contacts", entityId);
       triggerReindex(entityToTable(targetType) as "tasks" | "appointments" | "activity_logs" | "documents" | "contacts", targetId);
-    },
-    onSuccess: (_, { entityId, entityType, targetType }) => {
-      // Invalidate association queries for both entities
-      queryClient.invalidateQueries({ queryKey: ["associations", entityType, entityId] });
-      queryClient.invalidateQueries({ queryKey: ["associations"] });
       
-      toast({
-        title: "Success",
-        description: "Association created successfully",
-      });
+      return data;
+    },
+    onSuccess: (data, { entityId, entityType, targetType }) => {
+      // Only show success toast if we have valid data
+      if (data && data.length > 0) {
+        // Invalidate association queries for both entities
+        queryClient.invalidateQueries({ queryKey: ["associations", entityType, entityId] });
+        queryClient.invalidateQueries({ queryKey: ["associations"] });
+        
+        toast({
+          title: "Success",
+          description: "Association created successfully",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to create association - no data returned",
+          variant: "destructive",
+        });
+      }
     },
     onError: (error: any) => {
       console.error("Error creating association:", error);
@@ -451,18 +469,25 @@ export function useRemoveAssociation() {
       console.log(`🎯 [DELETE] Where: ${entityColumn} = ${entityId} AND ${targetColumn} = ${targetId}`);
       console.log(`🌍 [ENV] Environment: ${window.location.hostname}`);
       
-      const { error } = await supabase
+      const { data, error, count } = await supabase
         .from(junctionTable as any)
         .delete()
         .eq(entityColumn, entityId)
-        .eq(targetColumn, targetId);
+        .eq(targetColumn, targetId)
+        .select();
       
       if (error) {
         console.error(`❌ [DELETE ERROR] Association removal failed:`, error);
         throw error;
       }
       
-      console.log(`✅ [DELETE SUCCESS] Association removed successfully!`);
+      // Verify the association was actually deleted
+      if (count === 0) {
+        console.error(`❌ [DELETE ERROR] No rows were deleted - association may not have existed`);
+        throw new Error("Association not found or already removed");
+      }
+      
+      console.log(`✅ [DELETE SUCCESS] Association removed successfully! Deleted ${count} row(s)`, data);
       
       // Trigger reindex for both entities - use ENTITY_TABLE_MAP for consistency
       const entityToTable = (type: EntityType) => {
@@ -471,16 +496,27 @@ export function useRemoveAssociation() {
       
       triggerReindex(entityToTable(entityType) as "tasks" | "appointments" | "activity_logs" | "documents" | "contacts", entityId);
       triggerReindex(entityToTable(targetType) as "tasks" | "appointments" | "activity_logs" | "documents" | "contacts", targetId);
-    },
-    onSuccess: (_, { entityId, entityType }) => {
-      // Invalidate association queries for both entities
-      queryClient.invalidateQueries({ queryKey: ["associations", entityType, entityId] });
-      queryClient.invalidateQueries({ queryKey: ["associations"] });
       
-      toast({
-        title: "Success", 
-        description: "Association removed successfully",
-      });
+      return { data, count };
+    },
+    onSuccess: (result, { entityId, entityType }) => {
+      // Only show success toast if we actually deleted something
+      if (result && result.count > 0) {
+        // Invalidate association queries for both entities
+        queryClient.invalidateQueries({ queryKey: ["associations", entityType, entityId] });
+        queryClient.invalidateQueries({ queryKey: ["associations"] });
+        
+        toast({
+          title: "Success", 
+          description: "Association removed successfully",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Association not found or already removed",
+          variant: "destructive",
+        });
+      }
     },
     onError: (error: any) => {
       console.error("Error removing association:", error);
