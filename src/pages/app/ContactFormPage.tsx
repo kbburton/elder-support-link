@@ -21,6 +21,7 @@ const contactSchema = z.object({
   first_name: z.string().optional(),
   last_name: z.string().optional(),
   organization_name: z.string().optional(),
+  company: z.string().optional(),
   contact_type: z.enum(["medical", "legal", "family", "friend", "other"]),
   gender: z.enum(["female", "male", "x_or_other", "prefer_not_to_say"]).optional().nullable(),
   phone_primary: z.string().optional(),
@@ -133,6 +134,7 @@ export default function ContactFormPage() {
         first_name: data.first_name || "",
         last_name: data.last_name || "",
         organization_name: data.organization_name || "",
+        company: data.company || "",
         contact_type: data.contact_type as any,
         gender: data.gender as any,
         phone_primary: data.phone_primary || "",
@@ -187,6 +189,7 @@ export default function ContactFormPage() {
         first_name: data.is_organization ? null : (data.first_name || null),
         last_name: data.is_organization ? null : (data.last_name || null),
         organization_name: data.is_organization ? (data.organization_name || null) : null,
+        company: data.is_organization ? null : (data.company || null),
         contact_type: data.contact_type,
         gender: data.is_organization ? null : (data.gender || null),
         phone_primary: data.phone_primary || null,
@@ -330,28 +333,43 @@ export default function ContactFormPage() {
                       )}
                     />
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="first_name"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>First Name *</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Enter first name" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="last_name"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Last Name</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Enter last name" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
                       <FormField
                         control={form.control}
-                        name="first_name"
+                        name="company"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>First Name *</FormLabel>
+                            <FormLabel>Company</FormLabel>
                             <FormControl>
-                              <Input placeholder="Enter first name" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="last_name"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Last Name</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Enter last name" {...field} />
+                              <Input placeholder="Enter company name" {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -500,11 +518,36 @@ export default function ContactFormPage() {
                           <FormMessage />
                         </FormItem>
                       )}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
+                     />
+                   </div>
+                 </CardContent>
+               </Card>
+
+               <Card>
+                 <CardHeader>
+                   <CardTitle>Notes</CardTitle>
+                 </CardHeader>
+                 <CardContent>
+                   <FormField
+                     control={form.control}
+                     name="notes"
+                     render={({ field }) => (
+                       <FormItem>
+                         <FormLabel>General Notes</FormLabel>
+                         <FormControl>
+                           <Textarea 
+                             placeholder="Additional notes about this contact..."
+                             rows={4}
+                             {...field}
+                           />
+                         </FormControl>
+                         <FormMessage />
+                       </FormItem>
+                     )}
+                   />
+                 </CardContent>
+               </Card>
+             </TabsContent>
 
             <TabsContent value="contact" className="space-y-6">
               <Card>
@@ -762,36 +805,11 @@ export default function ContactFormPage() {
                           </FormItem>
                         )}
                       />
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Notes</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <FormField
-                    control={form.control}
-                    name="notes"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>General Notes</FormLabel>
-                        <FormControl>
-                          <Textarea 
-                            placeholder="Additional notes about this contact..."
-                            rows={4}
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
+                      </>
                     )}
-                  />
-                </CardContent>
-              </Card>
-            </TabsContent>
+                  </CardContent>
+                </Card>
+              </TabsContent>
           </Tabs>
 
           <div className="flex justify-end space-x-4">

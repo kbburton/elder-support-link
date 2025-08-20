@@ -10,6 +10,7 @@ import { ArrowLeft, Edit, Phone, Mail, MapPin, Clock, AlertTriangle, User, Downl
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import ReverseLinkedItems from "@/components/contacts/ReverseLinkedItems";
+import { UnifiedAssociationManager } from "@/components/shared/UnifiedAssociationManager";
 import { generateVCardFile } from "@/utils/vcard";
 import { useDemoContacts } from "@/hooks/useDemoData";
 import { useDemo } from "@/hooks/useDemo";
@@ -283,6 +284,7 @@ export default function ContactDetailPage() {
       <Tabs defaultValue="overview" className="space-y-6">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="associations">Contact Associations</TabsTrigger>
           <TabsTrigger value="activities">Activities</TabsTrigger>
           <TabsTrigger value="appointments">Appointments</TabsTrigger>
           <TabsTrigger value="tasks">Tasks</TabsTrigger>
@@ -366,6 +368,17 @@ export default function ContactDetailPage() {
                 )}
               </CardContent>
             </Card>
+
+            {contact.notes && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Notes</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-base whitespace-pre-wrap">{contact.notes}</p>
+                </CardContent>
+              </Card>
+            )}
 
             {formatAddress(contact) && (
               <Card>
@@ -462,6 +475,37 @@ export default function ContactDetailPage() {
             <span>Created by {createdByName} on {format(new Date(contact.created_at), "MMMM d, yyyy 'at' h:mm a")}</span>
             <span>Last updated {format(new Date(contact.updated_at), "MMMM d, yyyy 'at' h:mm a")}</span>
           </div>
+        </TabsContent>
+
+        <TabsContent value="associations" className="space-y-6">
+          <UnifiedAssociationManager
+            entityId={contact.id}
+            entityType="contact"
+            groupId={groupId}
+            onNavigate={(type: string, id: string) => {
+              const baseUrl = `/app/${groupId}`;
+              let url = '';
+              
+              switch (type) {
+                case 'appointment':
+                  url = `${baseUrl}/appointments`;
+                  break;
+                case 'task':
+                  url = `${baseUrl}/tasks`;
+                  break;
+                case 'document':
+                  url = `${baseUrl}/documents`;
+                  break;
+                case 'activity':
+                  url = `${baseUrl}/activities`;
+                  break;
+                default:
+                  return;
+              }
+              
+              window.open(url, '_blank');
+            }}
+          />
         </TabsContent>
 
         <TabsContent value="activities">

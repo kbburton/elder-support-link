@@ -18,9 +18,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { User, Building2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { AssociationManager } from "@/components/shared/AssociationManager";
+import { UnifiedAssociationManager } from "@/components/shared/UnifiedAssociationManager";
 import { useDemoOperations } from "@/hooks/useDemoOperations";
 
 interface Contact {
@@ -28,6 +30,7 @@ interface Contact {
   first_name?: string;
   last_name?: string;
   organization_name?: string;
+  company?: string;
   email_personal?: string;
   email_work?: string;
   phone_primary?: string;
@@ -37,7 +40,7 @@ interface Contact {
   city?: string;
   state?: string;
   postal_code?: string;
-  contact_type: 'primary' | 'secondary' | 'emergency' | 'professional';
+  contact_type: 'medical' | 'legal' | 'family' | 'friend' | 'other';
   notes?: string;
 }
 
@@ -50,9 +53,11 @@ interface ContactModalProps {
 
 export function ContactModal({ contact, isOpen, onClose, groupId }: ContactModalProps) {
   const [formData, setFormData] = useState({
+    is_organization: false,
     first_name: "",
     last_name: "",
     organization_name: "",
+    company: "",
     email_personal: "",
     email_work: "",
     phone_primary: "",
@@ -62,7 +67,7 @@ export function ContactModal({ contact, isOpen, onClose, groupId }: ContactModal
     city: "",
     state: "",
     postal_code: "",
-    contact_type: "primary" as Contact['contact_type'],
+    contact_type: "other" as Contact['contact_type'],
     notes: "",
   });
   
@@ -73,9 +78,11 @@ export function ContactModal({ contact, isOpen, onClose, groupId }: ContactModal
   useEffect(() => {
     if (contact) {
       setFormData({
+        is_organization: !!contact.organization_name,
         first_name: contact.first_name || "",
         last_name: contact.last_name || "",
         organization_name: contact.organization_name || "",
+        company: contact.company || "",
         email_personal: contact.email_personal || "",
         email_work: contact.email_work || "",
         phone_primary: contact.phone_primary || "",
@@ -90,9 +97,11 @@ export function ContactModal({ contact, isOpen, onClose, groupId }: ContactModal
       });
     } else {
       setFormData({
+        is_organization: false,
         first_name: "",
         last_name: "",
         organization_name: "",
+        company: "",
         email_personal: "",
         email_work: "",
         phone_primary: "",
@@ -102,7 +111,7 @@ export function ContactModal({ contact, isOpen, onClose, groupId }: ContactModal
         city: "",
         state: "",
         postal_code: "",
-        contact_type: "primary",
+        contact_type: "other",
         notes: "",
       });
     }
@@ -113,13 +122,29 @@ export function ContactModal({ contact, isOpen, onClose, groupId }: ContactModal
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
+      const contactData = {
+        care_group_id: groupId,
+        first_name: data.is_organization ? null : (data.first_name || null),
+        last_name: data.is_organization ? null : (data.last_name || null),
+        organization_name: data.is_organization ? (data.organization_name || null) : null,
+        company: data.is_organization ? null : (data.company || null),
+        contact_type: data.contact_type,
+        email_personal: data.email_personal || null,
+        email_work: data.email_work || null,
+        phone_primary: data.phone_primary || null,
+        phone_secondary: data.phone_secondary || null,
+        address_line1: data.address_line1 || null,
+        address_line2: data.address_line2 || null,
+        city: data.city || null,
+        state: data.state || null,
+        postal_code: data.postal_code || null,
+        notes: data.notes || null,
+        created_by_user_id: user.id,
+      };
+
       const { data: newContact, error } = await supabase
         .from("contacts")
-        .insert({
-          ...data,
-          care_group_id: groupId,
-          created_by_user_id: user.id,
-        })
+        .insert(contactData)
         .select()
         .single();
 
@@ -145,9 +170,27 @@ export function ContactModal({ contact, isOpen, onClose, groupId }: ContactModal
 
   const updateContact = useMutation({
     mutationFn: async (data: any) => {
+      const contactData = {
+        first_name: data.is_organization ? null : (data.first_name || null),
+        last_name: data.is_organization ? null : (data.last_name || null),
+        organization_name: data.is_organization ? (data.organization_name || null) : null,
+        company: data.is_organization ? null : (data.company || null),
+        contact_type: data.contact_type,
+        email_personal: data.email_personal || null,
+        email_work: data.email_work || null,
+        phone_primary: data.phone_primary || null,
+        phone_secondary: data.phone_secondary || null,
+        address_line1: data.address_line1 || null,
+        address_line2: data.address_line2 || null,
+        city: data.city || null,
+        state: data.state || null,
+        postal_code: data.postal_code || null,
+        notes: data.notes || null,
+      };
+
       const { error } = await supabase
         .from("contacts")
-        .update(data)
+        .update(contactData)
         .eq("id", contact!.id);
 
       if (error) throw error;
@@ -216,40 +259,76 @@ export function ContactModal({ contact, isOpen, onClose, groupId }: ContactModal
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Contact Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Organization/Person Toggle */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium">Contact Type</h3>
+              <div className="flex items-center justify-between rounded-lg border p-4">
+                <div className="space-y-0.5">
+                  <Label className="flex items-center space-x-2">
+                    {formData.is_organization ? <Building2 className="h-4 w-4" /> : <User className="h-4 w-4" />}
+                    <span>{formData.is_organization ? "Organization" : "Person"}</span>
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    {formData.is_organization ? "This is an organization or business" : "This is an individual person"}
+                  </p>
+                </div>
+                <Switch
+                  checked={formData.is_organization}
+                  onCheckedChange={(checked) => setFormData({ ...formData, is_organization: checked })}
+                />
+              </div>
+            </div>
+
             {/* Basic Information */}
             <div className="space-y-4">
               <h3 className="text-sm font-medium">Basic Information</h3>
               
-              <div className="grid grid-cols-2 gap-4">
+              {formData.is_organization ? (
                 <div>
-                  <Label htmlFor="first_name">First Name</Label>
+                  <Label htmlFor="organization_name">Organization Name *</Label>
                   <Input
-                    id="first_name"
-                    value={formData.first_name}
-                    onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                    id="organization_name"
+                    value={formData.organization_name}
+                    onChange={(e) => setFormData({ ...formData, organization_name: e.target.value })}
+                    placeholder="Enter organization name"
                   />
                 </div>
-                <div>
-                  <Label htmlFor="last_name">Last Name</Label>
-                  <Input
-                    id="last_name"
-                    value={formData.last_name}
-                    onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                  />
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="first_name">First Name *</Label>
+                      <Input
+                        id="first_name"
+                        value={formData.first_name}
+                        onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                        placeholder="Enter first name"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="last_name">Last Name</Label>
+                      <Input
+                        id="last_name"
+                        value={formData.last_name}
+                        onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                        placeholder="Enter last name"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="company">Company</Label>
+                    <Input
+                      id="company"
+                      value={formData.company}
+                      onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                      placeholder="Enter company name"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div>
-                <Label htmlFor="organization_name">Organization</Label>
-                <Input
-                  id="organization_name"
-                  value={formData.organization_name}
-                  onChange={(e) => setFormData({ ...formData, organization_name: e.target.value })}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="contact_type">Contact Type</Label>
+                <Label htmlFor="contact_type">Contact Type *</Label>
                 <Select
                   value={formData.contact_type}
                   onValueChange={(value) => setFormData({ ...formData, contact_type: value as any })}
@@ -258,10 +337,11 @@ export function ContactModal({ contact, isOpen, onClose, groupId }: ContactModal
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="primary">Primary Contact</SelectItem>
-                    <SelectItem value="secondary">Secondary Contact</SelectItem>
-                    <SelectItem value="emergency">Emergency Contact</SelectItem>
-                    <SelectItem value="professional">Professional</SelectItem>
+                    <SelectItem value="medical">Medical</SelectItem>
+                    <SelectItem value="legal">Legal</SelectItem>
+                    <SelectItem value="family">Family</SelectItem>
+                    <SelectItem value="friend">Friend</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -394,7 +474,7 @@ export function ContactModal({ contact, isOpen, onClose, groupId }: ContactModal
           {/* Associations Panel */}
           {contact && (
             <div className="space-y-4">
-              <AssociationManager
+              <UnifiedAssociationManager
                 entityId={contact.id}
                 entityType="contact"
                 groupId={groupId}

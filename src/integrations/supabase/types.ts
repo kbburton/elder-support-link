@@ -805,6 +805,7 @@ export type Database = {
           address_line2: string | null
           care_group_id: string
           city: string | null
+          company: string | null
           contact_type: Database["public"]["Enums"]["contact_type_enum"]
           created_at: string | null
           created_by_user_id: string
@@ -843,6 +844,7 @@ export type Database = {
           address_line2?: string | null
           care_group_id: string
           city?: string | null
+          company?: string | null
           contact_type: Database["public"]["Enums"]["contact_type_enum"]
           created_at?: string | null
           created_by_user_id: string
@@ -881,6 +883,7 @@ export type Database = {
           address_line2?: string | null
           care_group_id?: string
           city?: string | null
+          company?: string | null
           contact_type?: Database["public"]["Enums"]["contact_type_enum"]
           created_at?: string | null
           created_by_user_id?: string

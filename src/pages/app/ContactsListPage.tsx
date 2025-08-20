@@ -137,37 +137,81 @@ export default function ContactsListPage() {
   };
 
   const getContactName = (contact: any) => {
-    const fullName = [contact.first_name, contact.last_name].filter(Boolean).join(' ');
-    return fullName || contact.organization_name || 'Unnamed Contact';
+    if (contact.organization_name) {
+      return contact.organization_name;
+    }
+    const lastName = contact.last_name ? `${contact.last_name}, ` : '';
+    const firstName = contact.first_name || '';
+    return `${lastName}${firstName}`.trim() || contact.email_personal || contact.email_work || 'Unnamed Contact';
   };
 
   const getContactTypeColor = (type: string) => {
     switch (type?.toLowerCase()) {
-      case 'family': return 'bg-blue-100 text-blue-800';
-      case 'friend': return 'bg-green-100 text-green-800';
-      case 'healthcare': return 'bg-red-100 text-red-800';
-      case 'caregiver': return 'bg-purple-100 text-purple-800';
-      case 'professional': return 'bg-orange-100 text-orange-800';
-      case 'emergency': return 'bg-red-100 text-red-800';
+      case 'medical': return 'bg-red-100 text-red-800';
+      case 'legal': return 'bg-blue-100 text-blue-800';
+      case 'family': return 'bg-green-100 text-green-800';
+      case 'friend': return 'bg-yellow-100 text-yellow-800';
+      case 'other': return 'bg-gray-100 text-gray-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
 
-  const columns = [
-    { 
-      key: 'name', 
-      label: 'Name', 
-      sortable: true,
-      width: '48',
-      render: (value: any, row: any) => getContactName(row)
+  const getEmailForContact = (contact: any) => {
+    const contactType = contact.contact_type?.toLowerCase();
+    
+    // Medical/Legal → business email, Emergency/Family → personal email
+    if (contactType === 'medical' || contactType === 'legal') {
+      return contact.email_work || contact.email_personal || '-';
+    } else if (contactType === 'emergency' || contactType === 'family') {
+      return contact.email_personal || contact.email_work || '-';
+    } else {
+      // Default to personal email for others
+      return contact.email_personal || contact.email_work || '-';
+    }
+  };
+
+  const getOrganization = (contact: any) => {
+    if (contact.organization_name) {
+      return contact.organization_name;
+    }
+    return contact.company || '';
+  };
+
+  // Get current user for creator names
+  const { data: profiles = [] } = useQuery({
+    queryKey: ["profiles", groupId],
+    queryFn: async () => {
+      if (!groupId || contacts.length === 0) return [];
+      
+      const userIds = [...new Set(contacts.map(c => c.created_by_user_id).filter(Boolean))];
+      if (userIds.length === 0) return [];
+      
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("user_id, first_name, last_name, email")
+        .in("user_id", userIds);
+      
+      if (error) throw error;
+      return data || [];
     },
+    enabled: !!groupId && contacts.length > 0,
+  });
+
+  const getCreatorName = (contact: any) => {
+    const profile = profiles.find(p => p.user_id === contact.created_by_user_id);
+    if (profile) {
+      const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(' ');
+      return fullName || profile.email || 'Unknown';
+    }
+    return 'Unknown';
+  };
+
+  const columns = [
     { 
       key: 'contact_type', 
       label: 'Type', 
       sortable: true,
-      type: 'badge' as const,
-      getBadgeVariant: (value: string) => 'secondary',
-      width: '24',
+      width: '20',
       render: (value: any) => (
         <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getContactTypeColor(value)}`}>
           {value || 'Unknown'}
@@ -175,37 +219,38 @@ export default function ContactsListPage() {
       )
     },
     { 
+      key: 'name', 
+      label: 'Name', 
+      sortable: true,
+      width: '32',
+      render: (value: any, row: any) => getContactName(row)
+    },
+    { 
       key: 'phone_primary', 
       label: 'Phone', 
       sortable: true,
-      width: '32'
+      width: '24'
     },
     { 
-      key: 'email_personal', 
+      key: 'organization', 
+      label: 'Organization', 
+      sortable: false,
+      width: '24',
+      render: (value: any, row: any) => getOrganization(row) || ''
+    },
+    { 
+      key: 'email', 
       label: 'Email', 
-      sortable: true,
+      sortable: false,
       width: '32',
-      render: (value: any, row: any) => value || row.email_work || '-'
+      render: (value: any, row: any) => getEmailForContact(row)
     },
     { 
-      key: 'location', 
-      label: 'Location', 
-      sortable: true,
-      width: '32',
-      render: (value: any, row: any) => {
-        const location = [row.city, row.state].filter(Boolean).join(', ');
-        return location || '-';
-      }
-    },
-    { 
-      key: 'associations', 
-      label: 'Related Items', 
-      type: 'associations' as const,
-      width: '48',
-      getAssociations: (row: any) => {
-        // This would be populated with actual association data
-        return [];
-      }
+      key: 'created_by', 
+      label: 'Created By', 
+      sortable: false,
+      width: '24',
+      render: (value: any, row: any) => getCreatorName(row)
     }
   ];
 
