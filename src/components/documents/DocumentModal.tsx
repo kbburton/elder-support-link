@@ -33,7 +33,8 @@ import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
 import { useDemo } from "@/hooks/useDemo";
 import { softDeleteEntity } from "@/lib/delete/rpc";
-import { AssociationManager } from "@/components/shared/AssociationManager";
+import { UnifiedAssociationManager } from "@/components/shared/UnifiedAssociationManager";
+import { ENTITY } from "@/constants/entities";
 import { useToast } from "@/hooks/use-toast";
 
 interface Document {
@@ -449,25 +450,25 @@ export function DocumentModal({ document, isOpen, onClose, groupId }: DocumentMo
           {/* Associations Panel - aligned with form fields */}
           <div className="space-y-4">
             <h3 className="text-base font-semibold">Related Items</h3>
-            <AssociationManager
+            <UnifiedAssociationManager
               entityId={document.id}
-              entityType="document"
+              entityType={ENTITY.document}
               groupId={groupId}
               onNavigate={(type, id) => {
                 const baseUrl = `/app/${groupId}`;
                 let url = '';
                 
                 switch (type) {
-                  case 'contact':
+                  case ENTITY.contact:
                     url = `${baseUrl}/contacts`;
                     break;
-                  case 'appointment':
+                  case ENTITY.appointment:
                     url = `${baseUrl}/calendar`;
                     break;
-                  case 'task':
+                  case ENTITY.task:
                     url = `${baseUrl}/tasks`;
                     break;
-                  case 'activity':
+                  case ENTITY.activity_log:
                     url = `${baseUrl}/activities`;
                     break;
                   default:

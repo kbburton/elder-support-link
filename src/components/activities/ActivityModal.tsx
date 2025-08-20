@@ -25,7 +25,8 @@ import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { AssociationManager } from "@/components/shared/AssociationManager";
+import { UnifiedAssociationManager } from "@/components/shared/UnifiedAssociationManager";
+import { ENTITY } from "@/constants/entities";
 import { useDemoOperations } from "@/hooks/useDemoOperations";
 
 interface Activity {
@@ -172,16 +173,16 @@ export function ActivityModal({ activity, isOpen, onClose, groupId }: ActivityMo
     let url = '';
     
     switch (type) {
-      case 'contact':
+      case ENTITY.contact:
         url = `${baseUrl}/contacts`;
         break;
-      case 'appointment':
-        url = `${baseUrl}/appointments`;
+      case ENTITY.appointment:
+        url = `${baseUrl}/calendar`;
         break;
-      case 'task':
+      case ENTITY.task:
         url = `${baseUrl}/tasks`;
         break;
-      case 'document':
+      case ENTITY.document:
         url = `${baseUrl}/documents`;
         break;
       default:
@@ -312,9 +313,9 @@ export function ActivityModal({ activity, isOpen, onClose, groupId }: ActivityMo
           {/* Associations Panel */}
           {activity && (
             <div className="space-y-4">
-              <AssociationManager
+              <UnifiedAssociationManager
                 entityId={activity.id}
-                entityType="activity_log"
+                entityType={ENTITY.activity_log}
                 groupId={groupId}
                 onNavigate={handleNavigate}
               />

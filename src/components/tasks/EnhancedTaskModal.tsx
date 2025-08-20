@@ -35,7 +35,8 @@ import {
 import { useDemo } from "@/hooks/useDemo";
 import { softDeleteEntity } from "@/lib/delete/rpc";
 import { triggerReindex } from "@/utils/reindex";
-import { AssociationManager } from "@/components/shared/AssociationManager";
+import { UnifiedAssociationManager } from "@/components/shared/UnifiedAssociationManager";
+import { ENTITY } from "@/constants/entities";
 import { useGroupMembers } from "@/hooks/useGroupMembers";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -296,16 +297,16 @@ export function EnhancedTaskModal({ task, isOpen, onClose, groupId }: EnhancedTa
     let url = '';
     
     switch (type) {
-      case 'contact':
+      case ENTITY.contact:
         url = `${baseUrl}/contacts`;
         break;
-      case 'appointment':
+      case ENTITY.appointment:
         url = `${baseUrl}/calendar`;
         break;
-      case 'document':
+      case ENTITY.document:
         url = `${baseUrl}/documents`;
         break;
-      case 'activity':
+      case ENTITY.activity_log:
         url = `${baseUrl}/activities`;
         break;
       default:
@@ -560,9 +561,9 @@ export function EnhancedTaskModal({ task, isOpen, onClose, groupId }: EnhancedTa
           {/* Associations Panel */}
           {task && (
             <div className="space-y-4">
-              <AssociationManager
+              <UnifiedAssociationManager
                 entityId={task.id}
-                entityType="task"
+                entityType={ENTITY.task}
                 groupId={groupId}
                 onNavigate={handleNavigate}
               />
