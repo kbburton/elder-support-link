@@ -178,9 +178,9 @@ export function useAssociations(entityId: string, entityType: EntityType) {
   });
 }
 
-export function useAvailableItems(entityType: EntityType, targetType: EntityType, groupId: string, searchTerm: string = "") {
+export function useAvailableItems(entityType: EntityType, targetType: EntityType, groupId: string, searchTerm: string = "", entityId?: string) {
   return useQuery({
-    queryKey: ["available-items", entityType, targetType, groupId, searchTerm],
+    queryKey: ["available-items", entityType, targetType, groupId, searchTerm, entityId],
     queryFn: async () => {
       if (!groupId || !targetType) return [];
       
@@ -228,10 +228,66 @@ export function useAvailableItems(entityType: EntityType, targetType: EntityType
         query = query.or(`title.ilike.%${searchTerm}%,type.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%`);
       }
       
-      const { data, error } = await query.limit(20);
+      const { data, error } = await query.limit(100); // Increased limit since we'll filter
       
       if (error) throw error;
-      return data || [];
+      let items = data || [];
+      
+      // Filter out already associated items if entityId is provided
+      if (entityId && entityType) {
+        const existingIds = new Set<string>();
+        
+        // Build set of existing document_ids from task_documents for taskId
+        if (entityType === "task" && targetType === "document") {
+          const { data: existingDocs } = await supabase
+            .from("task_documents")
+            .select("document_id")
+            .eq("task_id", entityId);
+          
+          if (existingDocs) {
+            existingDocs.forEach(doc => existingIds.add(doc.document_id));
+          }
+        }
+        
+        // Build set of existing activity_log_ids from task_activities for taskId
+        if (entityType === "task" && targetType === "activity") {
+          const { data: existingActivities } = await supabase
+            .from("task_activities")
+            .select("activity_log_id")
+            .eq("task_id", entityId);
+          
+          if (existingActivities) {
+            existingActivities.forEach(activity => existingIds.add(activity.activity_log_id));
+          }
+        }
+        
+        // Filter for other entity types using junction tables
+        if (existingIds.size === 0) {
+          const junctionTable = getJunctionTable(entityType, targetType);
+          if (junctionTable) {
+            const columns = COLUMN_MAPPING[junctionTable as keyof typeof COLUMN_MAPPING];
+            const [type1, type2] = getJunctionTableKey(entityType, targetType).split('-') as [EntityType, EntityType];
+            
+            const isFirstType = entityType === type1;
+            const entityColumn = isFirstType ? columns.left : columns.right;
+            const targetColumn = isFirstType ? columns.right : columns.left;
+            
+            const { data: existingAssociations } = await supabase
+              .from(junctionTable as any)
+              .select(targetColumn)
+              .eq(entityColumn, entityId);
+            
+            if (existingAssociations) {
+              existingAssociations.forEach((assoc: any) => existingIds.add(assoc[targetColumn]));
+            }
+          }
+        }
+        
+      // Filter out existing associations
+      items = items.filter((item: any) => item && item.id && !existingIds.has(item.id));
+      }
+      
+      return items;
     },
     enabled: !!groupId && !!targetType,
   });

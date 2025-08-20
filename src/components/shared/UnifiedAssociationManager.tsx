@@ -36,7 +36,8 @@ export function UnifiedAssociationManager({
     entityType, 
     selectedType as EntityType, 
     groupId, 
-    searchTerm
+    searchTerm,
+    entityId
   );
   
   const createAssociationMutation = useCreateAssociation();
