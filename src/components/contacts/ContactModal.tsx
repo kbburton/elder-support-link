@@ -398,12 +398,12 @@ export function ContactModal({ contact, isOpen, onClose, groupId }: ContactModal
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{contact ? "Edit Contact" : "Add New Contact"}</DialogTitle>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="space-y-6">
           {/* Contact Form */}
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
@@ -955,19 +955,6 @@ export function ContactModal({ contact, isOpen, onClose, groupId }: ContactModal
               </div>
             </form>
           </Form>
-
-          {/* Associations Panel - Only show for existing contacts */}
-          {contact && (
-            <div className="space-y-4">
-              <h3 className="text-base font-semibold">Related Items</h3>
-              <UnifiedAssociationManager
-                entityId={contact.id}
-                entityType={ENTITY.contact}
-                groupId={groupId}
-                onNavigate={handleNavigate}
-              />
-            </div>
-          )}
         </div>
 
         {/* Delete Confirmation Dialog */}
