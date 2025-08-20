@@ -56,7 +56,7 @@ export default function ContactsListPage() {
         .select("is_admin")
         .eq("group_id", groupId)
         .eq("user_id", currentUser.id)
-        .single();
+        .maybeSingle();
       
       return data?.is_admin || false;
     },
