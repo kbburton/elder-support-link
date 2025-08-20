@@ -75,6 +75,10 @@ export function useAssociations(entityId: string, entityType: EntityType) {
     queryFn: async (): Promise<Association[]> => {
       if (!entityId) return [];
       
+      console.log(`🔍 [ASSOCIATIONS] Fetching associations for ${entityType}:${entityId}`);
+      console.log(`🌍 [ENV] Environment: ${window.location.hostname}`);
+      console.log(`🔗 [TABLES] Available junction tables:`, Object.keys(JUNCTION_TABLES));
+      
       const associations: Association[] = [];
       
       // Query all possible associations for this entity
@@ -110,15 +114,19 @@ export function useAssociations(entityId: string, entityType: EntityType) {
           selectClause = `activity_logs!inner(id, title, type, date_time, notes)`;
         }
         
+        console.log(`📋 [QUERY] ${tableName}: ${selectClause} WHERE ${ourColumn} = ${entityId}`);
+        
         const { data, error } = await supabase
           .from(tableName as any)
           .select(selectClause)
           .eq(ourColumn, entityId);
         
         if (error) {
-          console.error(`Error fetching ${targetType} associations:`, error);
+          console.error(`❌ [ERROR] ${targetType} associations from ${tableName}:`, error);
           continue;
         }
+        
+        console.log(`✅ [RESULT] ${targetType} from ${tableName}:`, data?.length || 0, "items");
         
         // Transform the data
         data?.forEach((item: any) => {
@@ -160,6 +168,9 @@ export function useAssociations(entityId: string, entityType: EntityType) {
           });
         });
       }
+      
+      console.log(`🎯 [FINAL] Found ${associations.length} total associations for ${entityType}:${entityId}`);
+      console.log(`📊 [BREAKDOWN]`, associations.map(a => `${a.type}: ${a.title}`));
       
       return associations;
     },
@@ -247,16 +258,24 @@ export function useCreateAssociation() {
         throw new Error(`Unsupported association: ${entityType} ↔ ${targetType}. This combination is not available.`);
       }
       
+      console.log(`🔧 [CREATE] Starting association creation: ${entityType}:${entityId} ↔ ${targetType}:${targetId}`);
+      console.log(`🌍 [ENV] Environment: ${window.location.hostname}`);
+      
       // Validate both entities exist using security definer function
-      const { data: entityExists } = await supabase.rpc('validate_entity_exists', {
+      console.log(`🔍 [VALIDATE] Checking entity existence...`);
+      const { data: entityExists, error: entityError } = await supabase.rpc('validate_entity_exists', {
         p_entity_type: entityType,
         p_entity_id: entityId
       });
       
-      const { data: targetExists } = await supabase.rpc('validate_entity_exists', {
+      const { data: targetExists, error: targetError } = await supabase.rpc('validate_entity_exists', {
         p_entity_type: targetType,
         p_entity_id: targetId
       });
+      
+      console.log(`✅ [VALIDATE] Results: ${entityType} exists = ${entityExists}, ${targetType} exists = ${targetExists}`);
+      if (entityError) console.error(`❌ [VALIDATE ERROR] Entity:`, entityError);
+      if (targetError) console.error(`❌ [VALIDATE ERROR] Target:`, targetError);
       
       if (!entityExists) {
         throw new Error(`${entityType} not found or has been deleted`);
@@ -290,22 +309,28 @@ export function useCreateAssociation() {
         insertData.created_by_user_id = user.id;
       }
       
-      console.log("Creating association:", { junctionTable, insertData, entityType, targetType });
+      console.log(`🔗 [INSERT] Table: ${junctionTable}`);
+      console.log(`📝 [INSERT] Data:`, insertData);
+      console.log(`🎯 [INSERT] Column mapping:`, { entityColumn, targetColumn });
       
       const { error } = await supabase
         .from(junctionTable as any)
         .insert(insertData);
       
       if (error) {
-        console.error("Association creation error:", error);
+        console.error(`❌ [INSERT ERROR] Association creation failed:`, error);
+        console.error(`🔍 [ERROR DETAILS] Code: ${error.code}, Message: ${error.message}`);
         
         // Handle Postgres duplicate key error (23505)
         if (error.code === '23505' || error.message?.includes("duplicate") || error.message?.includes("unique")) {
+          console.log(`⚠️ [DUPLICATE] Already linked - showing user message`);
           throw new Error("Already linked.");
         }
         
         throw error;
       }
+      
+      console.log(`✅ [SUCCESS] Association created successfully!`);
       
       // Trigger reindex for both entities - map entity types to table names
       const entityToTable = (type: EntityType) => {
@@ -372,7 +397,9 @@ export function useRemoveAssociation() {
       const entityColumn = isFirstType ? columns.left : columns.right;
       const targetColumn = isFirstType ? columns.right : columns.left;
       
-      console.log("Removing association:", { junctionTable, entityColumn, targetColumn, entityId, targetId });
+      console.log(`🗑️ [DELETE] Removing association from ${junctionTable}`);
+      console.log(`🎯 [DELETE] Where: ${entityColumn} = ${entityId} AND ${targetColumn} = ${targetId}`);
+      console.log(`🌍 [ENV] Environment: ${window.location.hostname}`);
       
       const { error } = await supabase
         .from(junctionTable as any)
@@ -381,9 +408,11 @@ export function useRemoveAssociation() {
         .eq(targetColumn, targetId);
       
       if (error) {
-        console.error("Association removal error:", error);
+        console.error(`❌ [DELETE ERROR] Association removal failed:`, error);
         throw error;
       }
+      
+      console.log(`✅ [DELETE SUCCESS] Association removed successfully!`);
       
       // Trigger reindex for both entities - map entity types to table names
       const entityToTable = (type: EntityType) => {
