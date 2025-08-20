@@ -1,20 +1,29 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Search, Plus, Users, Phone, Mail } from "lucide-react";
+import { Plus, Users, Phone, Mail, Link as LinkIcon } from "lucide-react";
 import SEO from "@/components/layout/SEO";
 import { ContactModal } from "@/components/contacts/ContactModal";
+import { UnifiedTableView, TableColumn } from "@/components/shared/UnifiedTableView";
+import { UnifiedAssociationManager } from "@/components/shared/UnifiedAssociationManager";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { softDeleteEntity, bulkSoftDelete } from "@/lib/delete/rpc";
+import { useToast } from "@/hooks/use-toast";
+import { useDemo } from "@/hooks/useDemo";
 
 export default function ContactsPage() {
   const { groupId } = useParams();
   const navigate = useNavigate();
-  const [searchTerm, setSearchTerm] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedContactForAssociations, setSelectedContactForAssociations] = useState<any>(null);
+  const [isAssociationsModalOpen, setIsAssociationsModalOpen] = useState(false);
+
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const demo = useDemo();
 
   const { data: contacts = [], isLoading } = useQuery({
     queryKey: ["contacts", groupId],
@@ -28,7 +37,7 @@ export default function ContactsPage() {
         .select("*")
         .eq("care_group_id", groupId)
         .eq("is_deleted", false)
-        .order("created_at", { ascending: false });
+        .order("first_name", { ascending: true });
       
       if (error) throw error;
       return data || [];
@@ -36,12 +45,83 @@ export default function ContactsPage() {
     enabled: !!groupId && groupId !== ':groupId' && groupId !== 'undefined' && !groupId.startsWith(':'),
   });
 
-  const filteredContacts = contacts.filter(contact => {
-    const searchLower = searchTerm.toLowerCase();
-    const fullName = `${contact.first_name || ''} ${contact.last_name || ''}`.toLowerCase();
-    const orgName = contact.organization_name?.toLowerCase() || '';
-    return fullName.includes(searchLower) || orgName.includes(searchLower);
+  const blockOperation = () => {
+    if (demo.isDemo) {
+      toast({
+        title: "Demo Mode",
+        description: "This action is not available in demo mode.",
+        variant: "destructive",
+      });
+      return true;
+    }
+    return false;
+  };
+
+  // Delete mutations
+  const deleteContactMutation = useMutation({
+    mutationFn: async (contactId: string) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      
+      await softDeleteEntity("contact", contactId, user.id, user.email || "");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      toast({
+        title: "Contact deleted",
+        description: "Contact has been moved to trash and can be restored within 30 days.",
+      });
+    },
+    onError: (error) => {
+      console.error("Delete error:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete contact.",
+        variant: "destructive",
+      });
+    },
   });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (contactIds: string[]) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      
+      await bulkSoftDelete("contact", contactIds, user.id, user.email || "");
+    },
+    onSuccess: (_, contactIds) => {
+      queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      toast({
+        title: "Contacts deleted", 
+        description: `${contactIds.length} contact(s) moved to trash and can be restored within 30 days.`,
+      });
+    },
+    onError: (error) => {
+      console.error("Bulk delete error:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete contacts.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleEditContact = (contact: any) => {
+    if (blockOperation()) return;
+    navigate(`/app/${groupId}/contacts/${contact.id}/edit`);
+  };
+
+  const handleDeleteContact = (contactId: string) => {
+    if (blockOperation()) return;
+    if (confirm("Are you sure you want to delete this contact? It will be moved to trash and can be restored within 30 days.")) {
+      deleteContactMutation.mutate(contactId);
+    }
+  };
+
+  const handleBulkDelete = (contactIds: string[]) => {
+    if (blockOperation()) return;
+    bulkDeleteMutation.mutate(contactIds);
+  };
 
   const getContactDisplayName = (contact: any) => {
     const fullName = [contact.first_name, contact.last_name].filter(Boolean).join(" ");
@@ -50,14 +130,82 @@ export default function ContactsPage() {
 
   const getContactTypeColor = (type: string) => {
     switch (type) {
-      case 'family': return 'bg-blue-100 text-blue-800';
-      case 'friend': return 'bg-green-100 text-green-800';
-      case 'medical': return 'bg-red-100 text-red-800';
-      case 'professional': return 'bg-purple-100 text-purple-800';
-      case 'emergency': return 'bg-orange-100 text-orange-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'family': return 'default';
+      case 'friend': return 'secondary';
+      case 'medical': return 'destructive';
+      case 'professional': return 'outline';
+      case 'emergency': return 'destructive';
+      default: return 'secondary';
     }
   };
+
+  const getEmailForContact = (contact: any) => {
+    return contact.email_personal || contact.email_work || "-";
+  };
+
+  const getLocationForContact = (contact: any) => {
+    const parts = [contact.city, contact.state].filter(Boolean);
+    return parts.length > 0 ? parts.join(", ") : "-";
+  };
+
+  // Define table columns
+  const columns: TableColumn[] = [
+    {
+      key: "name",
+      label: "Name/Organization",
+      sortable: true,
+      render: (_, row) => (
+        <div className="font-medium">
+          {getContactDisplayName(row)}
+        </div>
+      ),
+    },
+    {
+      key: "contact_type",
+      label: "Type",
+      sortable: true,
+      type: "badge",
+      getBadgeVariant: getContactTypeColor,
+      render: (value) => (
+        <Badge variant={getContactTypeColor(value)}>
+          {value}
+        </Badge>
+      ),
+    },
+    {
+      key: "phone_primary",
+      label: "Phone",
+      sortable: true,
+      render: (value) => value ? (
+        <div className="flex items-center gap-2 text-sm">
+          <Phone className="h-4 w-4" />
+          <span>{value}</span>
+        </div>
+      ) : "-",
+    },
+    {
+      key: "email",
+      label: "Email",
+      sortable: true,
+      render: (_, row) => {
+        const email = getEmailForContact(row);
+        return email !== "-" ? (
+          <div className="flex items-center gap-2 text-sm">
+            <Mail className="h-4 w-4" />
+            <span>{email}</span>
+          </div>
+        ) : "-";
+      },
+    },
+    {
+      key: "location",
+      label: "Location",
+      sortable: true,
+      render: (_, row) => (
+        <div className="text-sm">{getLocationForContact(row)}</div>
+      ),
+    },
+  ];
 
   if (!groupId || groupId === ':groupId' || groupId === 'undefined' || groupId.startsWith(':')) {
     return (
@@ -91,86 +239,39 @@ export default function ContactsPage() {
           </div>
         </div>
 
-        <div className="mb-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-            <Input
-              placeholder="Search contacts..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </div>
-
-        {isLoading ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {[...Array(6)].map((_, i) => (
-              <Card key={i} className="animate-pulse">
-                <CardHeader>
-                  <div className="h-4 bg-muted rounded w-3/4"></div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <div className="h-3 bg-muted rounded"></div>
-                    <div className="h-3 bg-muted rounded w-1/2"></div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : filteredContacts.length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-center">
-              <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No contacts found</h3>
-              <p className="text-muted-foreground mb-4">
-                {searchTerm ? "No contacts match your search." : "Start by adding your first contact."}
-              </p>
-              <Button onClick={() => setShowCreateModal(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Contact
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredContacts.map((contact) => (
-              <Card key={contact.id} className="hover:shadow-lg transition-shadow cursor-pointer" 
-                    onClick={() => navigate(`/app/${groupId}/contacts/${contact.id}`)}>
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <span className="truncate">{getContactDisplayName(contact)}</span>
-                    <Badge className={getContactTypeColor(contact.contact_type)}>
-                      {contact.contact_type}
-                    </Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    {contact.phone_primary && (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Phone className="h-4 w-4" />
-                        <span>{contact.phone_primary}</span>
-                      </div>
-                    )}
-                    {(contact.email_personal || contact.email_work) && (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Mail className="h-4 w-4" />
-                        <span>{contact.email_personal || contact.email_work}</span>
-                      </div>
-                    )}
-                    {(contact.city || contact.state) && (
-                      <div className="text-sm text-muted-foreground">
-                        {[contact.city, contact.state].filter(Boolean).join(", ")}
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+        <UnifiedTableView
+          title=""
+          data={contacts}
+          columns={columns}
+          loading={isLoading}
+          onEdit={handleEditContact}
+          onDelete={handleDeleteContact}
+          onBulkDelete={handleBulkDelete}
+          searchable={true}
+          searchPlaceholder="Search contacts..."
+          defaultSortBy="name"
+          defaultSortOrder="asc"
+          entityType="contact"
+          getItemTitle={getContactDisplayName}
+          emptyMessage="No contacts found"
+          emptyDescription="Start by adding your first contact."
+          customActions={(item) => (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedContactForAssociations(item);
+                setIsAssociationsModalOpen(true);
+              }}
+              disabled={demo.isDemo}
+              title="Manage associations"
+              className="h-8 w-8 p-0"
+            >
+              <LinkIcon className="h-4 w-4" />
+            </Button>
+          )}
+        />
 
         <ContactModal
           contact={null}
@@ -178,6 +279,28 @@ export default function ContactsPage() {
           onClose={() => setShowCreateModal(false)}
           groupId={groupId || ''}
         />
+
+        <Dialog open={isAssociationsModalOpen} onOpenChange={setIsAssociationsModalOpen}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                Contact Associations - {selectedContactForAssociations ? getContactDisplayName(selectedContactForAssociations) : ''}
+              </DialogTitle>
+            </DialogHeader>
+            {selectedContactForAssociations && (
+              <UnifiedAssociationManager
+                entityId={selectedContactForAssociations.id}
+                entityType="contact"
+                groupId={groupId || ''}
+                onNavigate={(path) => {
+                  setIsAssociationsModalOpen(false);
+                  navigate(path);
+                }}
+                showTitle={false}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </>
   );
