@@ -57,7 +57,7 @@ export const usePlatformAdmin = () => {
       const { data: mfaFactors, error: mfaError } = await supabase.auth.mfa.listFactors();
       const isMfaEnrolled = !mfaError && mfaFactors?.all?.length > 0;
 
-      const canAccessAdmin = isPlatformAdmin && isEmailVerified && isMfaEnrolled;
+      const canAccessAdmin = isPlatformAdmin && isEmailVerified;
 
       setAdminCheck({
         isPlatformAdmin,

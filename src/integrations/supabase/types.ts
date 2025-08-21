@@ -246,6 +246,42 @@ export type Database = {
         }
         Relationships: []
       }
+      analytics_data: {
+        Row: {
+          bounce: boolean | null
+          created_at: string | null
+          id: string
+          login_time: string | null
+          page_path: string
+          referrer_page: string | null
+          session_id: string
+          time_spent_seconds: number | null
+          user_id: string | null
+        }
+        Insert: {
+          bounce?: boolean | null
+          created_at?: string | null
+          id?: string
+          login_time?: string | null
+          page_path: string
+          referrer_page?: string | null
+          session_id: string
+          time_spent_seconds?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          bounce?: boolean | null
+          created_at?: string | null
+          id?: string
+          login_time?: string | null
+          page_path?: string
+          referrer_page?: string | null
+          session_id?: string
+          time_spent_seconds?: number | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       app_settings: {
         Row: {
           created_at: string
@@ -1441,6 +1477,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      role_history: {
+        Row: {
+          created_at: string | null
+          granted_at: string | null
+          granted_by_user_id: string | null
+          id: string
+          revoked_at: string | null
+          revoked_by_user_id: string | null
+          role_type: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          granted_at?: string | null
+          granted_by_user_id?: string | null
+          id?: string
+          revoked_at?: string | null
+          revoked_by_user_id?: string | null
+          role_type?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          granted_at?: string | null
+          granted_by_user_id?: string | null
+          id?: string
+          revoked_at?: string | null
+          revoked_by_user_id?: string | null
+          role_type?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       role_promotion_confirmations: {
         Row: {
