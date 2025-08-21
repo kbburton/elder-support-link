@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -201,127 +202,132 @@ export function ActivityModal({ activity, isOpen, onClose, groupId }: ActivityMo
           <DialogTitle>{activity ? "Edit Activity" : "Create Activity"}</DialogTitle>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Activity Form */}
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Basic Information */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-medium">Activity Details</h3>
-              
-              <div>
-                <Label htmlFor="title">Title</Label>
-                <Input
-                  id="title"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="Activity title"
-                />
-              </div>
+        <Tabs defaultValue="form" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="form">Form</TabsTrigger>
+            <TabsTrigger value="associations" disabled={!activity}>Associations</TabsTrigger>
+          </TabsList>
 
-              <div className="grid grid-cols-2 gap-4">
+          <TabsContent value="form" className="space-y-6 mt-6">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Basic Information */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium">Activity Details</h3>
+                
                 <div>
-                  <Label htmlFor="type">Type</Label>
-                  <Select
-                    value={formData.type}
-                    onValueChange={(value) => setFormData({ ...formData, type: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {activityTypes.map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {type.charAt(0).toUpperCase() + type.slice(1)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="title">Title</Label>
+                  <Input
+                    id="title"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    placeholder="Activity title"
+                  />
                 </div>
 
-                <div>
-                  <Label>Date & Time *</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "justify-start text-left font-normal",
-                            !dateTime && "text-muted-foreground"
-                          )}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {dateTime ? format(dateTime, "MMM dd") : <span>Date</span>}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={dateTime}
-                          onSelect={(date) => date && setDateTime(date)}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="type">Type</Label>
+                    <Select
+                      value={formData.type}
+                      onValueChange={(value) => setFormData({ ...formData, type: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {activityTypes.map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {type.charAt(0).toUpperCase() + type.slice(1)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                    <Input
-                      type="time"
-                      value={timeValue}
-                      onChange={(e) => setTimeValue(e.target.value)}
-                    />
+                  <div>
+                    <Label>Date & Time *</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "justify-start text-left font-normal",
+                              !dateTime && "text-muted-foreground"
+                            )}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {dateTime ? format(dateTime, "MMM dd") : <span>Date</span>}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                          <Calendar
+                            mode="single"
+                            selected={dateTime}
+                            onSelect={(date) => date && setDateTime(date)}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+
+                      <Input
+                        type="time"
+                        value={timeValue}
+                        onChange={(e) => setTimeValue(e.target.value)}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            <Separator />
+              <Separator />
 
-            {/* Notes */}
-            <div>
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea
-                id="notes"
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                rows={4}
-                placeholder="Add notes about this activity..."
-              />
-            </div>
+              {/* Notes */}
+              <div>
+                <Label htmlFor="notes">Notes</Label>
+                <Textarea
+                  id="notes"
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  rows={4}
+                  placeholder="Add notes about this activity..."
+                />
+              </div>
 
-            {/* Attachment URL */}
-            <div>
-              <Label htmlFor="attachment_url">Attachment URL</Label>
-              <Input
-                id="attachment_url"
-                type="url"
-                value={formData.attachment_url}
-                onChange={(e) => setFormData({ ...formData, attachment_url: e.target.value })}
-                placeholder="https://example.com/document.pdf"
-              />
-            </div>
+              {/* Attachment URL */}
+              <div>
+                <Label htmlFor="attachment_url">Attachment URL</Label>
+                <Input
+                  id="attachment_url"
+                  type="url"
+                  value={formData.attachment_url}
+                  onChange={(e) => setFormData({ ...formData, attachment_url: e.target.value })}
+                  placeholder="https://example.com/document.pdf"
+                />
+              </div>
 
-            <div className="flex gap-2">
-              <Button type="submit" disabled={createActivity.isPending || updateActivity.isPending}>
-                {activity ? "Update" : "Create"} Activity
-              </Button>
-              <Button type="button" variant="outline" onClick={onClose}>
-                Cancel
-              </Button>
-            </div>
-          </form>
+              <div className="flex gap-2">
+                <Button type="submit" disabled={createActivity.isPending || updateActivity.isPending}>
+                  {activity ? "Update Activity" : "Create Activity"}
+                </Button>
+                <Button type="button" variant="outline" onClick={onClose}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </TabsContent>
 
-          {/* Associations Panel */}
-          {activity && (
-            <div className="space-y-4">
+          <TabsContent value="associations" className="space-y-4 mt-6">
+            {activity && (
               <UnifiedAssociationManager
                 entityId={activity.id}
                 entityType={ENTITY.activity_log}
                 groupId={groupId}
                 onNavigate={handleNavigate}
               />
-            </div>
-          )}
-        </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );

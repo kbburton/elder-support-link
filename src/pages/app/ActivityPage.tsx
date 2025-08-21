@@ -1,23 +1,27 @@
 import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useParams } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Search, Plus, NotebookPen, Calendar, User } from "lucide-react";
 import SEO from "@/components/layout/SEO";
-import ActivityLogForm from "@/components/activity-log/ActivityLogForm";
+import { UnifiedTableView } from "@/components/shared/UnifiedTableView";
+import { useToast } from "@/hooks/use-toast";
+import { useDemoOperations } from "@/hooks/useDemoOperations";
+import { ActivityModal } from "@/components/activities/ActivityModal";
+import { softDeleteEntity } from "@/lib/delete/rpc";
 import { format } from "date-fns";
+import { ExternalLink } from "lucide-react";
 
 export default function ActivityPage() {
   const { groupId } = useParams();
-  const navigate = useNavigate();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [showForm, setShowForm] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { blockOperation } = useDemoOperations();
+  const [selectedActivity, setSelectedActivity] = useState<any>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
-  const { data: activities = [], isLoading, refetch } = useQuery({
+  const { data: activities = [], isLoading } = useQuery({
     queryKey: ["activities", groupId],
     queryFn: async () => {
       if (!groupId || groupId === ':groupId' || groupId === 'undefined' || groupId.startsWith(':')) {
@@ -26,10 +30,7 @@ export default function ActivityPage() {
       
       const { data, error } = await supabase
         .from("activity_logs")
-        .select(`
-          *,
-          created_by_email
-        `)
+        .select("*, created_by_email")
         .eq("group_id", groupId)
         .eq("is_deleted", false)
         .order("date_time", { ascending: false });
@@ -40,23 +41,183 @@ export default function ActivityPage() {
     enabled: !!groupId && groupId !== ':groupId' && groupId !== 'undefined' && !groupId.startsWith(':'),
   });
 
-  const filteredActivities = activities.filter(activity => {
-    const searchLower = searchTerm.toLowerCase();
-    return (activity.title?.toLowerCase() || '').includes(searchLower) ||
-           (activity.type?.toLowerCase() || '').includes(searchLower) ||
-           (activity.notes?.toLowerCase() || '').includes(searchLower);
+  // Get current user for permissions
+  const { data: currentUser } = useQuery({
+    queryKey: ["currentUser"],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      return user;
+    },
   });
 
-  const getTypeColor = (type: string) => {
-    switch (type?.toLowerCase()) {
-      case 'medical': return 'bg-red-100 text-red-800';
-      case 'personal': return 'bg-blue-100 text-blue-800';
-      case 'communication': return 'bg-green-100 text-green-800';
-      case 'appointment': return 'bg-purple-100 text-purple-800';
-      case 'medication': return 'bg-orange-100 text-orange-800';
-      default: return 'bg-gray-100 text-gray-800';
+  // Check if user is group admin
+  const { data: isGroupAdmin = false } = useQuery({
+    queryKey: ["isGroupAdmin", groupId, currentUser?.id],
+    queryFn: async () => {
+      if (!currentUser?.id || !groupId) return false;
+      
+      const { data } = await supabase
+        .from("care_group_members")
+        .select("is_admin")
+        .eq("group_id", groupId)
+        .eq("user_id", currentUser.id)
+        .single();
+      
+      return data?.is_admin || false;
+    },
+    enabled: !!currentUser?.id && !!groupId,
+  });
+
+  const deleteActivityMutation = useMutation({
+    mutationFn: async (activityId: string) => {
+      if (blockOperation()) return { success: false, error: "Operation blocked in demo mode" };
+      
+      if (!currentUser) throw new Error('User not authenticated');
+      
+      const result = await softDeleteEntity('activity', activityId, currentUser.id, currentUser.email!);
+      if (!result.success) {
+        throw new Error(result.error || 'Delete failed');
+      }
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["activities"] });
+      toast({ title: "Success", description: "Activity moved to trash successfully." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (activityIds: string[]) => {
+      if (blockOperation()) return { success: false, error: "Operation blocked in demo mode" };
+      
+      if (!currentUser) throw new Error('User not authenticated');
+      
+      const results = [];
+      for (const id of activityIds) {
+        try {
+          const result = await softDeleteEntity('activity', id, currentUser.id, currentUser.email!);
+          results.push(result);
+        } catch (error) {
+          results.push({ success: false, error: error.message });
+        }
+      }
+      
+      const failures = results.filter(r => !r.success);
+      if (failures.length > 0) {
+        throw new Error(`${failures.length} activities could not be deleted`);
+      }
+      
+      return results;
+    },
+    onSuccess: (_, activityIds) => {
+      queryClient.invalidateQueries({ queryKey: ["activities"] });
+      toast({ 
+        title: "Success", 
+        description: `${activityIds.length} activity(ies) moved to trash. Items can be restored in group settings for 30 days.`
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const handleEdit = (activity: any) => {
+    setSelectedActivity(activity);
+    setShowEditModal(true);
+  };
+
+  const handleCreateNew = () => {
+    setShowCreateModal(true);
+  };
+
+  const handleDelete = async (activityId: string) => {
+    await deleteActivityMutation.mutateAsync(activityId);
+  };
+
+  const handleBulkDelete = async (activityIds: string[]) => {
+    await bulkDeleteMutation.mutateAsync(activityIds);
+  };
+
+  const canDeleteActivity = (activity: any) => {
+    if (!currentUser) return false;
+    return isGroupAdmin || activity.created_by_user_id === currentUser.id;
+  };
+
+  const getActivityTitle = (activity: any) => {
+    return activity.title || `${activity.type || 'Activity'}`;
+  };
+
+  const handleAttachmentClick = (url: string) => {
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
     }
   };
+
+  const columns = [
+    { 
+      key: 'date_time', 
+      label: 'Date', 
+      sortable: true,
+      width: '20',
+      render: (value: string) => format(new Date(value), 'MMM dd, yyyy')
+    },
+    { 
+      key: 'type', 
+      label: 'Type', 
+      sortable: true,
+      width: '16',
+      render: (value: string) => (
+        <span className="capitalize">{value || 'Other'}</span>
+      )
+    },
+    { 
+      key: 'title', 
+      label: 'Title', 
+      sortable: true,
+      width: '24',
+      render: (value: any, row: any) => getActivityTitle(row)
+    },
+    { 
+      key: 'notes', 
+      label: 'Notes', 
+      sortable: false,
+      width: '32',
+      render: (value: string) => {
+        if (!value) return '-';
+        const truncated = value.length > 100 ? value.substring(0, 100) + '...' : value;
+        return (
+          <div className="max-w-sm">
+            <span className="text-sm text-muted-foreground" title={value}>
+              {truncated}
+            </span>
+          </div>
+        );
+      }
+    },
+    { 
+      key: 'attachment_url', 
+      label: 'Attachment', 
+      sortable: false,
+      width: '16',
+      render: (value: string) => {
+        if (!value) return '-';
+        return (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleAttachmentClick(value)}
+            className="h-8 w-8 p-0"
+            title="Open attachment"
+          >
+            <ExternalLink className="h-4 w-4" />
+          </Button>
+        );
+      }
+    }
+  ];
 
   if (!groupId || groupId === ':groupId' || groupId === 'undefined' || groupId.startsWith(':')) {
     return (
@@ -73,108 +234,44 @@ export default function ActivityPage() {
         title="Activity Log - Care Coordination"
         description="Track and manage daily activities and care notes for your care group."
       />
-      <div className="container mx-auto p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <NotebookPen className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold">Activity Log</h1>
-          </div>
-          <Button onClick={() => setShowForm(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Activity
-          </Button>
-        </div>
+      <div className="container mx-auto p-6 space-y-6">
+        <UnifiedTableView
+          title="Activity Log"
+          data={activities}
+          columns={columns}
+          loading={isLoading}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          onBulkDelete={handleBulkDelete}
+          entityType="activity"
+          canDelete={canDeleteActivity}
+          getItemTitle={getActivityTitle}
+          searchPlaceholder="Search activities..."
+          defaultSortBy="date_time"
+          emptyMessage="No activities found"
+          emptyDescription="Start by adding your first activity entry."
+          onCreateNew={handleCreateNew}
+          createButtonLabel="Add Activity"
+        />
 
-        <div className="mb-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-            <Input
-              placeholder="Search activities..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </div>
-
-        {isLoading ? (
-          <div className="space-y-4">
-            {[...Array(5)].map((_, i) => (
-              <Card key={i} className="animate-pulse">
-                <CardHeader>
-                  <div className="h-4 bg-muted rounded w-3/4"></div>
-                  <div className="h-3 bg-muted rounded w-1/2"></div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <div className="h-3 bg-muted rounded"></div>
-                    <div className="h-3 bg-muted rounded w-2/3"></div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : filteredActivities.length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-center">
-              <NotebookPen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No activities found</h3>
-              <p className="text-muted-foreground mb-4">
-                {searchTerm ? "No activities match your search." : "Start by adding your first activity entry."}
-              </p>
-              <Button onClick={() => setShowForm(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Activity
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            {filteredActivities.map((activity) => (
-              <Card key={activity.id} className="hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <span>{activity.title || `${activity.type} Activity`}</span>
-                    <div className="flex items-center gap-2">
-                      {activity.type && (
-                        <Badge className={getTypeColor(activity.type)}>
-                          {activity.type}
-                        </Badge>
-                      )}
-                    </div>
-                  </CardTitle>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <Calendar className="h-4 w-4" />
-                      <span>{format(new Date(activity.date_time), 'MMM dd, yyyy at h:mm a')}</span>
-                    </div>
-                    {activity.created_by_email && (
-                      <div className="flex items-center gap-1">
-                        <User className="h-4 w-4" />
-                        <span>by {activity.created_by_email}</span>
-                      </div>
-                    )}
-                  </div>
-                </CardHeader>
-                {activity.notes && (
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground">
-                      {activity.notes}
-                    </p>
-                  </CardContent>
-                )}
-              </Card>
-            ))}
-          </div>
+        {showEditModal && selectedActivity && (
+          <ActivityModal
+            activity={selectedActivity}
+            isOpen={showEditModal}
+            onClose={() => {
+              setShowEditModal(false);
+              setSelectedActivity(null);
+            }}
+            groupId={groupId!}
+          />
         )}
 
-        {showForm && (
-          <ActivityLogForm
-            onSave={() => {
-              setShowForm(false);
-              refetch();
-            }}
-            onCancel={() => setShowForm(false)}
+        {showCreateModal && (
+          <ActivityModal
+            activity={null}
+            isOpen={showCreateModal}
+            onClose={() => setShowCreateModal(false)}
+            groupId={groupId!}
           />
         )}
       </div>
