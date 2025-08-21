@@ -7,6 +7,8 @@ import SEO from "@/components/layout/SEO";
 import { UnifiedTableView } from "@/components/shared/UnifiedTableView";
 import { useToast } from "@/hooks/use-toast";
 import { useDemoOperations } from "@/hooks/useDemoOperations";
+import { useDemo } from "@/hooks/useDemo";
+import { useDemoActivities } from "@/hooks/useDemoData";
 import { ActivityModal } from "@/components/activities/ActivityModal";
 import { UnifiedAssociationManager } from "@/components/shared/UnifiedAssociationManager";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -20,13 +22,17 @@ export default function ActivityPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { blockOperation } = useDemoOperations();
+  const { isDemo } = useDemo();
   const [selectedActivity, setSelectedActivity] = useState<any>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedActivityForAssociations, setSelectedActivityForAssociations] = useState<any>(null);
   const [isAssociationsModalOpen, setIsAssociationsModalOpen] = useState(false);
 
-  const { data: activities = [], isLoading } = useQuery({
+  // Use demo data if in demo mode
+  const demoActivities = useDemoActivities(groupId);
+  
+  const { data: realActivities = [], isLoading: realLoading } = useQuery({
     queryKey: ["activities", groupId],
     queryFn: async () => {
       if (!groupId || groupId === ':groupId' || groupId === 'undefined' || groupId.startsWith(':')) {
@@ -43,8 +49,12 @@ export default function ActivityPage() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!groupId && groupId !== ':groupId' && groupId !== 'undefined' && !groupId.startsWith(':'),
+    enabled: !!groupId && groupId !== ':groupId' && groupId !== 'undefined' && !groupId.startsWith(':') && !isDemo,
   });
+
+  // Use demo data if available, otherwise use real data
+  const activities = isDemo && demoActivities.data ? demoActivities.data : realActivities;
+  const isLoading = isDemo ? false : realLoading;
 
   // Get current user for permissions
   const { data: currentUser } = useQuery({
