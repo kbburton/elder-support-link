@@ -291,7 +291,7 @@ export function ActivityModal({ activity, isOpen, onClose, groupId }: ActivityMo
 
             {/* Attachment URL */}
             <div>
-              <Label htmlFor="attachment_url">Attachment URL</Label>
+              <Label htmlFor="attachment_url">Activity Link URL</Label>
               <Input
                 id="attachment_url"
                 type="url"

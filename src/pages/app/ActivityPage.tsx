@@ -12,7 +12,7 @@ import { UnifiedAssociationManager } from "@/components/shared/UnifiedAssociatio
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { softDeleteEntity } from "@/lib/delete/rpc";
 import { format } from "date-fns";
-import { ExternalLink, Link } from "lucide-react";
+import { Link } from "lucide-react";
 import { ENTITY } from "@/constants/entities";
 
 export default function ActivityPage() {
@@ -155,12 +155,6 @@ export default function ActivityPage() {
     return activity.title || `${activity.type || 'Activity'}`;
   };
 
-  const handleAttachmentClick = (url: string) => {
-    if (url) {
-      window.open(url, '_blank', 'noopener,noreferrer');
-    }
-  };
-
   const columns = [
     { 
       key: 'date_time', 
@@ -204,21 +198,20 @@ export default function ActivityPage() {
     },
     { 
       key: 'attachment_url', 
-      label: 'Attachment', 
+      label: 'URL', 
       sortable: false,
-      width: '16',
+      width: '20',
       render: (value: string) => {
         if (!value) return '-';
+        const truncated = value.length > 40 ? value.substring(0, 40) + '...' : value;
         return (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleAttachmentClick(value)}
-            className="h-8 w-8 p-0"
-            title="Open attachment"
+          <button
+            onClick={() => window.open(value, '_blank', 'noopener,noreferrer')}
+            className="text-primary hover:text-primary/80 underline text-left max-w-full truncate"
+            title={value}
           >
-            <ExternalLink className="h-4 w-4" />
-          </Button>
+            {truncated}
+          </button>
         );
       }
     }
@@ -258,37 +251,20 @@ export default function ActivityPage() {
           onCreateNew={handleCreateNew}
           createButtonLabel="Add Activity"
           customActions={(activity) => (
-            <div className="flex gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSelectedActivityForAssociations(activity);
-                  setIsAssociationsModalOpen(true);
-                }}
-                disabled={blockOperation()}
-                title="Manage associations"
-                className="h-8 w-8 p-0"
-              >
-                <Link className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (activity.attachment_url) {
-                    window.open(activity.attachment_url, '_blank');
-                  }
-                }}
-                disabled={!activity.attachment_url}
-                title={activity.attachment_url ? "Open attachment" : "No attachment"}
-                className="h-8 w-8 p-0"
-              >
-                <ExternalLink className="h-4 w-4" />
-              </Button>
-            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedActivityForAssociations(activity);
+                setIsAssociationsModalOpen(true);
+              }}
+              disabled={blockOperation()}
+              title="Manage associations"
+              className="h-8 w-8 p-0"
+            >
+              <Link className="h-4 w-4" />
+            </Button>
           )}
         />
 
