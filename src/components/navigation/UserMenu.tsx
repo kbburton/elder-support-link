@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { User, LogOut, Settings, Users, Plus } from "lucide-react";
+import { User, LogOut, Settings, Users, Plus, UserPlus } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import { useDemo } from "@/hooks/useDemo";
 import { useDemoContext } from "@/contexts/DemoContext";
+import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
 
 interface UserMenuProps {
   onSwitchGroup?: () => void;
@@ -29,6 +30,7 @@ export function UserMenu({ onSwitchGroup, variant = "desktop", className }: User
   const [user, setUser] = useState<{ email: string; name: string } | null>(null);
   const { isDemo, demoSession } = useDemo();
   const { endDemoSession } = useDemoContext();
+  const { isPlatformAdmin } = usePlatformAdmin();
 
   useEffect(() => {
     // Set demo user info if in demo mode
@@ -149,35 +151,36 @@ export function UserMenu({ onSwitchGroup, variant = "desktop", className }: User
         </div>
         
         <div className="p-2 space-y-1">
+          <Button
+            variant="ghost"
+            className="w-full justify-start gap-2"
+            onClick={onSwitchGroup}
+            disabled={isDemo}
+          >
+            <Users className="h-4 w-4" />
+            {isDemo ? "Switch care group (Demo Mode)" : "Switch care group"}
+          </Button>
+          
           {!isDemo && (
-            <>
-              <Button
-                variant="ghost"
-                className="w-full justify-start gap-2"
-                onClick={onSwitchGroup}
-              >
-                <Users className="h-4 w-4" />
-                Switch care group
-              </Button>
-              
-              <Button
-                variant="ghost"
-                className="w-full justify-start gap-2"
-                onClick={() => navigate("/app/groups/new")}
-              >
-                <Plus className="h-4 w-4" />
-                Create care group
-              </Button>
-              
-              <Button
-                variant="ghost"
-                className="w-full justify-start gap-2"
-                onClick={() => navigate(`/app/${groupId}/settings`)}
-              >
-                <Settings className="h-4 w-4" />
-                Group settings
-              </Button>
-            </>
+            <Button
+              variant="ghost"
+              className="w-full justify-start gap-2"
+              onClick={() => navigate("/app/groups/new")}
+            >
+              <Plus className="h-4 w-4" />
+              Create care group
+            </Button>
+          )}
+          
+          {!isDemo && isPlatformAdmin && (
+            <Button
+              variant="ghost"
+              className="w-full justify-start gap-2"
+              onClick={() => navigate("/app/system-admin")}
+            >
+              <UserPlus className="h-4 w-4" />
+              System Admin
+            </Button>
           )}
           
           <div className="border-t pt-2 mt-2 space-y-1">
@@ -227,23 +230,23 @@ export function UserMenu({ onSwitchGroup, variant = "desktop", className }: User
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         
+        <DropdownMenuItem onClick={onSwitchGroup} disabled={isDemo}>
+          <Users className="mr-2 h-4 w-4" />
+          {isDemo ? "Switch care group (Demo Mode)" : "Switch care group"}
+        </DropdownMenuItem>
+        
         {!isDemo && (
-          <>
-            <DropdownMenuItem onClick={onSwitchGroup}>
-              <Users className="mr-2 h-4 w-4" />
-              Switch care group
-            </DropdownMenuItem>
-            
-            <DropdownMenuItem onClick={() => navigate("/app/groups/new")}>
-              <Plus className="mr-2 h-4 w-4" />
-              Create care group
-            </DropdownMenuItem>
-            
-            <DropdownMenuItem onClick={() => navigate(`/app/${groupId}/settings`)}>
-              <Settings className="mr-2 h-4 w-4" />
-              Group settings
-            </DropdownMenuItem>
-          </>
+          <DropdownMenuItem onClick={() => navigate("/app/groups/new")}>
+            <Plus className="mr-2 h-4 w-4" />
+            Create care group
+          </DropdownMenuItem>
+        )}
+        
+        {!isDemo && isPlatformAdmin && (
+          <DropdownMenuItem onClick={() => navigate("/app/system-admin")}>
+            <UserPlus className="mr-2 h-4 w-4" />
+            System Admin
+          </DropdownMenuItem>
         )}
         
         <DropdownMenuSeparator />
