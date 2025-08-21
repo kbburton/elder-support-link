@@ -37,6 +37,7 @@ import AdminEmailPage from "./pages/app/AdminEmailPage";
 import ContactsPage from "./pages/app/ContactsPage";
 import DocumentsPage from "./pages/app/DocumentsPage";
 import ActivityPage from "./pages/app/ActivityPage";
+import AdminLayout from "./components/layout/AdminLayout";
 import SystemAdminPage from "./pages/app/SystemAdminPage";
 const queryClient = new QueryClient();
 const App = () => (
@@ -56,7 +57,9 @@ const App = () => (
             <Route path="/invite/accept" element={<InviteAccept />} />
             <Route path="/invite/:id" element={<InviteAccept />} />
             <Route path="/app/groups/new" element={<CreateGroupPage />} />
-            <Route path="/app/system-admin" element={<SystemAdminPage />} />
+            <Route path="/app/system-admin" element={<AdminLayout />}>
+              <Route index element={<SystemAdminPage />} />
+            </Route>
 
             <Route path="/app/:groupId" element={<AppLayout />}>
               <Route index element={<CalendarPage />} />
