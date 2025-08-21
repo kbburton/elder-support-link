@@ -9,6 +9,8 @@ import { UnifiedTableView, TableColumn } from "@/components/shared/UnifiedTableV
 import { softDeleteEntity } from "@/lib/delete/rpc";
 import { triggerReindex } from "@/utils/reindex";
 import { useDemoOperations } from "@/hooks/useDemoOperations";
+import { useDemo } from "@/hooks/useDemo";
+import { useDemoTasks } from "@/hooks/useDemoData";
 import { Link } from "lucide-react";
 import { TaskAssociationsModal } from "./TaskAssociationsModal";
 import { cn } from "@/lib/utils";
@@ -22,12 +24,16 @@ export function TaskListView({ groupId, onEdit }: TaskListViewProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { blockOperation } = useDemoOperations();
+  const { isDemo } = useDemo();
   const [selectedTaskForAssociations, setSelectedTaskForAssociations] = useState<any>(null);
   const [isAssociationsModalOpen, setIsAssociationsModalOpen] = useState(false);
 
-  const { data: tasks = [], refetch, isLoading } = useQuery({
+  // Use demo data if in demo mode
+  const demoTasks = useDemoTasks(groupId);
+
+  const { data: realTasks = [], refetch, isLoading: realLoading } = useQuery({
     queryKey: ["tasks-list", groupId],
-    enabled: !!groupId && groupId !== ':groupId' && groupId !== 'undefined',
+    enabled: !!groupId && groupId !== ':groupId' && groupId !== 'undefined' && !isDemo,
     queryFn: async () => {
       if (!groupId || groupId === ':groupId' || groupId === 'undefined') {
         throw new Error('Invalid group ID');
@@ -48,6 +54,10 @@ export function TaskListView({ groupId, onEdit }: TaskListViewProps) {
       return data || [];
     }
   });
+
+  // Use demo data if available, otherwise use real data
+  const tasks = isDemo && demoTasks.data ? demoTasks.data : realTasks;
+  const isLoading = isDemo ? false : realLoading;
 
   // Status update mutation
   const updateStatusMutation = useMutation({

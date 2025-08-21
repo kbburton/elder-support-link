@@ -14,6 +14,7 @@ import { format, formatDistanceToNow } from "date-fns";
 import { softDeleteEntity, bulkSoftDelete } from "@/lib/delete/rpc";
 import { useToast } from "@/hooks/use-toast";
 import { useDemo } from "@/hooks/useDemo";
+import { useDemoDocuments } from "@/hooks/useDemoData";
 
 const formatFileSize = (bytes?: number) => {
   if (!bytes) return 'Unknown';
@@ -32,10 +33,13 @@ export default function DocumentsPage() {
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const demo = useDemo();
+  const { isDemo } = useDemo();
+  
+  // Use demo data if in demo mode
+  const demoDocuments = useDemoDocuments(groupId);
 
   // Fetch documents with uploader profile information
-  const { data: documents = [], isLoading, refetch, error: queryError } = useQuery({
+  const { data: realDocuments = [], isLoading: realLoading, refetch, error: queryError } = useQuery({
     queryKey: ["documents", groupId],
     queryFn: async () => {
       console.log("Documents query starting for groupId:", groupId);
@@ -79,13 +83,17 @@ export default function DocumentsPage() {
       
       return data || [];
     },
-    enabled: !!groupId && groupId !== ':groupId' && groupId !== 'undefined' && !groupId.startsWith(':'),
+    enabled: !!groupId && groupId !== ':groupId' && groupId !== 'undefined' && !groupId.startsWith(':') && !isDemo,
   });
+
+  // Use demo data if available, otherwise use real data
+  const documents = isDemo && demoDocuments.data ? demoDocuments.data : realDocuments;
+  const isLoading = isDemo ? false : realLoading;
 
   console.log("Documents component state:", { documents, isLoading, queryError, groupId });
 
   const blockOperation = () => {
-    if (demo.isDemo) {
+    if (isDemo) {
       toast({
         title: "Demo Mode",
         description: "This action is not available in demo mode.",
@@ -388,7 +396,7 @@ export default function DocumentsPage() {
                 setSelectedDocumentForAssociations(item);
                 setIsAssociationsModalOpen(true);
               }}
-              disabled={demo.isDemo}
+              disabled={isDemo}
               title="Manage associations"
               className="h-8 w-8 p-0"
             >

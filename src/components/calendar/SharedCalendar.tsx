@@ -14,6 +14,8 @@ import {
 import { ChevronLeft, ChevronRight, CalendarDays, Clock, Trash2, CheckSquare, Square } from "lucide-react";
 import { softDeleteEntity } from "@/lib/delete/rpc";
 import { CalendarLegend } from "./CalendarLegend";
+import { useDemo } from "@/hooks/useDemo";
+import { useDemoAppointments, useDemoTasks } from "@/hooks/useDemoData";
 
 export type View = "month" | "week" | "day" | "list";
 
@@ -95,6 +97,12 @@ export default function SharedCalendar(props: SharedCalendarProps) {
     selectMode = false, isSelected, onToggleSelect, onEventsLoaded
   } = props;
 
+  const { isDemo } = useDemo();
+  
+  // Use demo data if in demo mode
+  const demoAppointments = useDemoAppointments(groupId);
+  const demoTasks = useDemoTasks(groupId);
+
   const { start, end } = useMemo(() => {
     if (view === "month") return monthRange(selectedDate);
     if (view === "week") return weekRange(selectedDate);
@@ -106,7 +114,7 @@ export default function SharedCalendar(props: SharedCalendarProps) {
 
   const apptQuery = useQuery({
     queryKey: ["calendar-appointments", groupId, view, start.toISOString(), end.toISOString(), excludeDeleted],
-    enabled: !!groupId && groupId !== ':groupId' && groupId !== 'undefined',
+    enabled: !!groupId && groupId !== ':groupId' && groupId !== 'undefined' && !isDemo,
     queryFn: async () => {
       if (!groupId || groupId === ':groupId' || groupId === 'undefined') {
         throw new Error('Invalid group ID');
@@ -126,7 +134,7 @@ export default function SharedCalendar(props: SharedCalendarProps) {
 
   const taskQuery = useQuery({
     queryKey: ["calendar-tasks", groupId, view, start.toISOString(), end.toISOString(), excludeDeleted],
-    enabled: !!groupId && groupId !== ':groupId' && groupId !== 'undefined',
+    enabled: !!groupId && groupId !== ':groupId' && groupId !== 'undefined' && !isDemo,
     queryFn: async () => {
       if (!groupId || groupId === ':groupId' || groupId === 'undefined') {
         throw new Error('Invalid group ID');
@@ -145,11 +153,33 @@ export default function SharedCalendar(props: SharedCalendarProps) {
     }
   });
 
-  const isLoading = apptQuery.isLoading || taskQuery.isLoading;
-  const hasError = apptQuery.isError || taskQuery.isError;
+  // Use demo data if available, filter by date range
+  const appointments = useMemo(() => {
+    if (isDemo && demoAppointments.data) {
+      return demoAppointments.data.filter(apt => {
+        const aptDate = new Date(apt.date_time);
+        return aptDate >= start && aptDate <= end;
+      });
+    }
+    return apptQuery.data || [];
+  }, [isDemo, demoAppointments.data, apptQuery.data, start, end]);
+
+  const tasks = useMemo(() => {
+    if (isDemo && demoTasks.data) {
+      return demoTasks.data.filter(task => {
+        if (!task.due_date) return false;
+        const taskDate = new Date(task.due_date);
+        return taskDate >= start && taskDate <= end;
+      });
+    }
+    return taskQuery.data || [];
+  }, [isDemo, demoTasks.data, taskQuery.data, start, end]);
+
+  const isLoading = isDemo ? false : (apptQuery.isLoading || taskQuery.isLoading);
+  const hasError = isDemo ? false : (apptQuery.isError || taskQuery.isError);
 
   const events: CalendarEvent[] = useMemo(() => {
-    const appts: CalendarEvent[] = (apptQuery.data ?? []).map(a => {
+    const appts: CalendarEvent[] = appointments.map(a => {
       const start = new Date(a.date_time);
       const dur = a.duration_minutes ?? 60;
       const end = new Date(start.getTime() + dur * 60 * 1000);
@@ -157,14 +187,14 @@ export default function SharedCalendar(props: SharedCalendarProps) {
       return { id: a.id, type: "appointment", title, start, end, raw: a };
     });
 
-    const tasks: CalendarEvent[] = (taskQuery.data ?? []).map(t => {
+    const taskEvents: CalendarEvent[] = tasks.map(t => {
       const start = t.due_date ? new Date(`${t.due_date}T00:00:00`) : toMidnight(selectedDate);
       const prefix = t.status ? `${t.status}: ` : "";
       return { id: t.id, type: "task", title: `${prefix}${t.title}`, start, raw: t };
     });
 
-    return [...appts, ...tasks].sort((a, b) => a.start.getTime() - b.start.getTime());
-  }, [apptQuery.data, taskQuery.data, selectedDate]);
+    return [...appts, ...taskEvents].sort((a, b) => a.start.getTime() - b.start.getTime());
+  }, [appointments, tasks, selectedDate]);
 
   useEffect(() => {
     onEventsLoaded?.(events);

@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { softDeleteEntity, bulkSoftDelete } from "@/lib/delete/rpc";
 import { useToast } from "@/hooks/use-toast";
 import { useDemo } from "@/hooks/useDemo";
+import { useDemoContacts } from "@/hooks/useDemoData";
 
 export default function ContactsPage() {
   const { groupId } = useParams();
@@ -24,9 +25,12 @@ export default function ContactsPage() {
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const demo = useDemo();
+  const { isDemo } = useDemo();
+  
+  // Use demo data if in demo mode
+  const demoContacts = useDemoContacts(groupId);
 
-  const { data: contacts = [], isLoading } = useQuery({
+  const { data: realContacts = [], isLoading: realLoading } = useQuery({
     queryKey: ["contacts", groupId],
     queryFn: async () => {
       if (!groupId || groupId === ':groupId' || groupId === 'undefined' || groupId.startsWith(':')) {
@@ -43,11 +47,15 @@ export default function ContactsPage() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!groupId && groupId !== ':groupId' && groupId !== 'undefined' && !groupId.startsWith(':'),
+    enabled: !!groupId && groupId !== ':groupId' && groupId !== 'undefined' && !groupId.startsWith(':') && !isDemo,
   });
 
+  // Use demo data if available, otherwise use real data
+  const contacts = isDemo && demoContacts.data ? demoContacts.data : realContacts;
+  const isLoading = isDemo ? false : realLoading;
+
   const blockOperation = () => {
-    if (demo.isDemo) {
+    if (isDemo) {
       toast({
         title: "Demo Mode",
         description: "This action is not available in demo mode.",
@@ -269,7 +277,7 @@ export default function ContactsPage() {
                 setSelectedContactForAssociations(item);
                 setIsAssociationsModalOpen(true);
               }}
-              disabled={demo.isDemo}
+              disabled={isDemo}
               title="Manage associations"
               className="h-8 w-8 p-0"
             >
