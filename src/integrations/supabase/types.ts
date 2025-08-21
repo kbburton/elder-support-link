@@ -1442,6 +1442,48 @@ export type Database = {
           },
         ]
       }
+      role_promotion_confirmations: {
+        Row: {
+          confirmation_token: string
+          confirmed_at: string | null
+          created_at: string
+          expires_at: string
+          group_id: string | null
+          id: string
+          promoted_by_email: string
+          promoted_by_user_id: string
+          promotion_type: string
+          target_email: string
+          target_user_id: string
+        }
+        Insert: {
+          confirmation_token?: string
+          confirmed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          group_id?: string | null
+          id?: string
+          promoted_by_email: string
+          promoted_by_user_id: string
+          promotion_type: string
+          target_email: string
+          target_user_id: string
+        }
+        Update: {
+          confirmation_token?: string
+          confirmed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          group_id?: string | null
+          id?: string
+          promoted_by_email?: string
+          promoted_by_user_id?: string
+          promotion_type?: string
+          target_email?: string
+          target_user_id?: string
+        }
+        Relationships: []
+      }
       search_index: {
         Row: {
           care_group_id: string
@@ -1819,6 +1861,10 @@ export type Database = {
       build_weighted_tsv: {
         Args: { body_text?: string; snippet_text?: string; title_text?: string }
         Returns: unknown
+      }
+      confirm_role_promotion: {
+        Args: { p_token: string }
+        Returns: Json
       }
       create_appointment_activity_association: {
         Args: {
