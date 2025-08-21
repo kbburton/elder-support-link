@@ -15,6 +15,7 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { UserMenu } from "@/components/navigation/UserMenu";
+import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
 
 const mainItems = [
   { title: "Calendar", url: "calendar", icon: Calendar },
@@ -36,6 +37,7 @@ const adminItems = [
 export function AppSidebar() {
   const { groupId } = useParams();
   const { state } = useSidebar();
+  const { isPlatformAdmin } = usePlatformAdmin();
   
   // Don't render if we don't have a valid groupId
   if (!groupId || groupId === ':groupId') {
@@ -82,6 +84,32 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {isPlatformAdmin && (
+          <SidebarGroup>
+            <SidebarGroupLabel>System Admin</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink to="/app/admin-console" className={({ isActive }) => isActive ? "bg-muted text-primary font-medium" : "hover:bg-muted/50"}>
+                      <Shield className="mr-2 h-4 w-4" />
+                      <span>Admin Console</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink to="/app/system-admin" className={({ isActive }) => isActive ? "bg-muted text-primary font-medium" : "hover:bg-muted/50"}>
+                      <Settings className="mr-2 h-4 w-4" />
+                      <span>System Admin</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       
       <SidebarFooter>
