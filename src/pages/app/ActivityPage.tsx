@@ -8,9 +8,12 @@ import { UnifiedTableView } from "@/components/shared/UnifiedTableView";
 import { useToast } from "@/hooks/use-toast";
 import { useDemoOperations } from "@/hooks/useDemoOperations";
 import { ActivityModal } from "@/components/activities/ActivityModal";
+import { UnifiedAssociationManager } from "@/components/shared/UnifiedAssociationManager";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { softDeleteEntity } from "@/lib/delete/rpc";
 import { format } from "date-fns";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Link } from "lucide-react";
+import { ENTITY } from "@/constants/entities";
 
 export default function ActivityPage() {
   const { groupId } = useParams();
@@ -20,6 +23,8 @@ export default function ActivityPage() {
   const [selectedActivity, setSelectedActivity] = useState<any>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedActivityForAssociations, setSelectedActivityForAssociations] = useState<any>(null);
+  const [isAssociationsModalOpen, setIsAssociationsModalOpen] = useState(false);
 
   const { data: activities = [], isLoading } = useQuery({
     queryKey: ["activities", groupId],
@@ -252,6 +257,39 @@ export default function ActivityPage() {
           emptyDescription="Start by adding your first activity entry."
           onCreateNew={handleCreateNew}
           createButtonLabel="Add Activity"
+          customActions={(activity) => (
+            <div className="flex gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedActivityForAssociations(activity);
+                  setIsAssociationsModalOpen(true);
+                }}
+                disabled={blockOperation()}
+                title="Manage associations"
+                className="h-8 w-8 p-0"
+              >
+                <Link className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (activity.attachment_url) {
+                    window.open(activity.attachment_url, '_blank');
+                  }
+                }}
+                disabled={!activity.attachment_url}
+                title={activity.attachment_url ? "Open attachment" : "No attachment"}
+                className="h-8 w-8 p-0"
+              >
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         />
 
         {showEditModal && selectedActivity && (
@@ -274,6 +312,45 @@ export default function ActivityPage() {
             groupId={groupId!}
           />
         )}
+
+        {/* Associations Modal */}
+        <Dialog open={isAssociationsModalOpen} onOpenChange={setIsAssociationsModalOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Activity Associations</DialogTitle>
+            </DialogHeader>
+            {selectedActivityForAssociations && (
+              <UnifiedAssociationManager
+                entityId={selectedActivityForAssociations.id}
+                entityType={ENTITY.activity_log}
+                groupId={groupId!}
+                onNavigate={(type: string, id: string) => {
+                  const baseUrl = `/app/${groupId}`;
+                  let url = '';
+                  
+                  switch (type) {
+                    case ENTITY.contact:
+                      url = `${baseUrl}/contacts`;
+                      break;
+                    case ENTITY.appointment:
+                      url = `${baseUrl}/calendar`;
+                      break;
+                    case ENTITY.task:
+                      url = `${baseUrl}/tasks`;
+                      break;
+                    case ENTITY.document:
+                      url = `${baseUrl}/documents`;
+                      break;
+                    default:
+                      return;
+                  }
+                  
+                  window.open(url, '_blank');
+                }}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </>
   );
