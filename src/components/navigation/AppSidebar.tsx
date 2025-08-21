@@ -69,7 +69,7 @@ export function AppSidebar() {
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
                     <NavLink to="/app/system-admin" className={({ isActive }) => isActive ? "bg-muted text-primary font-medium" : "hover:bg-muted/50"}>
-                      <Settings className="mr-2 h-4 w-4" />
+                      <UserPlus className="mr-2 h-4 w-4" />
                       <span>System Admin</span>
                     </NavLink>
                   </SidebarMenuButton>
