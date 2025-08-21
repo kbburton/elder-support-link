@@ -370,17 +370,56 @@ export function useCreateAssociation() {
       console.log(`📝 [INSERT] Data:`, insertData);
       console.log(`🎯 [INSERT] Column mapping:`, { entityColumn, targetColumn });
       
-      const { data, error } = await supabase
-        .from(junctionTable as any)
-        .insert(insertData)
-        .select();
+      let data, error;
+      
+      // Use security definer functions to bypass auth context issues
+      if ((entityType === 'activity_log' && targetType === 'appointment') || 
+          (entityType === 'appointment' && targetType === 'activity_log')) {
+        const appointmentId = entityType === 'appointment' ? entityId : targetId;
+        const activityId = entityType === 'activity_log' ? entityId : targetId;
+        
+        ({ data, error } = await supabase.rpc('create_appointment_activity_association', {
+          p_appointment_id: appointmentId,
+          p_activity_log_id: activityId,
+          p_user_id: user.id
+        }));
+        
+      } else if ((entityType === 'activity_log' && targetType === 'contact') || 
+                 (entityType === 'contact' && targetType === 'activity_log')) {
+        const contactId = entityType === 'contact' ? entityId : targetId;
+        const activityId = entityType === 'activity_log' ? entityId : targetId;
+        
+        ({ data, error } = await supabase.rpc('create_contact_activity_association', {
+          p_contact_id: contactId,
+          p_activity_log_id: activityId,
+          p_user_id: user.id
+        }));
+        
+      } else if ((entityType === 'activity_log' && targetType === 'task') || 
+                 (entityType === 'task' && targetType === 'activity_log')) {
+        const taskId = entityType === 'task' ? entityId : targetId;
+        const activityId = entityType === 'activity_log' ? entityId : targetId;
+        
+        ({ data, error } = await supabase.rpc('create_task_activity_association', {
+          p_task_id: taskId,
+          p_activity_log_id: activityId,
+          p_user_id: user.id
+        }));
+        
+      } else {
+        // For other associations, use direct insert (documents still work)
+        ({ data, error } = await supabase
+          .from(junctionTable as any)
+          .insert(insertData)
+          .select());
+      }
       
       if (error) {
         console.error(`❌ [INSERT ERROR] Association creation failed:`, error);
         console.error(`🔍 [ERROR DETAILS] Code: ${error.code}, Message: ${error.message}`);
         
         // Handle Postgres duplicate key error (23505)
-        if (error.code === '23505' || error.message?.includes("duplicate") || error.message?.includes("unique")) {
+        if (error.code === '23505' || error.message?.includes("duplicate") || error.message?.includes("unique") || error.message?.includes("Already linked")) {
           console.log(`⚠️ [DUPLICATE] Already linked - showing user message`);
           throw new Error("Already linked.");
         }
@@ -388,8 +427,13 @@ export function useCreateAssociation() {
         throw error;
       }
       
+      // For RPC calls, data is just the UUID, so format it properly
+      if (typeof data === 'string') {
+        data = [{ id: data }];
+      }
+      
       // Verify the association was actually created
-      if (!data || data.length === 0) {
+      if (!data || (Array.isArray(data) && data.length === 0)) {
         console.error(`❌ [INSERT ERROR] No data returned from insert operation`);
         throw new Error("Failed to create association - no data returned");
       }

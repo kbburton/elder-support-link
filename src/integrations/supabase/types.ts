@@ -1820,6 +1820,14 @@ export type Database = {
         Args: { body_text?: string; snippet_text?: string; title_text?: string }
         Returns: unknown
       }
+      create_appointment_activity_association: {
+        Args: {
+          p_activity_log_id: string
+          p_appointment_id: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       create_care_group_with_member: {
         Args: {
           p_date_of_birth?: string
@@ -1836,6 +1844,22 @@ export type Database = {
           group_name: string
           success: boolean
         }[]
+      }
+      create_contact_activity_association: {
+        Args: {
+          p_activity_log_id: string
+          p_contact_id: string
+          p_user_id: string
+        }
+        Returns: string
+      }
+      create_task_activity_association: {
+        Args: {
+          p_activity_log_id: string
+          p_task_id: string
+          p_user_id: string
+        }
+        Returns: string
       }
       current_user_email: {
         Args: Record<PropertyKey, never>
