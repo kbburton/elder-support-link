@@ -48,9 +48,9 @@ Deno.serve(async (req) => {
       throw new Error('Unauthorized')
     }
 
-    // Check if user is system admin
+    // Check if user is platform admin
     const { data: adminCheck, error: adminError } = await supabaseClient
-      .rpc('is_system_admin', { user_uuid: user.id })
+      .rpc('is_platform_admin', { user_uuid: user.id })
 
     if (adminError || !adminCheck) {
       throw new Error('Insufficient permissions - system admin required')
@@ -63,14 +63,16 @@ Deno.serve(async (req) => {
         const { data: users, error: listError } = await supabaseAdmin.auth.admin.listUsers()
         if (listError) throw listError
         
-        // Also get profiles data
-        const { data: profiles } = await supabaseClient
+        // Also get profiles data using admin client
+        const { data: profiles, error: profilesError } = await supabaseAdmin
           .from('profiles')
           .select('*')
         
-        // Merge auth users with profile data
+        console.log('Profiles query result:', { profiles, profilesError })
+        
+        // Merge auth users with profile data, ensuring profile is always defined
         const usersWithProfiles = users.users.map(authUser => {
-          const profile = profiles?.find(p => p.user_id === authUser.id)
+          const profile = profiles?.find(p => p.user_id === authUser.id) || null
           return {
             ...authUser,
             profile
