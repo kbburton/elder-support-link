@@ -1,10 +1,14 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { UnifiedTableView, TableColumn } from "@/components/shared/UnifiedTableView";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { softDeleteEntity } from "@/lib/delete/rpc";
 import { useToast } from "@/hooks/use-toast";
+import { Link } from "lucide-react";
+import { AppointmentAssociationsModal } from "../appointments/AppointmentAssociationsModal";
 
 interface AppointmentListViewProps {
   groupId: string;
@@ -13,6 +17,8 @@ interface AppointmentListViewProps {
 
 export function AppointmentListView({ groupId, onEdit }: AppointmentListViewProps) {
   const { toast } = useToast();
+  const [selectedAppointmentForAssociations, setSelectedAppointmentForAssociations] = useState<any>(null);
+  const [isAssociationsModalOpen, setIsAssociationsModalOpen] = useState(false);
 
   const { data: appointments = [], refetch, isLoading } = useQuery({
     queryKey: ["appointments-list", groupId],
@@ -136,21 +142,47 @@ export function AppointmentListView({ groupId, onEdit }: AppointmentListViewProp
   ];
 
   return (
-    <UnifiedTableView
-      title="Full List of Appointments"
-      data={appointments}
-      columns={columns}
-      loading={isLoading}
-      onEdit={onEdit}
-      onDelete={handleDelete}
-      onBulkDelete={handleBulkDelete}
-      searchable={true}
-      searchPlaceholder="Search appointments..."
-      defaultSortBy="date_time"
-      defaultSortOrder="desc"
-      entityType="appointment"
-      emptyMessage="No appointments found"
-      emptyDescription="Create your first appointment to get started."
-    />
+    <>
+      <UnifiedTableView
+        title="Full List of Appointments"
+        data={appointments}
+        columns={columns}
+        loading={isLoading}
+        onEdit={onEdit}
+        onDelete={handleDelete}
+        onBulkDelete={handleBulkDelete}
+        customActions={(row) => (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedAppointmentForAssociations(row);
+              setIsAssociationsModalOpen(true);
+            }}
+            className="h-8 w-8 p-0"
+          >
+            <Link className="h-4 w-4" />
+          </Button>
+        )}
+        searchable={true}
+        searchPlaceholder="Search appointments..."
+        defaultSortBy="date_time"
+        defaultSortOrder="desc"
+        entityType="appointment"
+        emptyMessage="No appointments found"
+        emptyDescription="Create your first appointment to get started."
+      />
+
+      <AppointmentAssociationsModal
+        appointment={selectedAppointmentForAssociations}
+        isOpen={isAssociationsModalOpen}
+        onClose={() => {
+          setIsAssociationsModalOpen(false);
+          setSelectedAppointmentForAssociations(null);
+        }}
+        groupId={groupId}
+      />
+    </>
   );
 }
