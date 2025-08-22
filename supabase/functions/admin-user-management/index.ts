@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
             zip, 
             phone, 
             last_active_group_id,
-            admin_roles!left(role)
+            admin_roles!left!user_id(role)
           `)
         
         console.log('Profiles with admin query result:', { profilesWithAdmin, profilesError })
