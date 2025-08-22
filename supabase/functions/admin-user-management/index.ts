@@ -63,8 +63,8 @@ Deno.serve(async (req) => {
         const { data: users, error: listError } = await supabaseAdmin.auth.admin.listUsers()
         if (listError) throw listError
         
-        // Get profiles data with admin status using LEFT JOIN
-        const { data: profilesWithAdmin, error: profilesError } = await supabaseAdmin
+        // Get profiles data  
+        const { data: profiles, error: profilesError } = await supabaseAdmin
           .from('profiles')
           .select(`
             user_id, 
@@ -76,17 +76,23 @@ Deno.serve(async (req) => {
             state, 
             zip, 
             phone, 
-            last_active_group_id,
-            admin_roles!left!user_id(role)
+            last_active_group_id
           `)
         
-        console.log('Profiles with admin query result:', { profilesWithAdmin, profilesError })
+        // Get admin roles data
+        const { data: adminRoles, error: adminRolesError } = await supabaseAdmin
+          .from('admin_roles')
+          .select('user_id, role')
+          .eq('role', 'system_admin')
+        
+        console.log('Profiles query result:', { profiles, profilesError })
+        console.log('Admin roles query result:', { adminRoles, adminRolesError })
         
         // Merge auth users with profile data and admin status
         const usersWithProfiles = users.users.map(authUser => {
-          const profile = profilesWithAdmin?.find(p => p.user_id === authUser.id) || null
+          const profile = profiles?.find(p => p.user_id === authUser.id) || null
           // Check if user has system_admin role
-          const isAdmin = profile?.admin_roles?.some((role: any) => role.role === 'system_admin') || false
+          const isAdmin = adminRoles?.some((role: any) => role.user_id === authUser.id) || false
           
           return {
             id: authUser.id,

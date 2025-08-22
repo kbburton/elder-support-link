@@ -219,13 +219,10 @@ export default function SystemUserManagement() {
          const lastName = user.profile?.last_name || '';
          const fullName = `${firstName} ${lastName}`.trim();
          
-         const displayName = fullName || 'No Name';
+         const displayName = fullName || user.email || 'No Name';
          
          return (
-           <div>
-             <div className="font-medium">{displayName}</div>
-             <div className="text-sm text-muted-foreground">ID: {user.id?.slice(0, 8) || 'Unknown'}...</div>
-           </div>
+           <div className="font-medium">{displayName}</div>
          );
        }
     },
