@@ -18,7 +18,11 @@ interface AuthUser {
   profile?: {
     first_name?: string;
     last_name?: string;
-    email?: string;
+    address?: string;
+    state?: string;
+    zip?: string;
+    phone?: string;
+    last_active_group_id?: string;
   };
   is_platform_admin?: boolean;
 }
@@ -54,17 +58,28 @@ export default function SystemUserManagement() {
       }
 
       const result = await response.json();
+      console.log('Raw response from edge function:', result);
       
       // Check which users are platform admins
       const usersWithAdminStatus = await Promise.all(
         (result.users || []).map(async (user: AuthUser) => {
+          console.log('Processing user:', user);
           if (!user || !user.id) {
             console.log('Skipping invalid user:', user);
             return null;
           }
           
-          const { data: isAdmin } = await supabase.rpc('is_platform_admin', { user_uuid: user.id });
-          return { ...user, is_platform_admin: Boolean(isAdmin) };
+          try {
+            const { data: isAdmin, error } = await supabase.rpc('is_platform_admin', { user_uuid: user.id });
+            if (error) {
+              console.log('Error checking admin status for user', user.id, error);
+              return { ...user, is_platform_admin: false };
+            }
+            return { ...user, is_platform_admin: Boolean(isAdmin) };
+          } catch (err) {
+            console.log('Exception checking admin status for user', user.id, err);
+            return { ...user, is_platform_admin: false };
+          }
         })
       );
       
@@ -130,7 +145,7 @@ export default function SystemUserManagement() {
   };
 
   const handlePromoteUser = async (user: AuthUser) => {
-    const userEmail = user.email || user.profile?.email;
+    const userEmail = user.email;
     if (!userEmail) {
       toast({
         title: "Error",
@@ -341,7 +356,7 @@ export default function SystemUserManagement() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Promote to System Administrator</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Send a promotion confirmation email to {user.email || user.profile?.email}? 
+                  Send a promotion confirmation email to {user.email}? 
                   They will need to confirm this promotion before gaining admin privileges.
                 </AlertDialogDescription>
               </AlertDialogHeader>
