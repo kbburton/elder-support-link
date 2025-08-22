@@ -152,7 +152,7 @@ export default function GroupSettingsPage() {
       const userIds = members.map(m => m.user_id);
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select('user_id, email, first_name, last_name')
+        .select('user_id, first_name, last_name')
         .in('user_id', userIds);
 
       if (profilesError) throw profilesError;

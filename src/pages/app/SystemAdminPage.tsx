@@ -112,14 +112,14 @@ const SystemAdminPage = () => {
         const userIds = platformAdmins.map(admin => admin.user_id);
         const { data: profiles, error: profilesError } = await supabase
           .from('profiles')
-          .select('user_id, email, first_name, last_name')
+          .select('user_id, first_name, last_name')
           .in('user_id', userIds);
 
         if (profilesError) throw profilesError;
 
         const formattedAdmins = profiles.map(profile => ({
           user_id: profile.user_id,
-          email: profile.email,
+          email: 'Unknown', // Email should come from auth.users, not profiles
           first_name: profile.first_name,
           last_name: profile.last_name,
           created_at: new Date().toISOString() // Use current date since we don't track this
@@ -171,7 +171,7 @@ const SystemAdminPage = () => {
       // Get all profiles
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select('user_id, email, first_name, last_name, created_at');
+        .select('user_id, first_name, last_name, created_at');
 
       if (profilesError) throw profilesError;
 
@@ -186,7 +186,7 @@ const SystemAdminPage = () => {
 
       const formattedUsers: User[] = (profiles || []).map(profile => ({
         user_id: profile.user_id,
-        email: profile.email,
+        email: 'Unknown', // Email should come from auth.users, not profiles
         first_name: profile.first_name,
         last_name: profile.last_name,
         last_sign_in_at: null, // We'll need to get this from auth if needed
@@ -226,7 +226,7 @@ const SystemAdminPage = () => {
       // Get profiles for all these users
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select('user_id, email, first_name, last_name')
+        .select('user_id, first_name, last_name')
         .in('user_id', Array.from(userIds));
 
       if (profilesError) throw profilesError;
@@ -251,7 +251,7 @@ const SystemAdminPage = () => {
           revoked_at: h.revoked_at,
           granted_by_user_id: h.granted_by_user_id,
           revoked_by_user_id: h.revoked_by_user_id,
-          user_email: userProfile?.email || 'Unknown',
+          user_email: userProfile ? (userProfile.first_name || userProfile.last_name ? `${userProfile.first_name || ''} ${userProfile.last_name || ''}`.trim() : 'Unknown') : 'Unknown',
           user_name: userProfile ? `${userProfile.first_name || ''} ${userProfile.last_name || ''}`.trim() || 'N/A' : 'N/A',
           granted_by_name: grantedByProfile ? `${grantedByProfile.first_name || ''} ${grantedByProfile.last_name || ''}`.trim() || 'N/A' : null,
           revoked_by_name: revokedByProfile ? `${revokedByProfile.first_name || ''} ${revokedByProfile.last_name || ''}`.trim() || 'N/A' : null
@@ -287,7 +287,7 @@ const SystemAdminPage = () => {
       if (userIds.length > 0) {
         const { data: profiles, error: profilesError } = await supabase
           .from('profiles')
-          .select('user_id, email')
+          .select('user_id, first_name, last_name')
           .in('user_id', userIds);
 
         if (profilesError) throw profilesError;
@@ -306,7 +306,7 @@ const SystemAdminPage = () => {
         referrer_page: a.referrer_page,
         bounce: a.bounce,
         created_at: a.created_at,
-        user_email: a.user_id ? profileMap.get(a.user_id)?.email || null : null
+        user_email: a.user_id ? (profileMap.get(a.user_id)?.first_name || profileMap.get(a.user_id)?.last_name ? `${profileMap.get(a.user_id)?.first_name || ''} ${profileMap.get(a.user_id)?.last_name || ''}`.trim() : 'Unknown') : null
       }));
 
       setAnalytics(formattedAnalytics);

@@ -50,20 +50,10 @@ const InviteAccept = () => {
       // Store invitation token for after login/registration
       savePendingInvite(token!);
       
-      // Check if user exists by looking for profile with this email
-      const { data: existingUser } = await supabase
-        .from("profiles")
-        .select("email")
-        .eq("email", invitedEmail)
-        .maybeSingle();
-
-      if (existingUser) {
-        // User exists, redirect to login with prefilled email
-        navigate(`/login?email=${encodeURIComponent(invitedEmail)}`, { replace: true });
-      } else {
-        // New user, redirect to registration with prefilled email
-        navigate(`/register?email=${encodeURIComponent(invitedEmail)}`, { replace: true });
-      }
+      // Since we removed email from profiles and can't access auth.users from client,
+      // we'll always redirect to login first and let the login page handle whether
+      // the user exists or not (it will redirect to register if needed)
+      navigate(`/login?email=${encodeURIComponent(invitedEmail)}`, { replace: true });
     } catch (error) {
       console.error("Error processing invitation:", error);
       toast({

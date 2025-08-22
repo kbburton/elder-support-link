@@ -33,13 +33,13 @@ export default function AppointmentsCrud() {
       if (ids.length === 0) return setMembers([]);
       const { data: profs, error: pErr } = await supabase
         .from("profiles")
-        .select("user_id, first_name, last_name, email")
+        .select("user_id, first_name, last_name")
         .in("user_id", ids as string[]);
       if (pErr) return console.error(pErr);
       const list: Member[] = (profs ?? []).map((p) => ({
         user_id: p.user_id as string,
         name: [p.first_name, p.last_name].filter(Boolean).join(" ") || (p.user_id as string).slice(0, 8),
-        email: (p as any).email ?? null,
+        email: null, // Email should come from auth.users
       }));
       setMembers(list);
     };
