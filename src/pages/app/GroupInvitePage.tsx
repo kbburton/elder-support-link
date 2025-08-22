@@ -130,7 +130,7 @@ export default function GroupInvitePage() {
 
     // Check if email is already a member
     const existingMember = groupMembers.find(member => 
-      member.profiles?.email?.toLowerCase() === email.toLowerCase()
+      member.email?.toLowerCase() === email.toLowerCase()
     );
     
     if (existingMember) {
@@ -353,10 +353,10 @@ export default function GroupInvitePage() {
               <div key={member.user_id} className="flex items-center justify-between p-4 border rounded-lg">
                 <div>
                   <div className="font-medium">
-                    {member.profiles?.first_name} {member.profiles?.last_name}
+                    {member.first_name} {member.last_name}
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    {member.profiles?.email}
+                    {member.email}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

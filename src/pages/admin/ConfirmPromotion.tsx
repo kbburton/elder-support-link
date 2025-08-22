@@ -36,7 +36,7 @@ const ConfirmPromotion = () => {
         .from('role_promotion_confirmations')
         .select(`
           *,
-          profiles!role_promotion_confirmations_target_user_id_fkey(first_name, last_name, email),
+          profiles!role_promotion_confirmations_target_user_id_fkey(first_name, last_name),
           care_groups(name)
         `)
         .eq('confirmation_token', token)
@@ -199,7 +199,7 @@ const ConfirmPromotion = () => {
             {promotion && (
               <div className="text-center space-y-2">
                 <p><strong>User:</strong> {promotion.profiles.first_name} {promotion.profiles.last_name}</p>
-                <p><strong>Email:</strong> {promotion.profiles.email}</p>
+                <p><strong>Email:</strong> {promotion.target_email}</p>
                 <p><strong>New Role:</strong> {
                   promotion.promotion_type === 'system_admin' 
                     ? 'System Administrator' 

@@ -42,9 +42,9 @@ export function TaskListView({ groupId, onEdit }: TaskListViewProps) {
         .from("tasks")
         .select(`
           *,
-          primary_owner:profiles!tasks_primary_owner_id_fkey(first_name, last_name, email),
-          secondary_owner:profiles!tasks_secondary_owner_id_fkey(first_name, last_name, email),
-          created_by:profiles!tasks_created_by_user_id_fkey(first_name, last_name, email)
+          primary_owner:profiles!tasks_primary_owner_id_fkey(first_name, last_name),
+          secondary_owner:profiles!tasks_secondary_owner_id_fkey(first_name, last_name),
+          created_by:profiles!tasks_created_by_user_id_fkey(first_name, last_name)
         `)
         .eq("group_id", groupId)
         .eq("is_deleted", false)

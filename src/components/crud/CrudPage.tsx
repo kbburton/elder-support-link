@@ -157,21 +157,16 @@ export default function CrudPage({ config }: { config: CrudConfig }) {
     if (groupId && config.fields.some(f => f.type === "user_select")) {
       const loadGroupMembers = async () => {
         try {
-          // Get care group members using the explicit foreign key relationship
+          // Get care group members using the RPC function that includes email from auth.users
           const { data: members, error } = await supabase
-            .from('care_group_members')
-            .select(`
-              user_id,
-              profiles!care_group_members_user_id_fkey(email, first_name, last_name)
-            `)
-            .eq('group_id', groupId);
+            .rpc('get_group_members', { p_group_id: groupId });
 
           if (error) throw error;
 
           const formattedMembers = members?.map((member: any) => ({
             id: member.user_id,
-            email: member.profiles?.email || '',
-            name: `${member.profiles?.first_name || ''} ${member.profiles?.last_name || ''}`.trim() || member.profiles?.email || 'Unknown'
+            email: member.email || 'Unknown',
+            name: member.display_name || 'Unknown'
           })) || [];
 
           setGroupMembers(formattedMembers);
