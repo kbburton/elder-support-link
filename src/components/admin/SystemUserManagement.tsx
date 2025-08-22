@@ -58,12 +58,21 @@ export default function SystemUserManagement() {
       // Check which users are platform admins
       const usersWithAdminStatus = await Promise.all(
         (result.users || []).map(async (user: AuthUser) => {
+          if (!user || !user.id) {
+            console.log('Skipping invalid user:', user);
+            return null;
+          }
+          
           const { data: isAdmin } = await supabase.rpc('is_platform_admin', { user_uuid: user.id });
           return { ...user, is_platform_admin: Boolean(isAdmin) };
         })
       );
       
-      setUsers(usersWithAdminStatus);
+      // Filter out any null/undefined users
+      const validUsers = usersWithAdminStatus.filter(user => user !== null && user !== undefined);
+      console.log('Valid users after processing:', validUsers);
+      
+      setUsers(validUsers);
     } catch (error) {
       toast({
         title: "Error",
@@ -209,115 +218,139 @@ export default function SystemUserManagement() {
       key: 'name',
       label: 'Name',
       sortable: true,
-      render: (user: AuthUser) => (
-        <div>
-          <div className="font-medium">
-            {user.profile?.first_name && user.profile?.last_name
-              ? `${user.profile.first_name} ${user.profile.last_name}`
-              : 'No name'}
+      render: (user: AuthUser) => {
+        if (!user) {
+          return <div>Invalid user data</div>;
+        }
+        return (
+          <div>
+            <div className="font-medium">
+              {user.profile?.first_name && user.profile?.last_name
+                ? `${user.profile.first_name} ${user.profile.last_name}`
+                : 'No name'}
+            </div>
+            <div className="text-sm text-muted-foreground">ID: {user.id?.slice(0, 8) || 'Unknown'}...</div>
           </div>
-          <div className="text-sm text-muted-foreground">ID: {user.id.slice(0, 8)}...</div>
-        </div>
-      )
+        );
+      }
     },
     {
       key: 'email',
       label: 'Email', 
       sortable: true,
       filterable: true,
-      render: (user: AuthUser) => user.email || user.profile?.email || 'No email'
+      render: (user: AuthUser) => {
+        if (!user) return 'No email';
+        return user.email || user.profile?.email || 'No email';
+      }
     },
     {
       key: 'status',
       label: 'Status',
-      render: (user: AuthUser) => (
-        <div className="flex gap-1 flex-wrap">
-          {user.email_confirmed_at ? (
-            <Badge variant="default">Verified</Badge>
-          ) : (
-            <Badge variant="secondary">Unverified</Badge>
-          )}
-          {user.is_platform_admin && (
-            <Badge variant="outline" className="bg-primary/10">
-              <Shield className="h-3 w-3 mr-1" />
-              Admin
-            </Badge>
-          )}
-        </div>
-      )
+      render: (user: AuthUser) => {
+        if (!user) {
+          return <div>Invalid user data</div>;
+        }
+        return (
+          <div className="flex gap-1 flex-wrap">
+            {user.email_confirmed_at ? (
+              <Badge variant="default">Verified</Badge>
+            ) : (
+              <Badge variant="secondary">Unverified</Badge>
+            )}
+            {user.is_platform_admin && (
+              <Badge variant="outline" className="bg-primary/10">
+                <Shield className="h-3 w-3 mr-1" />
+                Admin
+              </Badge>
+            )}
+          </div>
+        );
+      }
     },
     {
       key: 'created_at',
       label: 'Created',
       sortable: true,
-      render: (user: AuthUser) => format(new Date(user.created_at), 'MMM dd, yyyy')
+      render: (user: AuthUser) => {
+        if (!user || !user.created_at) return 'Unknown';
+        return format(new Date(user.created_at), 'MMM dd, yyyy');
+      }
     },
     {
       key: 'last_sign_in_at',
       label: 'Last Sign In',
       sortable: true,
-      render: (user: AuthUser) => 
-        user.last_sign_in_at 
+      render: (user: AuthUser) => {
+        if (!user) return 'Never';
+        return user.last_sign_in_at 
           ? format(new Date(user.last_sign_in_at), 'MMM dd, yyyy')
-          : 'Never'
+          : 'Never';
+      }
     }
   ];
 
-  const customRowActions = (user: AuthUser) => (
-    <div className="flex gap-2 flex-wrap">
-      {!user.email_confirmed_at && (
+  const customRowActions = (user: AuthUser) => {
+    if (!user) {
+      return <div>No actions available</div>;
+    }
+    
+    return (
+      <div className="flex gap-2 flex-wrap">
+        {!user.email_confirmed_at && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => performAdminAction('verify', user.id)}
+            disabled={actionLoading === user.id}
+          >
+            <CheckCircle className="h-4 w-4 mr-1" />
+            Verify
+          </Button>
+        )}
+        
         <Button
           variant="outline"
           size="sm"
-          onClick={() => performAdminAction('verify', user.id)}
+          onClick={() => performAdminAction('reset_password', user.id)}
           disabled={actionLoading === user.id}
         >
-          <CheckCircle className="h-4 w-4 mr-1" />
-          Verify
+          <RefreshCw className="h-4 w-4 mr-1" />
+          Reset Password
         </Button>
-      )}
-      
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => performAdminAction('reset_password', user.id)}
-        disabled={actionLoading === user.id}
-      >
-        <RefreshCw className="h-4 w-4 mr-1" />
-        Reset Password
-      </Button>
 
-      {!user.is_platform_admin && (
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={promoting === user.id}
-            >
-              <UserPlus className="h-4 w-4 mr-1" />
-              Promote to Admin
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Promote to System Administrator</AlertDialogTitle>
-              <AlertDialogDescription>
-                Send a promotion confirmation email to {user.email || user.profile?.email}? 
-                They will need to confirm this promotion before gaining admin privileges.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={() => handlePromoteUser(user)}>
-                Send Confirmation
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      )}
-    </div>
-  );
+        {!user.is_platform_admin && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={promoting === user.id}
+              >
+                <UserPlus className="h-4 w-4 mr-1" />
+                Promote to Admin
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Promote to System Administrator</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Send a promotion confirmation email to {user.email || user.profile?.email}? 
+                  They will need to confirm this promotion before gaining admin privileges.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => handlePromoteUser(user)}>
+                  Send Confirmation
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+      </div>
+    );
+  };
 
   const headerActions = (
     <div className="flex gap-4 items-center">
