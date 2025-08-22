@@ -1931,6 +1931,14 @@ export type Database = {
         }
         Returns: string
       }
+      create_contact_appointment_association: {
+        Args: {
+          p_appointment_id: string
+          p_contact_id: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       create_task_activity_association: {
         Args: {
           p_activity_log_id: string

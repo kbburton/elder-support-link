@@ -406,6 +406,17 @@ export function useCreateAssociation() {
           p_user_id: user.id
         }));
         
+      } else if ((entityType === 'contact' && targetType === 'appointment') || 
+                 (entityType === 'appointment' && targetType === 'contact')) {
+        const contactId = entityType === 'contact' ? entityId : targetId;
+        const appointmentId = entityType === 'appointment' ? entityId : targetId;
+        
+        ({ data, error } = await supabase.rpc('create_contact_appointment_association', {
+          p_contact_id: contactId,
+          p_appointment_id: appointmentId,
+          p_user_id: user.id
+        }));
+        
       } else {
         // For other associations, use direct insert (documents still work)
         ({ data, error } = await supabase
