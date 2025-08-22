@@ -524,7 +524,7 @@ export function useRemoveAssociation() {
       console.log(`🎯 [DELETE] Where: ${entityColumn} = ${entityId} AND ${targetColumn} = ${targetId}`);
       console.log(`🌍 [ENV] Environment: ${window.location.hostname}`);
       
-      const { data, error, count } = await supabase
+      const { data, error } = await supabase
         .from(junctionTable as any)
         .delete()
         .eq(entityColumn, entityId)
@@ -536,13 +536,7 @@ export function useRemoveAssociation() {
         throw error;
       }
       
-      // Verify the association was actually deleted
-      if (count === 0) {
-        console.error(`❌ [DELETE ERROR] No rows were deleted - association may not have existed`);
-        throw new Error("Association not found or already removed");
-      }
-      
-      console.log(`✅ [DELETE SUCCESS] Association removed successfully! Deleted ${count} row(s)`, data);
+      console.log(`✅ [DELETE SUCCESS] Association removed successfully!`, data);
       
       // Trigger reindex for both entities - use ENTITY_TABLE_MAP for consistency
       const entityToTable = (type: EntityType) => {
@@ -552,26 +546,17 @@ export function useRemoveAssociation() {
       triggerReindex(entityToTable(entityType) as "tasks" | "appointments" | "activity_logs" | "documents" | "contacts", entityId);
       triggerReindex(entityToTable(targetType) as "tasks" | "appointments" | "activity_logs" | "documents" | "contacts", targetId);
       
-      return { data, count };
+      return { data };
     },
     onSuccess: (result, { entityId, entityType }) => {
-      // Only show success toast if we actually deleted something
-      if (result && result.count > 0) {
-        // Invalidate association queries for both entities
-        queryClient.invalidateQueries({ queryKey: ["associations", entityType, entityId] });
-        queryClient.invalidateQueries({ queryKey: ["associations"] });
-        
-        toast({
-          title: "Success", 
-          description: "Association removed successfully",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: "Association not found or already removed",
-          variant: "destructive",
-        });
-      }
+      // Invalidate association queries for both entities
+      queryClient.invalidateQueries({ queryKey: ["associations", entityType, entityId] });
+      queryClient.invalidateQueries({ queryKey: ["associations"] });
+      
+      toast({
+        title: "Success", 
+        description: "Association removed successfully",
+      });
     },
     onError: (error: any) => {
       console.error("Error removing association:", error);
