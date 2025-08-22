@@ -69,6 +69,23 @@ interface AnalyticsData {
   user_email: string | null;
 }
 
+interface DemoSession {
+  id: string;
+  email: string;
+  session_count: number;
+  created_at: string;
+  last_accessed: string;
+}
+
+interface DemoAnalytics {
+  id: string;
+  session_id: string;
+  page_path: string;
+  entered_at: string;
+  left_at?: string;  
+  time_spent_seconds?: number;
+}
+
 const SystemAdminPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -82,6 +99,8 @@ const SystemAdminPage = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [roleHistory, setRoleHistory] = useState<RoleHistory[]>([]);
   const [analytics, setAnalytics] = useState<AnalyticsData[]>([]);
+  const [demoSessions, setDemoSessions] = useState<DemoSession[]>([]);
+  const [demoAnalytics, setDemoAnalytics] = useState<DemoAnalytics[]>([]);
   const [showSystemAdminsOnly, setShowSystemAdminsOnly] = useState(false);
 
   useEffect(() => {
@@ -153,6 +172,9 @@ const SystemAdminPage = () => {
       
       // Load analytics data
       await loadAnalytics();
+      
+      // Load demo analytics data
+      await loadDemoAnalytics();
 
     } catch (error) {
       console.error('Error loading data:', error);
@@ -312,6 +334,35 @@ const SystemAdminPage = () => {
       setAnalytics(formattedAnalytics);
     } catch (error) {
       console.error('Error loading analytics:', error);
+    }
+  };
+
+  const loadDemoAnalytics = async () => {
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      
+      if (!session.session) {
+        throw new Error('Not authenticated');
+      }
+
+      const response = await fetch(`https://yfwgegapmggwywrnzqvg.supabase.co/functions/v1/admin-user-management`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: 'list' }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch demo analytics');
+      }
+
+      const result = await response.json();
+      setDemoSessions(result.demoSessions || []);
+      setDemoAnalytics(result.demoAnalytics || []);
+    } catch (error) {
+      console.error('Error loading demo analytics:', error);
     }
   };
 
@@ -619,59 +670,140 @@ const SystemAdminPage = () => {
         </TabsContent>
 
         <TabsContent value="analytics" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5" />
-                Analytics Dashboard
-              </CardTitle>
-              <CardDescription>
-                View page usage analytics for the landing and login pages.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Page</TableHead>
-                    <TableHead>User</TableHead>
-                    <TableHead>Session ID</TableHead>
-                    <TableHead>Time Spent</TableHead>
-                    <TableHead>Referrer</TableHead>
-                    <TableHead>Bounce</TableHead>
-                    <TableHead>Date</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {analytics.map((entry) => (
-                    <TableRow key={entry.id}>
-                      <TableCell>
-                        <Badge variant={entry.page_path === '/' ? 'default' : 'secondary'}>
-                          {entry.page_path === '/' ? 'Landing' : 'Login'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{entry.user_email || 'Anonymous'}</TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {entry.session_id.slice(0, 8)}...
-                      </TableCell>
-                      <TableCell>
-                        {entry.time_spent_seconds ? `${entry.time_spent_seconds}s` : 'N/A'}
-                      </TableCell>
-                      <TableCell>{entry.referrer_page || 'Direct'}</TableCell>
-                      <TableCell>
-                        <Badge variant={entry.bounce ? 'destructive' : 'secondary'}>
-                          {entry.bounce ? 'Yes' : 'No'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {new Date(entry.created_at).toLocaleDateString()}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <Tabs defaultValue="site-analytics" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="site-analytics">Site Analytics</TabsTrigger>
+              <TabsTrigger value="demo-analytics">Demo Analytics</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="site-analytics" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BarChart3 className="h-5 w-5" />
+                    Site Analytics Dashboard
+                  </CardTitle>
+                  <CardDescription>
+                    View page usage analytics for the landing and login pages.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Page</TableHead>
+                        <TableHead>User</TableHead>
+                        <TableHead>Session ID</TableHead>
+                        <TableHead>Time Spent</TableHead>
+                        <TableHead>Referrer</TableHead>
+                        <TableHead>Bounce</TableHead>
+                        <TableHead>Date</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {analytics.map((entry) => (
+                        <TableRow key={entry.id}>
+                          <TableCell>
+                            <Badge variant={entry.page_path === '/' ? 'default' : 'secondary'}>
+                              {entry.page_path === '/' ? 'Landing' : 'Login'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{entry.user_email || 'Anonymous'}</TableCell>
+                          <TableCell className="font-mono text-sm">
+                            {entry.session_id.slice(0, 8)}...
+                          </TableCell>
+                          <TableCell>
+                            {entry.time_spent_seconds ? `${entry.time_spent_seconds}s` : 'N/A'}
+                          </TableCell>
+                          <TableCell>{entry.referrer_page || 'Direct'}</TableCell>
+                          <TableCell>
+                            <Badge variant={entry.bounce ? 'destructive' : 'secondary'}>
+                              {entry.bounce ? 'Yes' : 'No'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {new Date(entry.created_at).toLocaleDateString()}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+            
+            <TabsContent value="demo-analytics" className="space-y-6">
+              <div className="grid gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Demo Sessions</CardTitle>
+                    <CardDescription>Track demo usage by email addresses.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Email</TableHead>
+                          <TableHead>Sessions</TableHead>
+                          <TableHead>First Visit</TableHead>
+                          <TableHead>Last Access</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {demoSessions.map((session) => (
+                          <TableRow key={session.id}>
+                            <TableCell>{session.email}</TableCell>
+                            <TableCell>{session.session_count}</TableCell>
+                            <TableCell>{format(new Date(session.created_at), 'MMM dd, yyyy HH:mm')}</TableCell>
+                            <TableCell>{format(new Date(session.last_accessed), 'MMM dd, yyyy HH:mm')}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Demo Page Analytics</CardTitle>
+                    <CardDescription>Detailed page view analytics for demo sessions.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Session ID</TableHead>
+                          <TableHead>Page Path</TableHead>
+                          <TableHead>Entered At</TableHead>
+                          <TableHead>Left At</TableHead>
+                          <TableHead>Time Spent</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {demoAnalytics.map((analytics) => (
+                          <TableRow key={analytics.id}>
+                            <TableCell className="font-mono text-sm">
+                              {analytics.session_id.slice(0, 8)}...
+                            </TableCell>
+                            <TableCell>{analytics.page_path}</TableCell>
+                            <TableCell>{format(new Date(analytics.entered_at), 'MMM dd, yyyy HH:mm:ss')}</TableCell>
+                            <TableCell>
+                              {analytics.left_at ? format(new Date(analytics.left_at), 'MMM dd, yyyy HH:mm:ss') : 'Still active'}
+                            </TableCell>
+                            <TableCell>
+                              {analytics.time_spent_seconds ? (
+                                `${Math.floor(analytics.time_spent_seconds / 60)}m ${analytics.time_spent_seconds % 60}s`
+                              ) : 'N/A'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+          </Tabs>
         </TabsContent>
       </Tabs>
     </div>
