@@ -83,10 +83,7 @@ const App = () => (
               <Route path="admin/activity-logs" element={<ActivityLogsCrud />} />
               <Route path="admin/search-jobs" element={<SearchJobsPage />} />
               <Route path="admin/email" element={<AdminEmailPage />} />
-            </Route>
-
-            <Route path="/app/system-admin" element={<AppLayout />}>
-              <Route index element={<SystemAdminPage />} />
+              <Route path="system-admin" element={<SystemAdminPage />} />
             </Route>
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
