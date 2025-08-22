@@ -222,13 +222,21 @@ export default function SystemUserManagement() {
         if (!user) {
           return <div>Invalid user data</div>;
         }
+        
+        let displayName = '';
+        if (user.profile?.first_name && user.profile?.last_name) {
+          displayName = `${user.profile.first_name} ${user.profile.last_name}`;
+        } else if (user.profile?.first_name) {
+          displayName = user.profile.first_name;
+        } else if (user.profile?.last_name) {
+          displayName = user.profile.last_name;
+        } else {
+          displayName = user.email || 'No name';
+        }
+        
         return (
           <div>
-            <div className="font-medium">
-              {user.profile?.first_name && user.profile?.last_name
-                ? `${user.profile.first_name} ${user.profile.last_name}`
-                : 'No name'}
-            </div>
+            <div className="font-medium">{displayName}</div>
             <div className="text-sm text-muted-foreground">ID: {user.id?.slice(0, 8) || 'Unknown'}...</div>
           </div>
         );
@@ -241,7 +249,7 @@ export default function SystemUserManagement() {
       filterable: true,
       render: (user: AuthUser) => {
         if (!user) return 'No email';
-        return user.email || user.profile?.email || 'No email';
+        return user.email || 'No email';
       }
     },
     {
@@ -252,20 +260,18 @@ export default function SystemUserManagement() {
           return <div>Invalid user data</div>;
         }
         return (
-          <div className="flex gap-1 flex-wrap">
-            {user.email_confirmed_at ? (
-              <Badge variant="default">Verified</Badge>
-            ) : (
-              <Badge variant="secondary">Unverified</Badge>
-            )}
-            {user.is_platform_admin && (
-              <Badge variant="outline" className="bg-primary/10">
-                <Shield className="h-3 w-3 mr-1" />
-                Admin
-              </Badge>
-            )}
-          </div>
+          <Badge variant={user.email_confirmed_at ? "default" : "secondary"}>
+            {user.email_confirmed_at ? "Verified" : "Unverified"}
+          </Badge>
         );
+      }
+    },
+    {
+      key: 'role',
+      label: 'Role',
+      render: (user: AuthUser) => {
+        if (!user) return 'Unknown';
+        return user.is_platform_admin ? 'Admin' : 'User';
       }
     },
     {
