@@ -210,7 +210,7 @@ export default function SystemUserManagement() {
       key: 'name',
       label: 'Name',
       sortable: true,
-      render: (user: AuthUser) => {
+      render: (value: any, user: AuthUser) => {
         if (!user) {
           return <div>Invalid user data</div>;
         }
@@ -239,7 +239,7 @@ export default function SystemUserManagement() {
       label: 'Email', 
       sortable: true,
       filterable: true,
-      render: (user: AuthUser) => {
+      render: (value: any, user: AuthUser) => {
         if (!user) return 'No email';
         return user.email || 'No email';
       }
@@ -247,7 +247,7 @@ export default function SystemUserManagement() {
     {
       key: 'status',
       label: 'Status',
-      render: (user: AuthUser) => {
+      render: (value: any, user: AuthUser) => {
         if (!user) {
           return <div>Invalid user data</div>;
         }
@@ -261,7 +261,7 @@ export default function SystemUserManagement() {
     {
       key: 'role',
       label: 'Role',
-      render: (user: AuthUser) => {
+      render: (value: any, user: AuthUser) => {
         if (!user) return 'Unknown';
         return user.is_platform_admin ? 'Admin' : 'User';
       }
@@ -270,7 +270,7 @@ export default function SystemUserManagement() {
       key: 'created_at',
       label: 'Created',
       sortable: true,
-      render: (user: AuthUser) => {
+      render: (value: any, user: AuthUser) => {
         if (!user || !user.created_at) return 'Unknown';
         return format(new Date(user.created_at), 'MMM dd, yyyy');
       }
@@ -279,7 +279,7 @@ export default function SystemUserManagement() {
       key: 'last_sign_in_at',
       label: 'Last Sign In',
       sortable: true,
-      render: (user: AuthUser) => {
+      render: (value: any, user: AuthUser) => {
         if (!user) return 'Never';
         return user.last_sign_in_at 
           ? format(new Date(user.last_sign_in_at), 'MMM dd, yyyy')
