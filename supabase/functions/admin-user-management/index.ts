@@ -88,6 +88,21 @@ Deno.serve(async (req) => {
         console.log('Profiles query result:', { profiles, profilesError })
         console.log('Admin roles query result:', { adminRoles, adminRolesError })
         
+        // Get demo sessions data
+        const { data: demoSessions, error: demoSessionsError } = await supabaseAdmin
+          .from('demo_sessions')
+          .select('*')
+          .order('created_at', { ascending: false })
+        
+        // Get demo analytics data  
+        const { data: demoAnalytics, error: demoAnalyticsError } = await supabaseAdmin
+          .from('demo_analytics')
+          .select('*')
+          .order('created_at', { ascending: false })
+        
+        console.log('Demo sessions query result:', { demoSessions, demoSessionsError })
+        console.log('Demo analytics query result:', { demoAnalytics, demoAnalyticsError })
+        
         // Merge auth users with profile data and admin status
         const usersWithProfiles = users.users.map(authUser => {
           const profile = profiles?.find(p => p.user_id === authUser.id) || null
@@ -113,7 +128,12 @@ Deno.serve(async (req) => {
           }
         })
         
-        return new Response(JSON.stringify({ users: usersWithProfiles }), {
+        return new Response(JSON.stringify({ 
+          users: usersWithProfiles,
+          total: users.users.length,
+          demoSessions: demoSessions || [],
+          demoAnalytics: demoAnalytics || []
+        }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
 

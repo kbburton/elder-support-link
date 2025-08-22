@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2, CheckCircle, RefreshCw, Shield, UserPlus } from "lucide-react";
+import { Trash2, CheckCircle, RefreshCw, Shield, UserPlus, BarChart3 } from "lucide-react";
 import { format } from "date-fns";
 
 interface AuthUser {
@@ -27,8 +28,27 @@ interface AuthUser {
   is_platform_admin?: boolean;
 }
 
+interface DemoSession {
+  id: string;
+  email: string;
+  session_count: number;
+  created_at: string;
+  last_accessed: string;
+}
+
+interface DemoAnalytics {
+  id: string;
+  session_id: string;
+  page_path: string;
+  entered_at: string;
+  left_at?: string;  
+  time_spent_seconds?: number;
+}
+
 export default function SystemUserManagement() {
   const [users, setUsers] = useState<AuthUser[]>([]);
+  const [demoSessions, setDemoSessions] = useState<DemoSession[]>([]);
+  const [demoAnalytics, setDemoAnalytics] = useState<DemoAnalytics[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [userTypeFilter, setUserTypeFilter] = useState<string>("all");
@@ -65,6 +85,8 @@ export default function SystemUserManagement() {
       console.log('Valid users:', validUsers);
       
       setUsers(validUsers);
+      setDemoSessions(result.demoSessions || []);
+      setDemoAnalytics(result.demoAnalytics || []);
     } catch (error) {
       toast({
         title: "Error",
@@ -367,23 +389,125 @@ export default function SystemUserManagement() {
     </div>
   );
 
+  const demoSessionColumns: TableColumn[] = [
+    {
+      key: 'email',
+      label: 'Email',
+      sortable: true,
+      filterable: true,
+    },
+    {
+      key: 'session_count',
+      label: 'Sessions',
+      sortable: true,
+    },
+    {
+      key: 'created_at',
+      label: 'First Visit',
+      sortable: true,
+      render: (value: string) => format(new Date(value), 'MMM dd, yyyy HH:mm'),
+    },
+    {
+      key: 'last_accessed',
+      label: 'Last Access',
+      sortable: true,
+      render: (value: string) => format(new Date(value), 'MMM dd, yyyy HH:mm'),
+    }
+  ];
+
+  const demoAnalyticsColumns: TableColumn[] = [
+    {
+      key: 'session_id',
+      label: 'Session ID',
+      render: (value: string) => value.slice(0, 8) + '...',
+    },
+    {
+      key: 'page_path',
+      label: 'Page Path',
+      filterable: true,
+    },
+    {
+      key: 'entered_at',
+      label: 'Entered At',
+      sortable: true,
+      render: (value: string) => format(new Date(value), 'MMM dd, yyyy HH:mm:ss'),
+    },
+    {
+      key: 'left_at',
+      label: 'Left At',
+      sortable: true,
+      render: (value: string | null) => value ? format(new Date(value), 'MMM dd, yyyy HH:mm:ss') : 'Still active',
+    },
+    {
+      key: 'time_spent_seconds',
+      label: 'Time Spent',
+      sortable: true,
+      render: (value: number | null) => {
+        if (!value) return 'N/A';
+        const minutes = Math.floor(value / 60);
+        const seconds = value % 60;
+        return `${minutes}m ${seconds}s`;
+      },
+    }
+  ];
+
   return (
     <div className="space-y-6">
-      {headerActions}
-      <UnifiedTableView
-        title="System Users"
-        data={filteredUsers}
-        columns={columns}
-        loading={loading}
-        searchable={true}
-        searchPlaceholder="Search users by name, email, or ID..."
-        onBulkDelete={handleBulkDelete}
-        onDelete={(id: string) => performAdminAction('delete', id)}
-        customActions={customRowActions}
-        entityType="contact"
-        defaultSortBy="created_at"
-        defaultSortOrder="desc"
-      />
+      <Tabs defaultValue="users" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="users">System Users</TabsTrigger>
+          <TabsTrigger value="demo">
+            <BarChart3 className="h-4 w-4 mr-2" />
+            Demo Analytics
+          </TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="users" className="space-y-6">
+          {headerActions}
+          <UnifiedTableView
+            title="System Users"
+            data={filteredUsers}
+            columns={columns}
+            loading={loading}
+            searchable={true}
+            searchPlaceholder="Search users by name, email, or ID..."
+            onBulkDelete={handleBulkDelete}
+            onDelete={(id: string) => performAdminAction('delete', id)}
+            customActions={customRowActions}
+            entityType="contact"
+            defaultSortBy="created_at"
+            defaultSortOrder="desc"
+          />
+        </TabsContent>
+        
+        <TabsContent value="demo" className="space-y-6">
+          <div className="grid gap-6">
+            <UnifiedTableView
+              title="Demo Sessions"
+              data={demoSessions}
+              columns={demoSessionColumns}
+              loading={loading}
+              searchable={true}
+              searchPlaceholder="Search by email..."
+              entityType="contact"
+              defaultSortBy="last_accessed"
+              defaultSortOrder="desc"
+            />
+            
+            <UnifiedTableView
+              title="Demo Page Analytics"
+              data={demoAnalytics}
+              columns={demoAnalyticsColumns}
+              loading={loading}
+              searchable={true}
+              searchPlaceholder="Search by page path or session..."
+              entityType="contact"
+              defaultSortBy="entered_at"
+              defaultSortOrder="desc"
+            />
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
