@@ -58,34 +58,11 @@ export default function SystemUserManagement() {
       }
 
       const result = await response.json();
-      console.log('Raw response from edge function:', result);
+      console.log('Users from edge function with admin status:', result);
       
-      // Check which users are platform admins
-      const usersWithAdminStatus = await Promise.all(
-        (result.users || []).map(async (user: AuthUser) => {
-          console.log('Processing user:', user);
-          if (!user || !user.id) {
-            console.log('Skipping invalid user:', user);
-            return null;
-          }
-          
-          try {
-            const { data: isAdmin, error } = await supabase.rpc('is_platform_admin', { user_uuid: user.id });
-            if (error) {
-              console.log('Error checking admin status for user', user.id, error);
-              return { ...user, is_platform_admin: false };
-            }
-            return { ...user, is_platform_admin: Boolean(isAdmin) };
-          } catch (err) {
-            console.log('Exception checking admin status for user', user.id, err);
-            return { ...user, is_platform_admin: false };
-          }
-        })
-      );
-      
-      // Filter out any null/undefined users
-      const validUsers = usersWithAdminStatus.filter(user => user !== null && user !== undefined);
-      console.log('Valid users after processing:', validUsers);
+      // Edge function now returns users with is_platform_admin already set
+      const validUsers = (result.users || []).filter(user => user && user.id);
+      console.log('Valid users:', validUsers);
       
       setUsers(validUsers);
     } catch (error) {

@@ -63,23 +63,38 @@ Deno.serve(async (req) => {
         const { data: users, error: listError } = await supabaseAdmin.auth.admin.listUsers()
         if (listError) throw listError
         
-        // Get profiles data (no longer has email column)
-        const { data: profiles, error: profilesError } = await supabaseAdmin
+        // Get profiles data with admin status using LEFT JOIN
+        const { data: profilesWithAdmin, error: profilesError } = await supabaseAdmin
           .from('profiles')
-          .select('user_id, first_name, last_name, created_at, updated_at, address, state, zip, phone, last_active_group_id')
+          .select(`
+            user_id, 
+            first_name, 
+            last_name, 
+            created_at, 
+            updated_at, 
+            address, 
+            state, 
+            zip, 
+            phone, 
+            last_active_group_id,
+            admin_roles!left(role)
+          `)
         
-        console.log('Profiles query result:', { profiles, profilesError })
+        console.log('Profiles with admin query result:', { profilesWithAdmin, profilesError })
         
-        // Merge auth users with profile data in nested structure
+        // Merge auth users with profile data and admin status
         const usersWithProfiles = users.users.map(authUser => {
-          const profile = profiles?.find(p => p.user_id === authUser.id) || null
+          const profile = profilesWithAdmin?.find(p => p.user_id === authUser.id) || null
+          // Check if user has system_admin role
+          const isAdmin = profile?.admin_roles?.some((role: any) => role.role === 'system_admin') || false
+          
           return {
             id: authUser.id,
             email: authUser.email, // Always from auth.users
             created_at: authUser.created_at,
             last_sign_in_at: authUser.last_sign_in_at,
             email_confirmed_at: authUser.email_confirmed_at,
-            is_platform_admin: false, // Will be checked separately
+            is_platform_admin: isAdmin,
             profile: profile ? {
               first_name: profile.first_name,
               last_name: profile.last_name,
