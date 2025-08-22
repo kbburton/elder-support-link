@@ -10,9 +10,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, UserPlus, Shield, Trash2, Users, History, BarChart3, UserCheck } from "lucide-react";
-import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Loader2, UserPlus, Shield, Trash2, Users, History, BarChart3, UserCheck } from "lucide-react";
+import { format } from "date-fns";
+import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
+import SystemUserManagement from "@/components/admin/SystemUserManagement";
 
 interface SystemAdmin {
   user_id: string;
@@ -567,63 +569,7 @@ const SystemAdminPage = () => {
         </TabsContent>
 
         <TabsContent value="users" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="h-5 w-5" />
-                    User Management
-                  </CardTitle>
-                  <CardDescription>
-                    View and manage all users in the system.
-                  </CardDescription>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <UserCheck className="h-4 w-4" />
-                  <Label htmlFor="system-admins-only">System Admins Only</Label>
-                  <Switch
-                    id="system-admins-only"
-                    checked={showSystemAdminsOnly}
-                    onCheckedChange={setShowSystemAdminsOnly}
-                  />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Joined</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredUsers.map((user) => (
-                    <TableRow key={user.user_id}>
-                      <TableCell>
-                        {user.first_name || user.last_name 
-                          ? `${user.first_name || ''} ${user.last_name || ''}`.trim()
-                          : 'N/A'
-                        }
-                      </TableCell>
-                      <TableCell>{user.email}</TableCell>
-                      <TableCell>
-                        <Badge variant={user.is_system_admin ? 'default' : 'secondary'}>
-                          {user.is_system_admin ? 'System Admin' : 'User'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {new Date(user.created_at).toLocaleDateString()}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <SystemUserManagement />
         </TabsContent>
 
         <TabsContent value="role-history" className="space-y-6">

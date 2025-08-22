@@ -1,0 +1,366 @@
+import { useState, useEffect } from "react";
+import { UnifiedTableView, TableColumn } from "@/components/shared/UnifiedTableView";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { Trash2, CheckCircle, RefreshCw, Shield, UserPlus } from "lucide-react";
+import { format } from "date-fns";
+
+interface AuthUser {
+  id: string;
+  email?: string;
+  created_at: string;
+  email_confirmed_at?: string;
+  last_sign_in_at?: string;
+  profile?: {
+    first_name?: string;
+    last_name?: string;
+    email?: string;
+  };
+  is_platform_admin?: boolean;
+}
+
+export default function SystemUserManagement() {
+  const [users, setUsers] = useState<AuthUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [userTypeFilter, setUserTypeFilter] = useState<string>("all");
+  const [promoting, setPromoting] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      const { data: session } = await supabase.auth.getSession();
+      
+      if (!session.session) {
+        throw new Error('Not authenticated');
+      }
+
+      const response = await fetch(`https://yfwgegapmggwywrnzqvg.supabase.co/functions/v1/admin-user-management`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: 'list' }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch users');
+      }
+
+      const result = await response.json();
+      
+      // Check which users are platform admins
+      const usersWithAdminStatus = await Promise.all(
+        (result.users || []).map(async (user: AuthUser) => {
+          const { data: isAdmin } = await supabase.rpc('is_platform_admin', { user_uuid: user.id });
+          return { ...user, is_platform_admin: Boolean(isAdmin) };
+        })
+      );
+      
+      setUsers(usersWithAdminStatus);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to fetch users",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const performAdminAction = async (action: string, userId: string, userData?: any) => {
+    try {
+      setActionLoading(userId);
+      const { data: session } = await supabase.auth.getSession();
+      
+      if (!session.session) {
+        throw new Error('Not authenticated');
+      }
+
+      const response = await fetch(`https://yfwgegapmggwywrnzqvg.supabase.co/functions/v1/admin-user-management`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action, userId, userData }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to ${action} user`);
+      }
+
+      const actionMessages = {
+        delete: 'User deleted successfully',
+        verify: 'User verified successfully',
+        reset_password: 'Password reset link generated',
+      };
+
+      toast({
+        title: "Success",
+        description: actionMessages[action as keyof typeof actionMessages] || 'Action completed',
+      });
+
+      fetchUsers(); // Refresh the list
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : `Failed to ${action} user`,
+        variant: "destructive",
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handlePromoteUser = async (user: AuthUser) => {
+    const userEmail = user.email || user.profile?.email;
+    if (!userEmail) {
+      toast({
+        title: "Error",
+        description: "User email not found.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setPromoting(user.id);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-role-promotion', {
+        body: {
+          targetEmail: userEmail,
+          promotionType: 'system_admin'
+        }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `System admin promotion confirmation sent to ${userEmail}`,
+      });
+
+    } catch (error) {
+      toast({
+        title: "Error", 
+        description: error instanceof Error ? error.message : "Failed to send promotion confirmation",
+        variant: "destructive",
+      });
+    } finally {
+      setPromoting(null);
+    }
+  };
+
+  const handleBulkDelete = async (selectedIds: string[]) => {
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session.session) throw new Error('Not authenticated');
+
+      await Promise.all(
+        selectedIds.map(id => 
+          fetch(`https://yfwgegapmggwywrnzqvg.supabase.co/functions/v1/admin-user-management`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${session.session.access_token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ action: 'delete', userId: id }),
+          })
+        )
+      );
+
+      toast({
+        title: "Success",
+        description: `${selectedIds.length} users deleted successfully`,
+      });
+      
+      fetchUsers();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete selected users",
+        variant: "destructive",
+      });
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const filteredUsers = users.filter(user => {
+    if (userTypeFilter === "all") return true;
+    if (userTypeFilter === "admin") return user.is_platform_admin;
+    if (userTypeFilter === "regular") return !user.is_platform_admin;
+    if (userTypeFilter === "verified") return user.email_confirmed_at;
+    if (userTypeFilter === "unverified") return !user.email_confirmed_at;
+    return true;
+  });
+
+  const columns: TableColumn[] = [
+    {
+      key: 'name',
+      label: 'Name',
+      sortable: true,
+      render: (user: AuthUser) => (
+        <div>
+          <div className="font-medium">
+            {user.profile?.first_name && user.profile?.last_name
+              ? `${user.profile.first_name} ${user.profile.last_name}`
+              : 'No name'}
+          </div>
+          <div className="text-sm text-muted-foreground">ID: {user.id.slice(0, 8)}...</div>
+        </div>
+      )
+    },
+    {
+      key: 'email',
+      label: 'Email', 
+      sortable: true,
+      filterable: true,
+      render: (user: AuthUser) => user.email || user.profile?.email || 'No email'
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (user: AuthUser) => (
+        <div className="flex gap-1 flex-wrap">
+          {user.email_confirmed_at ? (
+            <Badge variant="default">Verified</Badge>
+          ) : (
+            <Badge variant="secondary">Unverified</Badge>
+          )}
+          {user.is_platform_admin && (
+            <Badge variant="outline" className="bg-primary/10">
+              <Shield className="h-3 w-3 mr-1" />
+              Admin
+            </Badge>
+          )}
+        </div>
+      )
+    },
+    {
+      key: 'created_at',
+      label: 'Created',
+      sortable: true,
+      render: (user: AuthUser) => format(new Date(user.created_at), 'MMM dd, yyyy')
+    },
+    {
+      key: 'last_sign_in_at',
+      label: 'Last Sign In',
+      sortable: true,
+      render: (user: AuthUser) => 
+        user.last_sign_in_at 
+          ? format(new Date(user.last_sign_in_at), 'MMM dd, yyyy')
+          : 'Never'
+    }
+  ];
+
+  const customRowActions = (user: AuthUser) => (
+    <div className="flex gap-2 flex-wrap">
+      {!user.email_confirmed_at && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => performAdminAction('verify', user.id)}
+          disabled={actionLoading === user.id}
+        >
+          <CheckCircle className="h-4 w-4 mr-1" />
+          Verify
+        </Button>
+      )}
+      
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => performAdminAction('reset_password', user.id)}
+        disabled={actionLoading === user.id}
+      >
+        <RefreshCw className="h-4 w-4 mr-1" />
+        Reset Password
+      </Button>
+
+      {!user.is_platform_admin && (
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={promoting === user.id}
+            >
+              <UserPlus className="h-4 w-4 mr-1" />
+              Promote to Admin
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Promote to System Administrator</AlertDialogTitle>
+              <AlertDialogDescription>
+                Send a promotion confirmation email to {user.email || user.profile?.email}? 
+                They will need to confirm this promotion before gaining admin privileges.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => handlePromoteUser(user)}>
+                Send Confirmation
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+    </div>
+  );
+
+  const headerActions = (
+    <div className="flex gap-4 items-center">
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-muted-foreground">Filter by:</span>
+        <Select value={userTypeFilter} onValueChange={setUserTypeFilter}>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="All users" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Users</SelectItem>
+            <SelectItem value="admin">System Admins</SelectItem>
+            <SelectItem value="regular">Regular Users</SelectItem>
+            <SelectItem value="verified">Verified</SelectItem>
+            <SelectItem value="unverified">Unverified</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      
+      <Button onClick={fetchUsers} variant="outline" size="sm">
+        <RefreshCw className="h-4 w-4 mr-2" />
+        Refresh
+      </Button>
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      {headerActions}
+      <UnifiedTableView
+        title="System Users"
+        data={filteredUsers}
+        columns={columns}
+        loading={loading}
+        searchable={true}
+        searchPlaceholder="Search users by name, email, or ID..."
+        onBulkDelete={handleBulkDelete}
+        onDelete={(id: string) => performAdminAction('delete', id)}
+        customActions={customRowActions}
+        entityType="contact"
+        defaultSortBy="created_at"
+        defaultSortOrder="desc"
+      />
+    </div>
+  );
+}
