@@ -107,14 +107,15 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
       if (user) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("email, first_name, last_name")
+          .select("user_id, first_name, last_name")
           .eq("user_id", user.id)
           .single();
         
         setCurrentUser({
           id: user.id,
           email: user.email,
-          ...profile
+          first_name: profile?.first_name || '',
+          last_name: profile?.last_name || ''
         });
       }
     };
@@ -137,7 +138,7 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
       const userIds = data.map(m => m.user_id);
       const { data: profiles, error: profileError } = await supabase
         .from("profiles")
-        .select("user_id, email, first_name, last_name")
+        .select("user_id, first_name, last_name")
         .in("user_id", userIds);
         
       if (profileError) throw profileError;
@@ -148,8 +149,8 @@ export function TaskModal({ task, isOpen, onClose, groupId }: TaskModalProps) {
         const fullName = `${firstName} ${lastName}`.trim();
         return {
           id: profile.user_id,
-          email: profile.email || "",
-          name: fullName || profile.email || "Unknown User"
+          email: "", // Email should come from auth.users
+          name: fullName || "Unknown User"
         };
       }) || [];
     },

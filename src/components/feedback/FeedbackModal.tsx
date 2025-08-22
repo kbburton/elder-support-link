@@ -92,7 +92,7 @@ export function FeedbackModal({ isOpen, onClose, groupId }: FeedbackModalProps) 
         severity: values.severity,
         care_group_id: useNoGroup ? null : values.care_group_id,
         created_by_user_id: user.id,
-        created_by_email: profile?.email || user.email || "",
+        created_by_email: user.email || "",
       };
 
       const { data: insertedFeedback, error } = await supabase

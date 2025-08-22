@@ -231,7 +231,7 @@ export default function SystemUserManagement() {
         } else if (user.profile?.last_name) {
           displayName = user.profile.last_name;
         } else {
-          displayName = user.email || 'No name';
+          displayName = '-';
         }
         
         return (

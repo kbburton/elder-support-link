@@ -87,7 +87,7 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
       
       const { data: profiles, error: profileError } = await supabase
         .from("profiles")
-        .select("user_id, first_name, last_name, email")
+        .select("user_id, first_name, last_name")
         .in("user_id", userIds);
         
       if (profileError) throw profileError;
@@ -98,8 +98,8 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
         const fullName = `${firstName} ${lastName}`.trim();
         return {
           id: profile.user_id,
-          name: fullName || profile.email || "Unknown User",
-          email: profile.email || ""
+          name: fullName || "Unknown User",
+          email: "" // Email should come from auth.users
         };
       }) || [];
     },
@@ -111,8 +111,8 @@ export const AppointmentModal = ({ appointment, isOpen, onClose, groupId }: Appo
     if (demoProfiles.isDemo && demoProfiles.data) {
       return demoProfiles.data.map(profile => ({
         id: profile.user_id,
-        name: `${profile.first_name} ${profile.last_name}`.trim() || profile.email,
-        email: profile.email || ""
+        name: `${profile.first_name} ${profile.last_name}`.trim() || "Unknown User",
+        email: "" // Email should come from auth.users
       }));
     }
     return fetchedGroupMembers || [];

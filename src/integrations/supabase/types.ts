@@ -504,13 +504,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "appointments_attending_user_id_fkey"
-            columns: ["attending_user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "appointments_group_id_fkey"
             columns: ["group_id"]
             isOneToOne: false
@@ -1432,7 +1425,6 @@ export type Database = {
         Row: {
           address: string | null
           created_at: string
-          email: string | null
           first_name: string | null
           last_active_group_id: string | null
           last_name: string | null
@@ -1445,7 +1437,6 @@ export type Database = {
         Insert: {
           address?: string | null
           created_at?: string
-          email?: string | null
           first_name?: string | null
           last_active_group_id?: string | null
           last_name?: string | null
@@ -1458,7 +1449,6 @@ export type Database = {
         Update: {
           address?: string | null
           created_at?: string
-          email?: string | null
           first_name?: string | null
           last_active_group_id?: string | null
           last_name?: string | null
@@ -1884,36 +1874,6 @@ export type Database = {
             referencedColumns: ["user_id"]
           },
         ]
-      }
-      users: {
-        Row: {
-          address: string | null
-          created_at: string
-          email: string
-          id: string
-          name: string
-          password_hash: string | null
-          phone: string | null
-        }
-        Insert: {
-          address?: string | null
-          created_at?: string
-          email: string
-          id?: string
-          name: string
-          password_hash?: string | null
-          phone?: string | null
-        }
-        Update: {
-          address?: string | null
-          created_at?: string
-          email?: string
-          id?: string
-          name?: string
-          password_hash?: string | null
-          phone?: string | null
-        }
-        Relationships: []
       }
     }
     Views: {

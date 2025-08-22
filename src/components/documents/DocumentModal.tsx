@@ -278,7 +278,7 @@ export function DocumentModal({ document, isOpen, onClose, groupId }: DocumentMo
   };
 
   const getUploaderEmail = () => {
-    return uploaderProfile?.email || 'Unknown';
+    return 'Unknown'; // Email should come from auth.users, not profiles
   };
 
   const getUploadDate = () => {

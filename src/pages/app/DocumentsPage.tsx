@@ -68,7 +68,7 @@ export default function DocumentsPage() {
         if (uploaderIds.length > 0) {
           const { data: profiles } = await supabase
             .from("profiles")
-            .select("user_id, first_name, last_name, email")
+            .select("user_id, first_name, last_name")
             .in("user_id", uploaderIds);
           
           // Attach uploader info to documents

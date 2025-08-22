@@ -150,12 +150,12 @@ export default function ContactDetailPage() {
       if (data.created_by_user_id) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("first_name, last_name, email")
+          .select("first_name, last_name")
           .eq("user_id", data.created_by_user_id)
           .maybeSingle();
         
         if (profile) {
-          setCreatedByName(`${profile.first_name || ""} ${profile.last_name || ""}`.trim() || profile.email || "Unknown");
+          setCreatedByName(`${profile.first_name || ""} ${profile.last_name || ""}`.trim() || "Unknown");
         }
       }
     } catch (error) {

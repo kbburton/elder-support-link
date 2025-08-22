@@ -68,7 +68,7 @@ export function FeedbackDetailView({
           feedback_id: feedbackId,
           body,
           created_by_user_id: user.id,
-          created_by_email: profile?.email || user.email || "",
+          created_by_email: user.email || "",
         });
 
       if (error) throw error;

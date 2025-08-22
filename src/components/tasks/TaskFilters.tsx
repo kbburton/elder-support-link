@@ -68,15 +68,15 @@ export function TaskFilters({
       const userIds = data.map(m => m.user_id);
       const { data: profiles, error: profileError } = await supabase
         .from("profiles")
-        .select("user_id, email, first_name, last_name")
+        .select("user_id, first_name, last_name")
         .in("user_id", userIds);
         
       if (profileError) throw profileError;
       
       return profiles?.map(profile => ({
         id: profile.user_id,
-        email: profile.email || "",
-        name: `${profile.first_name || ""} ${profile.last_name || ""}`.trim() || profile.email || ""
+        email: "", // Email should come from auth.users
+        name: `${profile.first_name || ""} ${profile.last_name || ""}`.trim() || ""
       })) || [];
     },
   });

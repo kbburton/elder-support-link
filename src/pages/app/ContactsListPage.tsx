@@ -188,7 +188,7 @@ export default function ContactsListPage() {
       
       const { data, error } = await supabase
         .from("profiles")
-        .select("user_id, first_name, last_name, email")
+        .select("user_id, first_name, last_name")
         .in("user_id", userIds);
       
       if (error) throw error;
@@ -201,7 +201,7 @@ export default function ContactsListPage() {
     const profile = profiles.find(p => p.user_id === contact.created_by_user_id);
     if (profile) {
       const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(' ');
-      return fullName || profile.email || 'Unknown';
+      return fullName || 'Unknown';
     }
     return 'Unknown';
   };

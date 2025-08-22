@@ -63,19 +63,32 @@ Deno.serve(async (req) => {
         const { data: users, error: listError } = await supabaseAdmin.auth.admin.listUsers()
         if (listError) throw listError
         
-        // Also get profiles data using admin client
+        // Get profiles data (no longer has email column)
         const { data: profiles, error: profilesError } = await supabaseAdmin
           .from('profiles')
-          .select('*')
+          .select('user_id, first_name, last_name, created_at, updated_at, address, state, zip, phone, last_active_group_id')
         
         console.log('Profiles query result:', { profiles, profilesError })
         
-        // Merge auth users with profile data, ensuring profile is always defined
+        // Merge auth users with profile data in nested structure
         const usersWithProfiles = users.users.map(authUser => {
           const profile = profiles?.find(p => p.user_id === authUser.id) || null
           return {
-            ...authUser,
-            profile
+            id: authUser.id,
+            email: authUser.email, // Always from auth.users
+            created_at: authUser.created_at,
+            last_sign_in_at: authUser.last_sign_in_at,
+            email_confirmed_at: authUser.email_confirmed_at,
+            is_platform_admin: false, // Will be checked separately
+            profile: profile ? {
+              first_name: profile.first_name,
+              last_name: profile.last_name,
+              address: profile.address,
+              state: profile.state,
+              zip: profile.zip,
+              phone: profile.phone,
+              last_active_group_id: profile.last_active_group_id
+            } : null
           }
         })
         
