@@ -22,6 +22,7 @@ const mainItems = [
   { title: "Calendar", url: "calendar", icon: Calendar },
   { title: "Tasks", url: "tasks", icon: ListTodo },
   { title: "Contacts", url: "contacts", icon: Users },
+  { title: "Documents", url: "documents", icon: FileText },
   { title: "Activity Log", url: "activity", icon: NotebookPen },
   { title: "Search", url: "search", icon: Search },
   { title: "Feedback", url: "settings/feedback", icon: MessageSquare },
