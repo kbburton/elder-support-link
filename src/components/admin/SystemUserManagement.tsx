@@ -210,29 +210,24 @@ export default function SystemUserManagement() {
       key: 'name',
       label: 'Name',
       sortable: true,
-      render: (value: any, user: AuthUser) => {
-        if (!user) {
-          return <div>Invalid user data</div>;
-        }
-        
-        let displayName = '';
-        if (user.profile?.first_name && user.profile?.last_name) {
-          displayName = `${user.profile.first_name} ${user.profile.last_name}`;
-        } else if (user.profile?.first_name) {
-          displayName = user.profile.first_name;
-        } else if (user.profile?.last_name) {
-          displayName = user.profile.last_name;
-        } else {
-          displayName = '-';
-        }
-        
-        return (
-          <div>
-            <div className="font-medium">{displayName}</div>
-            <div className="text-sm text-muted-foreground">ID: {user.id?.slice(0, 8) || 'Unknown'}...</div>
-          </div>
-        );
-      }
+       render: (value: any, user: AuthUser) => {
+         if (!user) {
+           return <div>Invalid user data</div>;
+         }
+         
+         const firstName = user.profile?.first_name || '';
+         const lastName = user.profile?.last_name || '';
+         const fullName = `${firstName} ${lastName}`.trim();
+         
+         const displayName = fullName || 'No Name';
+         
+         return (
+           <div>
+             <div className="font-medium">{displayName}</div>
+             <div className="text-sm text-muted-foreground">ID: {user.id?.slice(0, 8) || 'Unknown'}...</div>
+           </div>
+         );
+       }
     },
     {
       key: 'email',
