@@ -26,6 +26,7 @@ const GroupSchema = z.object({
   recipient_phone: z.string().optional(),
   recipient_email: z.string().email("Invalid email address").optional().or(z.literal("")),
   date_of_birth: z.string().optional(),
+  living_situation: z.string().optional(),
   profile_description: z.string().optional(),
   other_important_information: z.string().optional(),
   gender: z.string().optional(),
@@ -54,6 +55,7 @@ export default function LovedOneInfoPage() {
       recipient_phone: "",
       recipient_email: "",
       date_of_birth: "",
+      living_situation: "",
       profile_description: "",
       other_important_information: "",
       gender: "",
@@ -75,6 +77,21 @@ export default function LovedOneInfoPage() {
     },
   });
 
+  // Fetch living situation options from picklist
+  const { data: livingSituationOptions } = useQuery({
+    queryKey: ["picklist_options", "care_groups_living_situation"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("picklist_options")
+        .select("value, label")
+        .eq("list_type", "care_groups_living_situation")
+        .eq("is_active", true)
+        .order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   useEffect(() => {
     if (data) {
       form.reset({
@@ -88,6 +105,7 @@ export default function LovedOneInfoPage() {
         recipient_phone: data.recipient_phone ?? "",
         recipient_email: data.recipient_email ?? "",
         date_of_birth: data.date_of_birth ?? "",
+        living_situation: data.living_situation ?? "",
         profile_description: data.profile_description ?? "",
         other_important_information: data.other_important_information ?? "",
         gender: data.gender ?? "",
@@ -112,7 +130,7 @@ export default function LovedOneInfoPage() {
         recipient_state: values.recipient_state || null,
         recipient_zip: values.recipient_zip || null,
         recipient_phone: values.recipient_phone || null,
-        profile_description: values.profile_description || null,
+        living_situation: values.living_situation || null,
         other_important_information: values.other_important_information || null,
         gender: values.gender || null,
         profile_picture_url: values.profile_picture_url || null,
@@ -210,7 +228,7 @@ export default function LovedOneInfoPage() {
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Care recipient name</FormLabel>
+                    <FormLabel>Care Group name</FormLabel>
                     <FormControl>
                       <Input placeholder="Name" {...field} />
                     </FormControl>
@@ -292,6 +310,31 @@ export default function LovedOneInfoPage() {
                   )}
                 />
               </div>
+
+              <FormField
+                control={form.control}
+                name="living_situation"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Living situation</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select living situation (optional)" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {livingSituationOptions?.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <FormField
                 control={form.control}

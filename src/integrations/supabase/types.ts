@@ -1433,6 +1433,39 @@ export type Database = {
         }
         Relationships: []
       }
+      picklist_options: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string
+          list_type: string
+          sort_order: number
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label: string
+          list_type: string
+          sort_order?: number
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          list_type?: string
+          sort_order?: number
+          updated_at?: string
+          value?: string
+        }
+        Relationships: []
+      }
       platform_admins: {
         Row: {
           user_id: string
