@@ -25,12 +25,15 @@ export const ProfileImageCrop = ({ imageFile, isOpen, onClose, onCropComplete }:
   });
 
   const loadImage = useCallback(() => {
-    if (!imageFile || !imageRef.current) {
-      console.log('ProfileImageCrop: Missing imageFile or imageRef', { 
-        hasImageFile: !!imageFile, 
-        hasImageRef: !!imageRef.current,
-        fileName: imageFile?.name 
-      });
+    if (!imageFile) {
+      console.log('ProfileImageCrop: No imageFile provided');
+      return;
+    }
+
+    if (!imageRef.current) {
+      console.log('ProfileImageCrop: imageRef not ready yet, will retry');
+      // Retry after a short delay to ensure DOM is ready
+      setTimeout(() => loadImage(), 50);
       return;
     }
 
@@ -103,9 +106,11 @@ export const ProfileImageCrop = ({ imageFile, isOpen, onClose, onCropComplete }:
   }, [imageFile]);
 
   useEffect(() => {
+    console.log('ProfileImageCrop: useEffect triggered', { isOpen, hasImageFile: !!imageFile });
     if (isOpen && imageFile) {
       setImageLoaded(false); // Reset the state
-      loadImage();
+      // Small delay to ensure DOM is ready
+      setTimeout(() => loadImage(), 100);
     }
   }, [isOpen, imageFile, loadImage]);
 
