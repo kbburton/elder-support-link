@@ -1,5 +1,7 @@
 import { NavLink, useParams } from "react-router-dom";
-import { Calendar, FileText, ListTodo, NotebookPen, Search, Shield, User, Settings, Users, MessageSquare, UserPlus } from "lucide-react";
+import { Calendar, FileText, ListTodo, NotebookPen, Search, Shield, User, Settings, Users, MessageSquare, UserPlus, Heart } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Sidebar,
   SidebarContent,
@@ -37,6 +39,21 @@ export function AppSidebar() {
   const { isPlatformAdmin } = usePlatformAdmin();
   const { isDemo } = useDemo();
   
+  // Fetch care group name to get first name for loved one menu item
+  const { data: careGroup } = useQuery({
+    queryKey: ["care_group_name", groupId],
+    enabled: !!groupId && groupId !== ':groupId',
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("care_groups")
+        .select("name")
+        .eq("id", groupId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
+  
   // Don't render if we don't have a valid groupId
   if (!groupId || groupId === ':groupId') {
     return null;
@@ -44,10 +61,20 @@ export function AppSidebar() {
   
   const base = `/app/${groupId}`;
   
-  // Filter items based on demo mode
+  // Get first name from care group name
+  const firstName = careGroup?.name?.split(' ')[0] || 'Loved One';
+  
+  // Create dynamic loved one info item
+  const lovedOneItem = { 
+    title: `${firstName} Info`, 
+    url: "loved-one-info", 
+    icon: Heart 
+  };
+  
+  // Filter items based on demo mode and add loved one info before group settings
   const filteredMainItems = isDemo 
     ? mainItems.filter(item => item.title !== "Group Settings")
-    : mainItems;
+    : mainItems.map(item => item.title === "Group Settings" ? [lovedOneItem, item] : item).flat();
 
   return (
     <Sidebar className={state === "collapsed" ? "w-14" : "w-60"} collapsible="icon">

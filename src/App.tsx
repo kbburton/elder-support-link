@@ -38,6 +38,7 @@ import ContactsPage from "./pages/app/ContactsPage";
 import DocumentsPage from "./pages/app/DocumentsPage";
 import ActivityPage from "./pages/app/ActivityPage";
 import SystemAdminPage from "./pages/app/SystemAdminPage";
+import LovedOneInfoPage from "./pages/app/LovedOneInfoPage";
 const queryClient = new QueryClient();
 const App = () => (
   <HelmetProvider>
@@ -70,6 +71,7 @@ const App = () => (
               <Route path="activity" element={<ActivityPage />} />
               <Route path="search" element={<SearchPage />} />
               <Route path="profile" element={<ProfilePage />} />
+              <Route path="loved-one-info" element={<LovedOneInfoPage />} />
               <Route path="settings" element={<GroupSettingsPage />} />
               <Route path="settings/feedback" element={<FeedbackPage />} />
               <Route path="invite" element={<GroupInvitePage />} />
