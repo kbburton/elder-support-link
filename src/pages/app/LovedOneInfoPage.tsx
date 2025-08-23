@@ -32,6 +32,8 @@ export default function LovedOneInfoPage() {
   const { groupId } = useParams();
   const { toast } = useToast();
 
+  console.log('LovedOneInfoPage - Component loaded, groupId:', groupId);
+
   const form = useForm<GroupFormValues>({
     resolver: zodResolver(GroupSchema),
     defaultValues: {

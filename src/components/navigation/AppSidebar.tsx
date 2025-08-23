@@ -1,4 +1,5 @@
 import { NavLink, useParams } from "react-router-dom";
+import { useMemo } from "react";
 import { Calendar, FileText, ListTodo, NotebookPen, Search, Shield, User, Settings, Users, MessageSquare, UserPlus, Heart } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -39,7 +40,7 @@ export function AppSidebar() {
   const { isPlatformAdmin } = usePlatformAdmin();
   const { isDemo } = useDemo();
   
-  // Fetch care group name to get first name for loved one menu item
+  // Always call useQuery to maintain hook order
   const { data: careGroup } = useQuery({
     queryKey: ["care_group_name", groupId],
     enabled: !!groupId && groupId !== ':groupId',
@@ -64,17 +65,27 @@ export function AppSidebar() {
   // Get first name from care group name
   const firstName = careGroup?.name?.split(' ')[0] || 'Loved One';
   
-  // Create dynamic loved one info item
-  const lovedOneItem = { 
-    title: `${firstName} Info`, 
-    url: "loved-one-info", 
-    icon: Heart 
-  };
-  
-  // Filter items based on demo mode and add loved one info before group settings
-  const filteredMainItems = isDemo 
-    ? mainItems.filter(item => item.title !== "Group Settings")
-    : mainItems.map(item => item.title === "Group Settings" ? [lovedOneItem, item] : item).flat();
+  // Create all navigation items with loved one info inserted before group settings
+  const allMainItems = useMemo(() => {
+    const lovedOneItem = { 
+      title: `${firstName} Info`, 
+      url: "loved-one-info", 
+      icon: Heart 
+    };
+    
+    if (isDemo) {
+      return mainItems.filter(item => item.title !== "Group Settings");
+    }
+    
+    const items = [];
+    for (const item of mainItems) {
+      if (item.title === "Group Settings") {
+        items.push(lovedOneItem);
+      }
+      items.push(item);
+    }
+    return items;
+  }, [firstName, isDemo]);
 
   return (
     <Sidebar className={state === "collapsed" ? "w-14" : "w-60"} collapsible="icon">
@@ -83,10 +94,17 @@ export function AppSidebar() {
           <SidebarGroupLabel>Main</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {filteredMainItems.map((item) => (
+              {allMainItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <NavLink to={`${base}/${item.url}`} end className={({ isActive }) => isActive ? "bg-muted text-primary font-medium" : "hover:bg-muted/50"}>
+                    <NavLink 
+                      to={`${base}/${item.url}`} 
+                      end 
+                      className={({ isActive }) => {
+                        console.log(`Navigation debug - Item: ${item.title}, URL: ${base}/${item.url}, Active: ${isActive}`);
+                        return isActive ? "bg-muted text-primary font-medium" : "hover:bg-muted/50";
+                      }}
+                    >
                       <item.icon className="mr-2 h-4 w-4" />
                       <span>{item.title}</span>
                     </NavLink>
