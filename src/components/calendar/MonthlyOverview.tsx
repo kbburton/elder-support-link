@@ -180,7 +180,7 @@ export default function MonthlyOverview({ className }: MonthlyOverviewProps) {
                 <div
                   key={day.toISOString()}
                   className={cn(
-                    "min-h-[100px] p-1 border rounded-lg",
+                    "min-h-[100px] p-1 border border-border rounded-lg",
                     isCurrentMonth ? "bg-background" : "bg-muted/50",
                     isToday(day) && "ring-2 ring-primary"
                   )}
