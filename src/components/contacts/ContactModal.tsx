@@ -37,13 +37,17 @@ import { softDeleteEntity } from "@/lib/delete/rpc";
 
 const contactSchema = z.object({
   is_organization: z.boolean().default(false),
-  first_name: z.string().optional(),
+  title: z.string().optional(),
+  custom_title: z.string().optional(),
+  first_name: z.string().min(1, "First name is required"),
   last_name: z.string().optional(),
   organization_name: z.string().optional(),
   company: z.string().optional(),
-  contact_type: z.enum(["medical", "legal", "family", "friend", "other"]),
+  contact_type: z.enum(["medical", "legal", "family", "friend", "other"], {
+    required_error: "Contact type is required"
+  }),
   gender: z.enum(["female", "male", "x_or_other", "prefer_not_to_say"]).optional().nullable(),
-  phone_primary: z.string().optional(),
+  phone_primary: z.string().min(1, "Primary phone is required"),
   phone_secondary: z.string().optional(),
   email_personal: z.string().email().optional().or(z.literal("")),
   email_work: z.string().email().optional().or(z.literal("")),
@@ -63,27 +67,21 @@ const contactSchema = z.object({
   emergency_notes: z.string().optional(),
   notes: z.string().optional(),
 }).refine((data) => {
-  // At least one contact method is required
-  return data.phone_primary || data.email_personal || data.email_work;
-}, {
-  message: "At least one contact method (phone or email) is required",
-  path: ["phone_primary"],
-}).refine((data) => {
-  // Name validation based on organization type
+  // Organization validation
   if (data.is_organization) {
     return data.organization_name?.trim();
-  } else {
-    return data.first_name?.trim() || data.last_name?.trim();
   }
+  return true;
 }, {
-  message: "Name is required",
-  path: ["first_name"],
+  message: "Organization name is required",
+  path: ["organization_name"],
 });
 
 type ContactFormData = z.infer<typeof contactSchema>;
 
 interface Contact {
   id: string;
+  title?: string;
   first_name?: string;
   last_name?: string;
   organization_name?: string;
@@ -118,6 +116,16 @@ interface ContactModalProps {
   groupId: string;
 }
 
+const TITLE_OPTIONS = [
+  { value: "dr", label: "Dr." },
+  { value: "mr", label: "Mr." },
+  { value: "mrs", label: "Mrs." },
+  { value: "ms", label: "Ms." },
+  { value: "prof", label: "Prof." },
+  { value: "rev", label: "Rev." },
+  { value: "other", label: "Other" },
+];
+
 const US_STATES = [
   "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
   "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
@@ -137,6 +145,8 @@ const TIMEZONES = [
 
 export function ContactModal({ contact, isOpen, onClose, groupId }: ContactModalProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showValidationModal, setShowValidationModal] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [user, setUser] = useState<any>(null);
   
   const { toast } = useToast();
@@ -149,15 +159,39 @@ export function ContactModal({ contact, isOpen, onClose, groupId }: ContactModal
     resolver: zodResolver(contactSchema),
     defaultValues: {
       is_organization: false,
+      title: "",
+      custom_title: "",
+      first_name: "",
+      last_name: "",
+      organization_name: "",
+      company: "",
       contact_type: "other",
-      is_emergency_contact: false,
+      gender: undefined,
+      phone_primary: "",
+      phone_secondary: "",
+      email_personal: "",
+      email_work: "",
+      address_line1: "",
+      address_line2: "",
+      city: "",
+      state: "",
+      postal_code: "",
       preferred_contact_method: "phone",
+      preferred_contact_start_local: "",
+      preferred_contact_end_local: "",
+      preferred_contact_start_weekend_local: "",
+      preferred_contact_end_weekend_local: "",
       preferred_contact_timezone: "America/New_York",
+      is_emergency_contact: false,
+      emergency_type: undefined,
+      emergency_notes: "",
+      notes: "",
     },
   });
 
   const isOrganization = form.watch("is_organization");
   const isEmergencyContact = form.watch("is_emergency_contact");
+  const selectedTitle = form.watch("title");
 
   useEffect(() => {
     const getUser = async () => {
@@ -167,55 +201,87 @@ export function ContactModal({ contact, isOpen, onClose, groupId }: ContactModal
     getUser();
   }, []);
 
-  // Reset form when contact changes
+  // Reset form when modal opens/closes or contact changes
   useEffect(() => {
-    if (contact) {
-      const formData: ContactFormData = {
-        is_organization: !!contact.organization_name,
-        first_name: contact.first_name || "",
-        last_name: contact.last_name || "",
-        organization_name: contact.organization_name || "",
-        company: contact.company || "",
-        contact_type: contact.contact_type as any,
-        gender: contact.gender as any,
-        phone_primary: contact.phone_primary || "",
-        phone_secondary: contact.phone_secondary || "",
-        email_personal: contact.email_personal || "",
-        email_work: contact.email_work || "",
-        address_line1: contact.address_line1 || "",
-        address_line2: contact.address_line2 || "",
-        city: contact.city || "",
-        state: contact.state || "",
-        postal_code: contact.postal_code || "",
-        preferred_contact_method: contact.preferred_contact_method as any,
-        preferred_contact_start_local: contact.preferred_contact_start_local || "",
-        preferred_contact_end_local: contact.preferred_contact_end_local || "",
-        preferred_contact_start_weekend_local: contact.preferred_contact_start_weekend_local || "",
-        preferred_contact_end_weekend_local: contact.preferred_contact_end_weekend_local || "",
-        preferred_contact_timezone: contact.preferred_contact_timezone || "America/New_York",
-        is_emergency_contact: contact.is_emergency_contact,
-        emergency_type: contact.emergency_type as any,
-        emergency_notes: contact.emergency_notes || "",
-        notes: contact.notes || "",
-      };
-      form.reset(formData);
-    } else {
-      form.reset({
-        is_organization: false,
-        contact_type: "other",
-        is_emergency_contact: false,
-        preferred_contact_method: "phone",
-        preferred_contact_timezone: "America/New_York",
-      });
+    if (isOpen) {
+      if (contact) {
+        const formData: ContactFormData = {
+          is_organization: !!contact.organization_name,
+          title: contact.title || "",
+          custom_title: "",
+          first_name: contact.first_name || "",
+          last_name: contact.last_name || "",
+          organization_name: contact.organization_name || "",
+          company: contact.company || "",
+          contact_type: contact.contact_type as any,
+          gender: contact.gender as any,
+          phone_primary: contact.phone_primary || "",
+          phone_secondary: contact.phone_secondary || "",
+          email_personal: contact.email_personal || "",
+          email_work: contact.email_work || "",
+          address_line1: contact.address_line1 || "",
+          address_line2: contact.address_line2 || "",
+          city: contact.city || "",
+          state: contact.state || "",
+          postal_code: contact.postal_code || "",
+          preferred_contact_method: contact.preferred_contact_method as any,
+          preferred_contact_start_local: contact.preferred_contact_start_local || "",
+          preferred_contact_end_local: contact.preferred_contact_end_local || "",
+          preferred_contact_start_weekend_local: contact.preferred_contact_start_weekend_local || "",
+          preferred_contact_end_weekend_local: contact.preferred_contact_end_weekend_local || "",
+          preferred_contact_timezone: contact.preferred_contact_timezone || "America/New_York",
+          is_emergency_contact: contact.is_emergency_contact,
+          emergency_type: contact.emergency_type as any,
+          emergency_notes: contact.emergency_notes || "",
+          notes: contact.notes || "",
+        };
+        form.reset(formData);
+      } else {
+        // Reset to completely blank form for new contacts
+        form.reset({
+          is_organization: false,
+          title: "",
+          custom_title: "",
+          first_name: "",
+          last_name: "",
+          organization_name: "",
+          company: "",
+          contact_type: "other",
+          gender: undefined,
+          phone_primary: "",
+          phone_secondary: "",
+          email_personal: "",
+          email_work: "",
+          address_line1: "",
+          address_line2: "",
+          city: "",
+          state: "",
+          postal_code: "",
+          preferred_contact_method: "phone",
+          preferred_contact_start_local: "",
+          preferred_contact_end_local: "",
+          preferred_contact_start_weekend_local: "",
+          preferred_contact_end_weekend_local: "",
+          preferred_contact_timezone: "America/New_York",
+          is_emergency_contact: false,
+          emergency_type: undefined,
+          emergency_notes: "",
+          notes: "",
+        });
+      }
     }
-  }, [contact, form]);
+  }, [contact, isOpen, form]);
 
   const createContact = useMutation({
     mutationFn: async (data: ContactFormData) => {
       if (!user || !groupId) throw new Error("Not authenticated or no group");
 
+      // Get the final title value
+      const finalTitle = data.title === "other" ? data.custom_title : data.title;
+
       const contactData = {
         care_group_id: groupId,
+        title: finalTitle || null,
         first_name: data.is_organization ? null : (data.first_name || null),
         last_name: data.is_organization ? null : (data.last_name || null),
         organization_name: data.is_organization ? (data.organization_name || null) : null,
@@ -274,7 +340,11 @@ export function ContactModal({ contact, isOpen, onClose, groupId }: ContactModal
     mutationFn: async (data: ContactFormData) => {
       if (!contact) throw new Error("No contact to update");
 
+      // Get the final title value
+      const finalTitle = data.title === "other" ? data.custom_title : data.title;
+
       const contactData = {
+        title: finalTitle || null,
         first_name: data.is_organization ? null : (data.first_name || null),
         last_name: data.is_organization ? null : (data.last_name || null),
         organization_name: data.is_organization ? (data.organization_name || null) : null,
@@ -352,8 +422,38 @@ export function ContactModal({ contact, isOpen, onClose, groupId }: ContactModal
     },
   });
 
+  const validateRequiredFields = (data: ContactFormData): string[] => {
+    const errors: string[] = [];
+    
+    if (!data.first_name?.trim() && !data.is_organization) {
+      errors.push("First name is required");
+    }
+    
+    if (!data.organization_name?.trim() && data.is_organization) {
+      errors.push("Organization name is required");
+    }
+    
+    if (!data.contact_type) {
+      errors.push("Contact type is required");
+    }
+    
+    if (!data.phone_primary?.trim()) {
+      errors.push("Primary phone is required");
+    }
+    
+    return errors;
+  };
+
   const handleSubmit = (data: ContactFormData) => {
     if (blockOperation()) return;
+
+    // Custom validation for required fields
+    const errors = validateRequiredFields(data);
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      setShowValidationModal(true);
+      return;
+    }
 
     if (contact) {
       updateContact.mutate(data);
@@ -446,6 +546,52 @@ export function ContactModal({ contact, isOpen, onClose, groupId }: ContactModal
                 <TabsContent value="basic" className="space-y-4">
                   <h3 className="text-sm font-medium">Basic Information</h3>
                   
+                  {/* Title Field for Persons */}
+                  {!isOrganization && (
+                    <div className="space-y-4">
+                      <FormField
+                        control={form.control}
+                        name="title"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Title</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value || ""}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select title" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {TITLE_OPTIONS.map((title) => (
+                                  <SelectItem key={title.value} value={title.value}>
+                                    {title.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      
+                      {selectedTitle === "other" && (
+                        <FormField
+                          control={form.control}
+                          name="custom_title"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Custom Title</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Enter custom title" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+                    </div>
+                  )}
+                  
                   {isOrganization ? (
                     <FormField
                       control={form.control}
@@ -461,43 +607,28 @@ export function ContactModal({ contact, isOpen, onClose, groupId }: ContactModal
                       )}
                     />
                   ) : (
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <FormField
-                          control={form.control}
-                          name="first_name"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>First Name *</FormLabel>
-                              <FormControl>
-                                <Input placeholder="Enter first name" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="last_name"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Last Name</FormLabel>
-                              <FormControl>
-                                <Input placeholder="Enter last name" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
-                        name="company"
+                        name="first_name"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Company</FormLabel>
+                            <FormLabel>First Name *</FormLabel>
                             <FormControl>
-                              <Input placeholder="Enter company name" {...field} />
+                              <Input placeholder="Enter first name" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="last_name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Last Name</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Enter last name" {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -557,6 +688,101 @@ export function ContactModal({ contact, isOpen, onClose, groupId }: ContactModal
                         )}
                       />
                     )}
+                  </div>
+
+                  {/* Phone Numbers */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="phone_primary"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Primary Phone *</FormLabel>
+                          <FormControl>
+                            <Input placeholder="(555) 123-4567" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="phone_secondary"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Secondary Phone</FormLabel>
+                          <FormControl>
+                            <Input placeholder="(555) 123-4567" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  {/* Organization Name and Company for persons */}
+                  {!isOrganization && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="organization_name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Organization Name</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Enter organization name" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="company"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Company</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Enter company name" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="contact" className="space-y-4">
+                  <h3 className="text-sm font-medium">Contact Information</h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="email_personal"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Personal Email</FormLabel>
+                          <FormControl>
+                            <Input type="email" placeholder="personal@example.com" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="email_work"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Work Email</FormLabel>
+                          <FormControl>
+                            <Input type="email" placeholder="work@company.com" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
 
                   {/* Address */}
@@ -660,68 +886,6 @@ export function ContactModal({ contact, isOpen, onClose, groupId }: ContactModal
                       </FormItem>
                     )}
                   />
-                </TabsContent>
-
-                <TabsContent value="contact" className="space-y-4">
-                  <h3 className="text-sm font-medium">Contact Information</h3>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="phone_primary"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Primary Phone *</FormLabel>
-                          <FormControl>
-                            <Input placeholder="(555) 123-4567" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="phone_secondary"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Secondary Phone</FormLabel>
-                          <FormControl>
-                            <Input placeholder="(555) 123-4567" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="email_personal"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Personal Email *</FormLabel>
-                          <FormControl>
-                            <Input type="email" placeholder="personal@example.com" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="email_work"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Work Email</FormLabel>
-                          <FormControl>
-                            <Input type="email" placeholder="work@company.com" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
 
                   <FormField
                     control={form.control}
@@ -956,6 +1120,30 @@ export function ContactModal({ contact, isOpen, onClose, groupId }: ContactModal
             </form>
           </Form>
         </div>
+
+        {/* Validation Modal */}
+        <AlertDialog open={showValidationModal} onOpenChange={setShowValidationModal}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Required Fields Missing</AlertDialogTitle>
+              <AlertDialogDescription>
+                Please fill in the following required fields before saving:
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="py-4">
+              <ul className="list-disc list-inside space-y-1">
+                {validationErrors.map((error, index) => (
+                  <li key={index} className="text-sm text-destructive">{error}</li>
+                ))}
+              </ul>
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogAction onClick={() => setShowValidationModal(false)}>
+                OK
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Delete Confirmation Dialog */}
         <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>

@@ -866,6 +866,7 @@ export type Database = {
           preferred_contact_start_weekend_local: string | null
           preferred_contact_timezone: string | null
           state: string | null
+          title: string | null
           updated_at: string | null
         }
         Insert: {
@@ -905,6 +906,7 @@ export type Database = {
           preferred_contact_start_weekend_local?: string | null
           preferred_contact_timezone?: string | null
           state?: string | null
+          title?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -944,6 +946,7 @@ export type Database = {
           preferred_contact_start_weekend_local?: string | null
           preferred_contact_timezone?: string | null
           state?: string | null
+          title?: string | null
           updated_at?: string | null
         }
         Relationships: [
