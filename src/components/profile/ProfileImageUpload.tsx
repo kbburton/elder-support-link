@@ -30,6 +30,13 @@ export const ProfileImageUpload = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
+  console.log('ProfileImageUpload: Component render', { 
+    hasSelectedFile: !!selectedFile, 
+    fileName: selectedFile?.name,
+    isCropOpen,
+    uploading 
+  });
+
   const sizeClasses = {
     sm: "w-8 h-8",
     md: "w-16 h-16", 
@@ -91,23 +98,37 @@ export const ProfileImageUpload = ({
       return;
     }
 
-    console.log('ProfileImageUpload: Setting selectedFile and opening crop modal');
-    setSelectedFile(file);
-    setIsCropOpen(true);
+    console.log('ProfileImageUpload: About to set selectedFile and open crop modal');
+    
+    // Use functional update to ensure we get the latest state
+    setSelectedFile((prev) => {
+      console.log('ProfileImageUpload: setSelectedFile callback, prev:', prev?.name);
+      console.log('ProfileImageUpload: setSelectedFile callback, new file:', file.name);
+      return file;
+    });
+    
+    setIsCropOpen((prev) => {
+      console.log('ProfileImageUpload: setIsCropOpen callback, prev:', prev);
+      return true;
+    });
     
     // Log to verify the file is still there after state update
     setTimeout(() => {
-      console.log('ProfileImageUpload: selectedFile state after update:', selectedFile?.name);
+      console.log('ProfileImageUpload: State check after 100ms - selectedFile should be set');
     }, 100);
   };
 
   const handleCropComplete = async (croppedFile: File) => {
+    console.log('ProfileImageUpload: handleCropComplete called', { fileName: croppedFile.name });
     setIsCropOpen(false);
     setUploading(true);
 
     try {
+      console.log('ProfileImageUpload: Starting upload process...');
+      
       // Delete existing image if any
       if (currentImageUrl) {
+        console.log('ProfileImageUpload: Deleting existing image');
         const path = currentImageUrl.split('/').pop();
         if (path) {
           await supabase.storage
@@ -118,6 +139,8 @@ export const ProfileImageUpload = ({
 
       // Upload new image
       const fileName = `profile-picture-${Date.now()}.jpg`;
+      console.log('ProfileImageUpload: Uploading new image as:', fileName);
+      
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('profile-pictures')
         .upload(`${groupId}/${fileName}`, croppedFile);
@@ -129,6 +152,8 @@ export const ProfileImageUpload = ({
         .from('profile-pictures')
         .getPublicUrl(uploadData.path);
 
+      console.log('ProfileImageUpload: Upload successful, updating database with URL:', publicUrl);
+
       // Save directly to database
       const { error: updateError } = await supabase
         .from('care_groups')
@@ -137,6 +162,7 @@ export const ProfileImageUpload = ({
 
       if (updateError) throw updateError;
 
+      console.log('ProfileImageUpload: Database updated successfully');
       onImageChange(publicUrl);
       
       // Refresh all related queries to update UI
@@ -144,13 +170,14 @@ export const ProfileImageUpload = ({
       queryClient.invalidateQueries({ queryKey: ["care_group_header", groupId] });
       queryClient.invalidateQueries({ queryKey: ["care_group_name", groupId] });
       
+      console.log('ProfileImageUpload: Showing success toast');
       toast({
         title: "Success",
         description: "Profile picture updated successfully"
       });
 
     } catch (error) {
-      console.error('Error uploading image:', error);
+      console.error('ProfileImageUpload: Error uploading image:', error);
       toast({
         title: "Upload failed",
         description: "Failed to upload profile picture. Please try again.",
@@ -162,6 +189,7 @@ export const ProfileImageUpload = ({
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+      console.log('ProfileImageUpload: Upload process completed');
     }
   };
 
