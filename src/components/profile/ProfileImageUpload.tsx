@@ -77,6 +77,7 @@ export const ProfileImageUpload = ({
       return;
     }
 
+    // Make sure we're passing the actual file object
     setSelectedFile(file);
     setIsCropOpen(true);
   };

@@ -18,18 +18,40 @@ export const ProfileImageCrop = ({ imageFile, isOpen, onClose, onCropComplete }:
 
   const loadImage = useCallback(() => {
     if (!imageFile || !imageRef.current) {
-      console.log('ProfileImageCrop: Missing imageFile or imageRef', { imageFile, imageRef: imageRef.current });
+      console.log('ProfileImageCrop: Missing imageFile or imageRef', { 
+        hasImageFile: !!imageFile, 
+        hasImageRef: !!imageRef.current,
+        fileName: imageFile?.name 
+      });
       return;
     }
+
+    console.log('ProfileImageCrop: Loading image', { 
+      fileName: imageFile.name, 
+      fileSize: imageFile.size, 
+      fileType: imageFile.type 
+    });
 
     const img = imageRef.current;
     const reader = new FileReader();
     
     reader.onload = (e) => {
-      console.log('ProfileImageCrop: FileReader loaded', e.target?.result ? 'success' : 'failed');
+      const result = e.target?.result;
+      console.log('ProfileImageCrop: FileReader loaded', { hasResult: !!result });
+      
+      if (!result) {
+        console.error('ProfileImageCrop: FileReader returned no result');
+        return;
+      }
+      
       img.onload = () => {
-        console.log('ProfileImageCrop: Image loaded successfully', { width: img.naturalWidth, height: img.naturalHeight });
+        console.log('ProfileImageCrop: Image loaded successfully', { 
+          width: img.naturalWidth, 
+          height: img.naturalHeight 
+        });
+        
         setImageLoaded(true);
+        
         // Center the crop area
         const canvas = canvasRef.current;
         if (canvas) {
@@ -54,23 +76,26 @@ export const ProfileImageCrop = ({ imageFile, isOpen, onClose, onCropComplete }:
           });
         }
       };
+      
       img.onerror = (error) => {
         console.error('ProfileImageCrop: Image failed to load', error);
+        setImageLoaded(false);
       };
-      img.src = e.target?.result as string;
+      
+      img.src = result as string;
     };
     
     reader.onerror = (error) => {
       console.error('ProfileImageCrop: FileReader error', error);
+      setImageLoaded(false);
     };
     
-    console.log('ProfileImageCrop: Starting to read file', { fileName: imageFile.name, fileSize: imageFile.size, fileType: imageFile.type });
+    console.log('ProfileImageCrop: Starting to read file');
     reader.readAsDataURL(imageFile);
   }, [imageFile]);
 
   useEffect(() => {
     if (isOpen && imageFile) {
-      console.log('ProfileImageCrop: useEffect triggered', { isOpen, imageFile: imageFile?.name });
       setImageLoaded(false); // Reset the state
       loadImage();
     }
