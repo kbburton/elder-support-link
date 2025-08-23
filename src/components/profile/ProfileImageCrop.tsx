@@ -17,13 +17,18 @@ export const ProfileImageCrop = ({ imageFile, isOpen, onClose, onCropComplete }:
   const [imageLoaded, setImageLoaded] = useState(false);
 
   const loadImage = useCallback(() => {
-    if (!imageFile || !imageRef.current) return;
+    if (!imageFile || !imageRef.current) {
+      console.log('ProfileImageCrop: Missing imageFile or imageRef', { imageFile, imageRef: imageRef.current });
+      return;
+    }
 
     const img = imageRef.current;
     const reader = new FileReader();
     
     reader.onload = (e) => {
+      console.log('ProfileImageCrop: FileReader loaded', e.target?.result ? 'success' : 'failed');
       img.onload = () => {
+        console.log('ProfileImageCrop: Image loaded successfully', { width: img.naturalWidth, height: img.naturalHeight });
         setImageLoaded(true);
         // Center the crop area
         const canvas = canvasRef.current;
@@ -49,14 +54,24 @@ export const ProfileImageCrop = ({ imageFile, isOpen, onClose, onCropComplete }:
           });
         }
       };
+      img.onerror = (error) => {
+        console.error('ProfileImageCrop: Image failed to load', error);
+      };
       img.src = e.target?.result as string;
     };
     
+    reader.onerror = (error) => {
+      console.error('ProfileImageCrop: FileReader error', error);
+    };
+    
+    console.log('ProfileImageCrop: Starting to read file', { fileName: imageFile.name, fileSize: imageFile.size, fileType: imageFile.type });
     reader.readAsDataURL(imageFile);
   }, [imageFile]);
 
   useEffect(() => {
     if (isOpen && imageFile) {
+      console.log('ProfileImageCrop: useEffect triggered', { isOpen, imageFile: imageFile?.name });
+      setImageLoaded(false); // Reset the state
       loadImage();
     }
   }, [isOpen, imageFile, loadImage]);

@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ProfileImageCrop } from "./ProfileImageCrop";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface ProfileImageUploadProps {
   currentImageUrl?: string | null;
@@ -27,6 +28,7 @@ export const ProfileImageUpload = ({
   const [isCropOpen, setIsCropOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const queryClient = useQueryClient();
 
   const sizeClasses = {
     sm: "w-8 h-8",
@@ -117,6 +119,11 @@ export const ProfileImageUpload = ({
 
       onImageChange(publicUrl);
       
+      // Refresh all related queries to update UI
+      queryClient.invalidateQueries({ queryKey: ["care_group", groupId] });
+      queryClient.invalidateQueries({ queryKey: ["care_group_header", groupId] });
+      queryClient.invalidateQueries({ queryKey: ["care_group_name", groupId] });
+      
       toast({
         title: "Success",
         description: "Profile picture updated successfully"
@@ -159,6 +166,11 @@ export const ProfileImageUpload = ({
       if (updateError) throw updateError;
 
       onImageChange(null);
+      
+      // Refresh all related queries to update UI
+      queryClient.invalidateQueries({ queryKey: ["care_group", groupId] });
+      queryClient.invalidateQueries({ queryKey: ["care_group_header", groupId] });
+      queryClient.invalidateQueries({ queryKey: ["care_group_name", groupId] });
       
       toast({
         title: "Success",

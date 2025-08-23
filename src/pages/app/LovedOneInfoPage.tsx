@@ -172,12 +172,9 @@ export default function LovedOneInfoPage() {
                     recipientName={data?.name}
                     groupId={groupId!}
                     onImageChange={(url) => {
-                      // Update form field
+                      // Update form field but don't trigger form save
                       form.setValue('profile_picture_url', url || '');
-                      // Refresh all related queries to update UI
-                      queryClient.invalidateQueries({ queryKey: ["care_group", groupId] });
-                      queryClient.invalidateQueries({ queryKey: ["care_group_header", groupId] });
-                      queryClient.invalidateQueries({ queryKey: ["care_group_name", groupId] });
+                      // Don't invalidate queries here since ProfileImageUpload handles the database update
                     }}
                   />
                 </div>
