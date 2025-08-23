@@ -38,7 +38,6 @@ import { softDeleteEntity } from "@/lib/delete/rpc";
 const contactSchema = z.object({
   is_organization: z.boolean().default(false),
   title: z.string().optional(),
-  custom_title: z.string().optional(),
   first_name: z.string().min(1, "First name is required"),
   last_name: z.string().optional(),
   organization_name: z.string().optional(),
@@ -160,7 +159,6 @@ export function ContactModal({ contact, isOpen, onClose, groupId }: ContactModal
     defaultValues: {
       is_organization: false,
       title: "",
-      custom_title: "",
       first_name: "",
       last_name: "",
       organization_name: "",
@@ -208,7 +206,6 @@ export function ContactModal({ contact, isOpen, onClose, groupId }: ContactModal
         const formData: ContactFormData = {
           is_organization: !!contact.organization_name,
           title: contact.title || "",
-          custom_title: "",
           first_name: contact.first_name || "",
           last_name: contact.last_name || "",
           organization_name: contact.organization_name || "",
@@ -241,7 +238,6 @@ export function ContactModal({ contact, isOpen, onClose, groupId }: ContactModal
         form.reset({
           is_organization: false,
           title: "",
-          custom_title: "",
           first_name: "",
           last_name: "",
           organization_name: "",
@@ -276,8 +272,8 @@ export function ContactModal({ contact, isOpen, onClose, groupId }: ContactModal
     mutationFn: async (data: ContactFormData) => {
       if (!user || !groupId) throw new Error("Not authenticated or no group");
 
-      // Get the final title value
-      const finalTitle = data.title === "other" ? data.custom_title : data.title;
+      // Get the final title value - no more custom title support
+      const finalTitle = data.title || null;
 
       const contactData = {
         care_group_id: groupId,
@@ -340,8 +336,8 @@ export function ContactModal({ contact, isOpen, onClose, groupId }: ContactModal
     mutationFn: async (data: ContactFormData) => {
       if (!contact) throw new Error("No contact to update");
 
-      // Get the final title value
-      const finalTitle = data.title === "other" ? data.custom_title : data.title;
+      // Get the final title value - no more custom title support
+      const finalTitle = data.title || null;
 
       const contactData = {
         title: finalTitle || null,
@@ -549,46 +545,65 @@ export function ContactModal({ contact, isOpen, onClose, groupId }: ContactModal
                   {/* Title Field for Persons */}
                   {!isOrganization && (
                     <div className="space-y-4">
-                      <FormField
-                        control={form.control}
-                        name="title"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Title</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value || ""}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select title" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {TITLE_OPTIONS.map((title) => (
-                                  <SelectItem key={title.value} value={title.value}>
-                                    {title.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      
-                      {selectedTitle === "other" && (
-                        <FormField
-                          control={form.control}
-                          name="custom_title"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Custom Title</FormLabel>
-                              <FormControl>
-                                <Input placeholder="Enter custom title" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      )}
+                      {/* Combined Title, First Name, Last Name Row */}
+                      <div className="grid grid-cols-12 gap-4">
+                        <div className="col-span-2">
+                          <FormField
+                            control={form.control}
+                            name="title"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Title</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value || ""}>
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Title" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {TITLE_OPTIONS.map((title) => (
+                                      <SelectItem key={title.value} value={title.value}>
+                                        {title.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        <div className="col-span-5">
+                          <FormField
+                            control={form.control}
+                            name="first_name"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>First Name *</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Enter first name" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        <div className="col-span-5">
+                          <FormField
+                            control={form.control}
+                            name="last_name"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Last Name</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Enter last name" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      </div>
                     </div>
                   )}
                   
@@ -607,34 +622,8 @@ export function ContactModal({ contact, isOpen, onClose, groupId }: ContactModal
                       )}
                     />
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="first_name"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>First Name *</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Enter first name" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="last_name"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Last Name</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Enter last name" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
+                    // Empty div since name fields are now combined with title above
+                    <></>
                   )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
