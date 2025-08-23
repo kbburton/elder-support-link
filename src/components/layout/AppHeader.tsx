@@ -9,6 +9,8 @@ import { Search } from "lucide-react";
 import { debounce } from "@/utils/debounce";
 import { UserMenu } from "@/components/navigation/UserMenu";
 import { useDemo } from "@/hooks/useDemo";
+import { ProfileImageUpload } from "@/components/profile/ProfileImageUpload";
+import { useQuery } from "@tanstack/react-query";
 
 const AppHeader = () => {
   const navigate = useNavigate();
@@ -16,6 +18,22 @@ const AppHeader = () => {
   // Don't use invalid groupId values
   const currentId = (groupId && groupId !== ':groupId' && groupId !== 'undefined') ? groupId : "demo";
   const { isDemo } = useDemo();
+
+  // Fetch care group data for profile picture
+  const { data: careGroup } = useQuery({
+    queryKey: ["care_group_header", currentId],
+    enabled: !!currentId && currentId !== "demo" && currentId !== ':groupId' && currentId !== 'undefined' && !isDemo,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("care_groups")
+        .select("name, profile_picture_url, gender")
+        .eq("id", currentId)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+  });
 
   const [groups, setGroups] = useState<{ id: string; name: string; memberCount: number; taskCount: number }[]>([]);
   const [userName, setUserName] = useState<string>("");
@@ -196,6 +214,16 @@ const AppHeader = () => {
     <header className="h-14 flex items-center border-b px-4 gap-3">
       <SidebarTrigger className="ml-0" />
       <div className="flex items-center gap-2">
+        {careGroup && (
+          <ProfileImageUpload
+            currentImageUrl={careGroup.profile_picture_url}
+            gender={careGroup.gender}
+            recipientName={careGroup.name}
+            groupId={currentId}
+            onImageChange={() => {}} // Read-only in header
+            size="sm"
+          />
+        )}
         <div className="h-6 w-6 rounded-md shadow-glow" style={{ background: "var(--gradient-primary)" }} />
         <span className="font-medium">DaveAssist{userName ? ` — ${userName}` : ""}</span>
       </div>

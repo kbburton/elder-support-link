@@ -612,6 +612,7 @@ export type Database = {
           created_at: string
           created_by_user_id: string
           date_of_birth: string | null
+          gender: string | null
           hearing: string | null
           id: string
           living_situation: string | null
@@ -621,6 +622,7 @@ export type Database = {
           name: string
           other_important_information: string | null
           profile_description: string | null
+          profile_picture_url: string | null
           recipient_address: string | null
           recipient_city: string | null
           recipient_email: string | null
@@ -637,6 +639,7 @@ export type Database = {
           created_at?: string
           created_by_user_id: string
           date_of_birth?: string | null
+          gender?: string | null
           hearing?: string | null
           id?: string
           living_situation?: string | null
@@ -646,6 +649,7 @@ export type Database = {
           name: string
           other_important_information?: string | null
           profile_description?: string | null
+          profile_picture_url?: string | null
           recipient_address?: string | null
           recipient_city?: string | null
           recipient_email?: string | null
@@ -662,6 +666,7 @@ export type Database = {
           created_at?: string
           created_by_user_id?: string
           date_of_birth?: string | null
+          gender?: string | null
           hearing?: string | null
           id?: string
           living_situation?: string | null
@@ -671,6 +676,7 @@ export type Database = {
           name?: string
           other_important_information?: string | null
           profile_description?: string | null
+          profile_picture_url?: string | null
           recipient_address?: string | null
           recipient_city?: string | null
           recipient_email?: string | null

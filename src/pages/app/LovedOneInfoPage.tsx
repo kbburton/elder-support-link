@@ -2,19 +2,23 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import SEO from "@/components/layout/SEO";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ProfileImageUpload } from "@/components/profile/ProfileImageUpload";
 
 const GroupSchema = z.object({
   name: z.string().min(1, "Name is required"),
+  recipient_first_name: z.string().optional(),
+  recipient_last_name: z.string().optional(),
   recipient_address: z.string().optional(),
   recipient_city: z.string().optional(),
   recipient_state: z.string().optional(),
@@ -24,6 +28,8 @@ const GroupSchema = z.object({
   date_of_birth: z.string().optional(),
   profile_description: z.string().optional(),
   other_important_information: z.string().optional(),
+  gender: z.string().optional(),
+  profile_picture_url: z.string().optional(),
 });
 
 type GroupFormValues = z.infer<typeof GroupSchema>;
@@ -31,6 +37,7 @@ type GroupFormValues = z.infer<typeof GroupSchema>;
 export default function LovedOneInfoPage() {
   const { groupId } = useParams();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   console.log('LovedOneInfoPage - Component loaded, groupId:', groupId);
 
@@ -38,6 +45,8 @@ export default function LovedOneInfoPage() {
     resolver: zodResolver(GroupSchema),
     defaultValues: {
       name: "",
+      recipient_first_name: "",
+      recipient_last_name: "",
       recipient_address: "",
       recipient_city: "",
       recipient_state: "",
@@ -47,6 +56,8 @@ export default function LovedOneInfoPage() {
       date_of_birth: "",
       profile_description: "",
       other_important_information: "",
+      gender: "",
+      profile_picture_url: "",
     },
   });
 
@@ -56,11 +67,9 @@ export default function LovedOneInfoPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("care_groups")
-        .select(
-          "name, recipient_address, recipient_city, recipient_state, recipient_zip, recipient_phone, recipient_email, date_of_birth, profile_description, other_important_information"
-        )
+        .select("*")
         .eq("id", groupId)
-        .single();
+        .maybeSingle();
       if (error) throw error;
       return data as GroupFormValues;
     },
@@ -70,15 +79,19 @@ export default function LovedOneInfoPage() {
     if (data) {
       form.reset({
         name: data.name ?? "",
+        recipient_first_name: data.recipient_first_name ?? "",
+        recipient_last_name: data.recipient_last_name ?? "",
         recipient_address: data.recipient_address ?? "",
         recipient_city: data.recipient_city ?? "",
         recipient_state: data.recipient_state ?? "",
         recipient_zip: data.recipient_zip ?? "",
         recipient_phone: data.recipient_phone ?? "",
-        recipient_email: (data as any).recipient_email ?? "",
+        recipient_email: data.recipient_email ?? "",
         date_of_birth: data.date_of_birth ?? "",
         profile_description: data.profile_description ?? "",
-        other_important_information: (data as any).other_important_information ?? "",
+        other_important_information: data.other_important_information ?? "",
+        gender: data.gender ?? "",
+        profile_picture_url: data.profile_picture_url ?? "",
       });
     }
   }, [data, form]);
@@ -93,6 +106,11 @@ export default function LovedOneInfoPage() {
       if (error) throw error;
     },
     onSuccess: () => {
+      // Invalidate related queries
+      queryClient.invalidateQueries({ queryKey: ["care_group", groupId] });
+      queryClient.invalidateQueries({ queryKey: ["care_group_header", groupId] });
+      queryClient.invalidateQueries({ queryKey: ["care_group_name", groupId] });
+      
       toast({ title: "Saved", description: "Care recipient information updated successfully." });
     },
     onError: (err: any) => {
@@ -125,6 +143,47 @@ export default function LovedOneInfoPage() {
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              {/* Profile Picture and Gender Section */}
+              <div className="flex items-start gap-6 mb-6 p-4 bg-muted/20 rounded-lg">
+                <div>
+                  <FormLabel className="text-base font-medium mb-2 block">Profile Picture</FormLabel>
+                  <ProfileImageUpload
+                    currentImageUrl={data?.profile_picture_url}
+                    gender={data?.gender}
+                    recipientName={data?.name}
+                    groupId={groupId!}
+                    onImageChange={(url) => {
+                      form.setValue('profile_picture_url', url || '');
+                    }}
+                  />
+                </div>
+                
+                <div className="flex-1 max-w-xs">
+                  <FormField
+                    control={form.control}
+                    name="gender"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Gender</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select gender (optional)" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="male">Male</SelectItem>
+                            <SelectItem value="female">Female</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+
               <FormField
                 control={form.control}
                 name="name"
@@ -138,6 +197,36 @@ export default function LovedOneInfoPage() {
                   </FormItem>
                 )}
               />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="recipient_first_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>First Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="First name" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="recipient_last_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Last Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Last name" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
