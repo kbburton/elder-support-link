@@ -54,11 +54,24 @@ export const ProfileImageUpload = ({
   };
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('ProfileImageUpload: handleFileSelect triggered');
     const file = event.target.files?.[0];
-    if (!file) return;
+    
+    if (!file) {
+      console.log('ProfileImageUpload: No file selected');
+      return;
+    }
+
+    console.log('ProfileImageUpload: File selected', {
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      lastModified: file.lastModified
+    });
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
+      console.log('ProfileImageUpload: Invalid file type:', file.type);
       toast({
         title: "Invalid file type",
         description: "Please select an image file",
@@ -69,6 +82,7 @@ export const ProfileImageUpload = ({
 
     // Validate file size (5MB max)
     if (file.size > 5 * 1024 * 1024) {
+      console.log('ProfileImageUpload: File too large:', file.size);
       toast({
         title: "File too large",
         description: "Please select an image smaller than 5MB",
@@ -77,9 +91,14 @@ export const ProfileImageUpload = ({
       return;
     }
 
-    // Make sure we're passing the actual file object
+    console.log('ProfileImageUpload: Setting selectedFile and opening crop modal');
     setSelectedFile(file);
     setIsCropOpen(true);
+    
+    // Log to verify the file is still there after state update
+    setTimeout(() => {
+      console.log('ProfileImageUpload: selectedFile state after update:', selectedFile?.name);
+    }, 100);
   };
 
   const handleCropComplete = async (croppedFile: File) => {
@@ -205,9 +224,14 @@ export const ProfileImageUpload = ({
         {size === "lg" && (
           <div className="flex gap-2">
             <Button
+              type="button"
               variant="outline"
               size="sm"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={(e) => {
+                e.preventDefault();
+                console.log('ProfileImageUpload: Upload button clicked');
+                fileInputRef.current?.click();
+              }}
               disabled={uploading}
             >
               <Camera className="h-4 w-4 mr-2" />
@@ -216,9 +240,14 @@ export const ProfileImageUpload = ({
             
             {currentImageUrl && (
               <Button
+                type="button"
                 variant="outline"
                 size="sm"
-                onClick={handleRemoveImage}
+                onClick={(e) => {
+                  e.preventDefault();
+                  console.log('ProfileImageUpload: Remove button clicked');
+                  handleRemoveImage();
+                }}
                 disabled={uploading}
               >
                 Remove
@@ -240,6 +269,7 @@ export const ProfileImageUpload = ({
         imageFile={selectedFile}
         isOpen={isCropOpen}
         onClose={() => {
+          console.log('ProfileImageUpload: Crop modal closing');
           setIsCropOpen(false);
           setSelectedFile(null);
         }}
