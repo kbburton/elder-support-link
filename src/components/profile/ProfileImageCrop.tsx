@@ -16,6 +16,14 @@ export const ProfileImageCrop = ({ imageFile, isOpen, onClose, onCropComplete }:
   const [cropArea, setCropArea] = useState({ x: 0, y: 0, size: 200 });
   const [imageLoaded, setImageLoaded] = useState(false);
 
+  console.log('ProfileImageCrop: Component render', { 
+    hasImageFile: !!imageFile, 
+    fileName: imageFile?.name,
+    isOpen,
+    imageLoaded,
+    cropArea
+  });
+
   const loadImage = useCallback(() => {
     if (!imageFile || !imageRef.current) {
       console.log('ProfileImageCrop: Missing imageFile or imageRef', { 
@@ -189,9 +197,26 @@ export const ProfileImageCrop = ({ imageFile, isOpen, onClose, onCropComplete }:
   };
 
   const handleCrop = () => {
+    console.log('ProfileImageCrop: handleCrop called', { 
+      hasImageFile: !!imageFile,
+      imageLoaded,
+      hasCanvas: !!canvasRef.current,
+      hasImageRef: !!imageRef.current,
+      cropArea 
+    });
+    
     const canvas = canvasRef.current;
     const img = imageRef.current;
-    if (!canvas || !img) return;
+    
+    if (!canvas || !img || !imageFile || !imageLoaded) {
+      console.error('ProfileImageCrop: Missing required elements for crop', {
+        hasCanvas: !!canvas,
+        hasImageRef: !!img, 
+        hasImageFile: !!imageFile,
+        imageLoaded
+      });
+      return;
+    }
 
     // Create a new canvas for the cropped image
     const cropCanvas = document.createElement('canvas');
@@ -232,8 +257,15 @@ export const ProfileImageCrop = ({ imageFile, isOpen, onClose, onCropComplete }:
     // Convert to blob and create file
     cropCanvas.toBlob((blob) => {
       if (blob) {
-        const croppedFile = new File([blob], 'profile-picture.jpg', { type: 'image/jpeg' });
+        console.log('ProfileImageCrop: Blob created successfully', { size: blob.size });
+        const croppedFile = new File([blob], 'profile-picture.jpg', { 
+          type: 'image/jpeg',
+          lastModified: Date.now()
+        });
+        console.log('ProfileImageCrop: Calling onCropComplete with file:', croppedFile.name);
         onCropComplete(croppedFile);
+      } else {
+        console.error('ProfileImageCrop: Failed to create blob from canvas');
       }
     }, 'image/jpeg', 0.9);
   };
@@ -315,10 +347,14 @@ export const ProfileImageCrop = ({ imageFile, isOpen, onClose, onCropComplete }:
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={onClose} type="button">
             Cancel
           </Button>
-          <Button onClick={handleCrop}>
+          <Button 
+            onClick={handleCrop} 
+            disabled={!imageLoaded}
+            type="button"
+          >
             Crop & Save
           </Button>
         </DialogFooter>

@@ -119,7 +119,17 @@ export const ProfileImageUpload = ({
   };
 
   const handleCropComplete = async (croppedFile: File) => {
-    console.log('ProfileImageUpload: handleCropComplete called', { fileName: croppedFile.name });
+    console.log('ProfileImageUpload: handleCropComplete called', { 
+      fileName: croppedFile.name,
+      hasSelectedFile: !!selectedFile,
+      isCropOpen 
+    });
+    
+    if (!croppedFile || croppedFile.size === 0) {
+      console.error('ProfileImageUpload: Invalid cropped file received');
+      return;
+    }
+    
     setIsCropOpen(false);
     setUploading(true);
 
