@@ -126,11 +126,20 @@ export function AppointmentListView({ groupId, onEdit }: AppointmentListViewProp
       getBadgeVariant: (value) => value ? "secondary" : "outline"
     },
     {
-      key: "location",
-      label: "Location",
+      key: "street_address",
+      label: "Address",
       sortable: true,
       filterable: true,
-      type: "text"
+      type: "text",
+      render: (row) => {
+        const addressParts = [
+          row.street_address,
+          row.city,
+          row.state,
+          row.zip_code
+        ].filter(Boolean);
+        return addressParts.length > 0 ? addressParts.join(', ') : '';
+      }
     },
     {
       key: "duration_minutes",

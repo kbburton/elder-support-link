@@ -39,12 +39,25 @@ import { AssociationManager } from "@/components/shared/AssociationManager";
 import { useDemoOperations } from "@/hooks/useDemoOperations";
 import { softDeleteEntity } from "@/lib/delete/rpc";
 
+const US_STATES = [
+  "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
+  "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
+  "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
+  "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
+  "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"
+];
+
 interface Appointment {
   id: string;
   description?: string;
   date_time: string;
   duration_minutes?: number;
-  location?: string;
+  street_address?: string;
+  street_address_2?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
+  transportation_information?: string;
   category?: string;
   outcome_notes?: string;
 }
@@ -64,7 +77,12 @@ export function EnhancedAppointmentModal({
 }: EnhancedAppointmentModalProps) {
   const [formData, setFormData] = useState({
     description: "",
-    location: "",
+    street_address: "",
+    street_address_2: "",
+    city: "",
+    state: "",
+    zip_code: "",
+    transportation_information: "",
     category: "",
     duration_minutes: 60,
     outcome_notes: "",
@@ -82,7 +100,12 @@ export function EnhancedAppointmentModal({
       const appointmentDate = new Date(appointment.date_time);
       setFormData({
         description: appointment.description || "",
-        location: appointment.location || "",
+        street_address: appointment.street_address || "",
+        street_address_2: appointment.street_address_2 || "",
+        city: appointment.city || "",
+        state: appointment.state || "",
+        zip_code: appointment.zip_code || "",
+        transportation_information: appointment.transportation_information || "",
         category: appointment.category || "",
         duration_minutes: appointment.duration_minutes || 60,
         outcome_notes: appointment.outcome_notes || "",
@@ -92,7 +115,12 @@ export function EnhancedAppointmentModal({
     } else {
       setFormData({
         description: "",
-        location: "",
+        street_address: "",
+        street_address_2: "",
+        city: "",
+        state: "",
+        zip_code: "",
+        transportation_information: "",
         category: "",
         duration_minutes: 60,
         outcome_notes: "",
@@ -356,13 +384,75 @@ export function EnhancedAppointmentModal({
                 </div>
               </div>
 
-              <div>
-                <Label htmlFor="location">Location</Label>
-                <Input
-                  id="location"
-                  value={formData.location}
-                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                />
+              {/* Address */}
+              <div className="space-y-4">
+                <h4 className="text-sm font-medium text-muted-foreground">Address</h4>
+                <div>
+                  <Label htmlFor="street_address">Street Address</Label>
+                  <Input
+                    id="street_address"
+                    placeholder="Street address"
+                    value={formData.street_address}
+                    onChange={(e) => setFormData({ ...formData, street_address: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="street_address_2">Street Address 2</Label>
+                  <Input
+                    id="street_address_2"
+                    placeholder="Apartment, suite, etc."
+                    value={formData.street_address_2}
+                    onChange={(e) => setFormData({ ...formData, street_address_2: e.target.value })}
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <Label htmlFor="city">City</Label>
+                    <Input
+                      id="city"
+                      placeholder="City"
+                      value={formData.city}
+                      onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="state">State</Label>
+                    <Select
+                      value={formData.state}
+                      onValueChange={(value) => setFormData({ ...formData, state: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="State" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {US_STATES.map((state) => (
+                          <SelectItem key={state} value={state}>
+                            {state}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="zip_code">ZIP Code</Label>
+                    <Input
+                      id="zip_code"
+                      placeholder="12345"
+                      value={formData.zip_code}
+                      onChange={(e) => setFormData({ ...formData, zip_code: e.target.value })}
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <Label htmlFor="transportation_information">Transportation Information</Label>
+                  <Input
+                    id="transportation_information"
+                    placeholder="Transportation details..."
+                    value={formData.transportation_information}
+                    onChange={(e) => setFormData({ ...formData, transportation_information: e.target.value })}
+                  />
+                </div>
               </div>
             </div>
 

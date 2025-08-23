@@ -46,7 +46,12 @@ type AppointmentRow = {
   date_time: string;
   duration_minutes: number | null;
   description: string | null;
-  location: string | null;
+  street_address: string | null;
+  street_address_2: string | null;
+  city: string | null;
+  state: string | null;
+  zip_code: string | null;
+  transportation_information: string | null;
   category: string | null;
   created_by_email: string | null;
 };
@@ -121,7 +126,7 @@ export default function SharedCalendar(props: SharedCalendarProps) {
       }
       const { data, error } = await supabase
         .from("appointments")
-        .select("id, group_id, date_time, duration_minutes, description, location, category, created_by_email")
+        .select("id, group_id, date_time, duration_minutes, description, street_address, street_address_2, city, state, zip_code, transportation_information, category, created_by_email")
         .eq("group_id", groupId)
         .eq("is_deleted", false)
         .gte("date_time", start.toISOString())

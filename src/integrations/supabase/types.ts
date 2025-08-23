@@ -448,6 +448,7 @@ export type Database = {
         Row: {
           attending_user_id: string | null
           category: string | null
+          city: string | null
           created_at: string
           created_by_email: string | null
           created_by_user_id: string | null
@@ -460,13 +461,18 @@ export type Database = {
           group_id: string | null
           id: string
           is_deleted: boolean
-          location: string | null
           outcome_notes: string | null
           reminder_days_before: number | null
+          state: string | null
+          street_address: string | null
+          street_address_2: string | null
+          transportation_information: string | null
+          zip_code: string | null
         }
         Insert: {
           attending_user_id?: string | null
           category?: string | null
+          city?: string | null
           created_at?: string
           created_by_email?: string | null
           created_by_user_id?: string | null
@@ -479,13 +485,18 @@ export type Database = {
           group_id?: string | null
           id?: string
           is_deleted?: boolean
-          location?: string | null
           outcome_notes?: string | null
           reminder_days_before?: number | null
+          state?: string | null
+          street_address?: string | null
+          street_address_2?: string | null
+          transportation_information?: string | null
+          zip_code?: string | null
         }
         Update: {
           attending_user_id?: string | null
           category?: string | null
+          city?: string | null
           created_at?: string
           created_by_email?: string | null
           created_by_user_id?: string | null
@@ -498,9 +509,13 @@ export type Database = {
           group_id?: string | null
           id?: string
           is_deleted?: boolean
-          location?: string | null
           outcome_notes?: string | null
           reminder_days_before?: number | null
+          state?: string | null
+          street_address?: string | null
+          street_address_2?: string | null
+          transportation_information?: string | null
+          zip_code?: string | null
         }
         Relationships: [
           {

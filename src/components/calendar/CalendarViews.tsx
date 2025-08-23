@@ -15,7 +15,13 @@ interface CalendarEvent {
   status?: string;
   isCompleted: boolean;
   isOverdue: boolean;
-  location?: string;
+  location?: {
+    street_address?: string;
+    street_address_2?: string;
+    city?: string;
+    state?: string;
+    zip_code?: string;
+  };
   description?: string;
   createdBy?: string;
   isRecurring?: boolean;
@@ -274,25 +280,24 @@ function DayView({ selectedDate, events, onNavigatePrevious, onNavigateNext, gro
             <div className="space-y-3">
               {dayEvents.map(event => (
                 <div key={event.id} data-calendar-item-id={event.id}>
-                  <CalendarItem
-                    entityType={event.entityType}
-                    id={event.id}
-                    title={event.title}
-                    startTime={event.startTime?.toISOString()}
-                    dueDate={event.dueDate?.toISOString().split('T')[0]}
-                    category={event.category}
-                    isCompleted={event.isCompleted}
-                    isOverdue={event.isOverdue}
-                    isRecurring={event.isRecurring}
-                    status={event.status}
-                    primaryOwnerName={event.primaryOwnerName}
-                    secondaryOwnerName={event.secondaryOwnerName}
-                    onClick={() => onItemClick?.(event)}
-                    size="large"
-                    showDetails={true}
-                    location={event.location}
-                    created_by_email={event.createdBy}
-                  />
+                   <CalendarItem
+                     entityType={event.entityType}
+                     id={event.id}
+                     title={event.title}
+                     startTime={event.startTime?.toISOString()}
+                     dueDate={event.dueDate?.toISOString().split('T')[0]}
+                     category={event.category}
+                     isCompleted={event.isCompleted}
+                     isOverdue={event.isOverdue}
+                     isRecurring={event.isRecurring}
+                     status={event.status}
+                     primaryOwnerName={event.primaryOwnerName}
+                     secondaryOwnerName={event.secondaryOwnerName}
+                     onClick={() => onItemClick?.(event)}
+                     size="large"
+                     showDetails={true}
+                     created_by_email={event.createdBy}
+                   />
                 </div>
               ))}
             </div>
@@ -325,25 +330,24 @@ function ListView({ events, groupId, onItemClick }: { events: CalendarEvent[]; g
             <div className="space-y-3">
               {sortedEvents.map(event => (
                 <div key={event.id} data-calendar-item-id={event.id}>
-                  <CalendarItem
-                    entityType={event.entityType}
-                    id={event.id}
-                    title={event.title}
-                    startTime={event.startTime?.toISOString()}
-                    dueDate={event.dueDate?.toISOString().split('T')[0]}
-                    category={event.category}
-                    isCompleted={event.isCompleted}
-                    isOverdue={event.isOverdue}
-                    isRecurring={event.isRecurring}
-                    status={event.status}
-                    primaryOwnerName={event.primaryOwnerName}
-                    secondaryOwnerName={event.secondaryOwnerName}
-                    onClick={() => onItemClick?.(event)}
-                    size="large"
-                    showDetails={true}
-                    location={event.location}
-                    created_by_email={event.createdBy}
-                  />
+                   <CalendarItem
+                     entityType={event.entityType}
+                     id={event.id}
+                     title={event.title}
+                     startTime={event.startTime?.toISOString()}
+                     dueDate={event.dueDate?.toISOString().split('T')[0]}
+                     category={event.category}
+                     isCompleted={event.isCompleted}
+                     isOverdue={event.isOverdue}
+                     isRecurring={event.isRecurring}
+                     status={event.status}
+                     primaryOwnerName={event.primaryOwnerName}
+                     secondaryOwnerName={event.secondaryOwnerName}
+                     onClick={() => onItemClick?.(event)}
+                     size="large"
+                     showDetails={true}
+                     created_by_email={event.createdBy}
+                   />
                 </div>
               ))}
             </div>

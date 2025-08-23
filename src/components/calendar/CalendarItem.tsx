@@ -13,7 +13,13 @@ export type CalendarItemProps = {
   isCompleted?: boolean;
   isOverdue?: boolean;
   isRecurring?: boolean;
-  location?: string | null;
+  location?: {
+    street_address?: string | null;
+    street_address_2?: string | null;
+    city?: string | null;
+    state?: string | null;
+    zip_code?: string | null;
+  } | null;
   created_by_email?: string | null;
   status?: string;
   primaryOwnerName?: string;
@@ -121,7 +127,16 @@ export function CalendarItem({
     
     // Location for appointments
     if (location) {
-      parts.push(`📍 ${location}`);
+      const addressParts = [
+        location.street_address,
+        location.city,
+        location.state,
+        location.zip_code
+      ].filter(Boolean);
+      
+      if (addressParts.length > 0) {
+        parts.push(`📍 ${addressParts.join(', ')}`);
+      }
     }
     
     // Owners
@@ -234,7 +249,12 @@ export function CalendarItem({
       {/* Location for appointments */}
       {location && showDetails && (
         <div className="text-[10px] opacity-75 mt-1 ml-4 truncate">
-          {location}
+          {[
+            location.street_address,
+            location.city,
+            location.state,
+            location.zip_code
+          ].filter(Boolean).join(', ')}
         </div>
       )}
 
