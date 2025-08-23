@@ -107,6 +107,14 @@ export const ProfileImageUpload = ({
         .from('profile-pictures')
         .getPublicUrl(uploadData.path);
 
+      // Save directly to database
+      const { error: updateError } = await supabase
+        .from('care_groups')
+        .update({ profile_picture_url: publicUrl })
+        .eq('id', groupId);
+
+      if (updateError) throw updateError;
+
       onImageChange(publicUrl);
       
       toast({
@@ -141,6 +149,14 @@ export const ProfileImageUpload = ({
           .from('profile-pictures')
           .remove([`${groupId}/${path}`]);
       }
+
+      // Remove from database
+      const { error: updateError } = await supabase
+        .from('care_groups')
+        .update({ profile_picture_url: null })
+        .eq('id', groupId);
+
+      if (updateError) throw updateError;
 
       onImageChange(null);
       

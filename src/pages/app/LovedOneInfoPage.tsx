@@ -99,9 +99,28 @@ export default function LovedOneInfoPage() {
   const saveMutation = useMutation({
     mutationFn: async (values: GroupFormValues) => {
       if (!groupId) throw new Error("Missing group id");
+      
+      // Clean up the data - convert empty strings to null for optional fields
+      const cleanedValues = {
+        ...values,
+        date_of_birth: values.date_of_birth || null,
+        recipient_email: values.recipient_email || null,
+        recipient_first_name: values.recipient_first_name || null,
+        recipient_last_name: values.recipient_last_name || null,
+        recipient_address: values.recipient_address || null,
+        recipient_city: values.recipient_city || null,
+        recipient_state: values.recipient_state || null,
+        recipient_zip: values.recipient_zip || null,
+        recipient_phone: values.recipient_phone || null,
+        profile_description: values.profile_description || null,
+        other_important_information: values.other_important_information || null,
+        gender: values.gender || null,
+        profile_picture_url: values.profile_picture_url || null,
+      };
+      
       const { error } = await supabase
         .from("care_groups")
-        .update(values)
+        .update(cleanedValues)
         .eq("id", groupId);
       if (error) throw error;
     },
@@ -153,7 +172,12 @@ export default function LovedOneInfoPage() {
                     recipientName={data?.name}
                     groupId={groupId!}
                     onImageChange={(url) => {
+                      // Update form field
                       form.setValue('profile_picture_url', url || '');
+                      // Refresh all related queries to update UI
+                      queryClient.invalidateQueries({ queryKey: ["care_group", groupId] });
+                      queryClient.invalidateQueries({ queryKey: ["care_group_header", groupId] });
+                      queryClient.invalidateQueries({ queryKey: ["care_group_name", groupId] });
                     }}
                   />
                 </div>
