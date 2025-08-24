@@ -357,9 +357,10 @@ async function basicVirusScan(fileBuffer: ArrayBuffer): Promise<{ safe: boolean;
                   (bytes[0] === 0x89 && bytes[1] === 0x50) || // PNG
                   (bytes[0] === 0x47 && bytes[1] === 0x49) || // GIF
                   (bytes[8] === 0x57 && bytes[9] === 0x45);   // WebP
+  const isOfficeDoc = (bytes[0] === 0x50 && bytes[1] === 0x4B); // ZIP-based Office documents
   
-  // For PDFs and images, be more lenient as they can legitimately contain binary data
-  if (isPdf || isImage) {
+  // For PDFs, images, and Office documents, be more lenient as they can legitimately contain binary data
+  if (isPdf || isImage || isOfficeDoc) {
     // Only check for obvious executable patterns, not just MZ headers
     let suspiciousExecutableCount = 0;
     
