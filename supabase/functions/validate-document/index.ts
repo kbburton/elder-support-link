@@ -16,10 +16,15 @@ const FILE_LIMITS = {
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/msword', // Legacy .doc files
+    'application/vnd.ms-excel', // Legacy .xls files
+    'application/vnd.ms-powerpoint', // Legacy .ppt files
     'text/plain',
     'image/jpeg',
+    'image/jpg', // Some systems use this
     'image/png',
-    'image/webp'
+    'image/webp',
+    'image/gif'
   ],
   
   BLOCKED_TYPES: [
@@ -41,7 +46,7 @@ const FILE_LIMITS = {
   ],
   
   ALLOWED_EXTENSIONS: [
-    '.pdf', '.docx', '.xlsx', '.pptx', '.txt', '.jpg', '.jpeg', '.png', '.webp'
+    '.pdf', '.docx', '.xlsx', '.pptx', '.doc', '.xls', '.ppt', '.txt', '.jpg', '.jpeg', '.png', '.webp', '.gif'
   ]
 };
 
@@ -97,19 +102,18 @@ serve(async (req) => {
     const validation = await validateFile(fileBuffer, document.file_type, document.original_filename, document.file_size);
     
     if (!validation.isValid) {
-      // Mark document as failed and delete file
-      await supabaseClient
-        .from('documents')
-        .update({ 
-          processing_status: 'failed',
-          summary: `Validation failed: ${validation.message}`
-        })
-        .eq('id', documentId);
-
+      console.log(`Validation failed for document ${documentId}: ${validation.message}`);
+      
       // Delete the file from storage
       await supabaseClient.storage
         .from('documents')
         .remove([document.file_url.split('/').pop() || '']);
+
+      // Delete the document record from database
+      await supabaseClient
+        .from('documents')
+        .delete()
+        .eq('id', documentId);
 
       return new Response(
         JSON.stringify({ error: validation.message, blocked: true }),
@@ -120,18 +124,18 @@ serve(async (req) => {
     // Optional: Basic virus scanning using file signatures
     const virusScanResult = await basicVirusScan(fileBuffer);
     if (!virusScanResult.safe) {
-      // Mark document as failed and delete file
-      await supabaseClient
-        .from('documents')
-        .update({ 
-          processing_status: 'failed',
-          summary: `Security scan failed: ${virusScanResult.message}`
-        })
-        .eq('id', documentId);
-
+      console.log(`Security scan failed for document ${documentId}: ${virusScanResult.message}`);
+      
+      // Delete the file from storage
       await supabaseClient.storage
         .from('documents')
         .remove([document.file_url.split('/').pop() || '']);
+
+      // Delete the document record from database
+      await supabaseClient
+        .from('documents')
+        .delete()
+        .eq('id', documentId);
 
       return new Response(
         JSON.stringify({ error: virusScanResult.message, blocked: true }),
@@ -230,6 +234,12 @@ function detectFileType(bytes: Uint8Array): string | null {
     return 'image/jpeg';
   }
   
+  // GIF
+  if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && 
+      (bytes[3] === 0x38 && (bytes[4] === 0x37 || bytes[4] === 0x39))) {
+    return 'image/gif';
+  }
+  
   // WebP
   if (bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) {
     return 'image/webp';
@@ -271,14 +281,48 @@ function isTypeCompatible(detected: string, declared: string): boolean {
   // Exact match
   if (detected === declared) return true;
   
-  // Category matching
+  // Create mapping for user-friendly names to MIME types
+  const friendlyNameToMimeType: Record<string, string[]> = {
+    'PDF Document': ['application/pdf'],
+    'PDF': ['application/pdf'],
+    'Word Document': ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+    'DOCX': ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+    'Excel Spreadsheet': ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+    'XLSX': ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+    'PowerPoint Presentation': ['application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+    'PPTX': ['application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+    'Text Document': ['text/plain'],
+    'TXT': ['text/plain'],
+    'JPG Image': ['image/jpeg'],
+    'JPEG Image': ['image/jpeg'],
+    'JPG/JPEG Image': ['image/jpeg'],
+    'PNG Image': ['image/png'],
+    'WebP Image': ['image/webp'],
+    'GIF Image': ['image/gif'],
+    // Common variations
+    'image/jpg': ['image/jpeg'],
+    'image/pjpeg': ['image/jpeg']
+  };
+
+  // Check if declared type is a friendly name
+  if (friendlyNameToMimeType[declared]) {
+    return friendlyNameToMimeType[declared].includes(detected);
+  }
+  
+  // Category matching (image/*, application/*, etc.)
   const detectedCategory = detected.split('/')[0];
   const declaredCategory = declared.split('/')[0];
   
   if (detectedCategory === declaredCategory) return true;
   
-  // Special cases for Office formats
+  // Special cases for Office formats - any Office format should match any other
   if (detected.includes('openxmlformats') && declared.includes('openxmlformats')) {
+    return true;
+  }
+  
+  // Handle common JPEG variations
+  if ((detected === 'image/jpeg' || detected === 'image/jpg') && 
+      (declared === 'image/jpeg' || declared === 'image/jpg' || declared === 'image/pjpeg')) {
     return true;
   }
   

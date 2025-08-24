@@ -188,27 +188,44 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
             console.warn(`File type enhancement failed for ${file.name}:`, error);
           }
 
-          // Process document with AI (don't await to avoid blocking)  
+          // Process document with AI - this includes validation
           try {
             const { data: processResult, error: processError } = await supabase.functions.invoke('process-document', {
               body: { documentId: documentData.id }
             });
             
             if (processError) {
-              console.error(`AI processing failed for ${file.name}:`, processError);
-              // Update document to show processing failed
+              console.error(`Document processing failed for ${file.name}:`, processError);
+              
+              // If validation failed, the document was already deleted by the edge function
+              if (processError.message?.includes('validation failed') || processError.message?.includes('blocked')) {
+                throw new Error(`${file.name}: ${processError.message}`);
+              }
+              
+              // For other errors, just mark as failed
               await supabase
                 .from('documents')
                 .update({ processing_status: 'failed' })
                 .eq('id', documentData.id);
             }
           } catch (error) {
-            console.error(`AI processing error for ${file.name}:`, error);
-            // Update document to show processing failed
-            await supabase
-              .from('documents')
-              .update({ processing_status: 'failed' })
-              .eq('id', documentData.id);
+            console.error(`Document processing error for ${file.name}:`, error);
+            
+            // If it's a validation error, re-throw to show user
+            if (error instanceof Error && (error.message.includes('validation failed') || error.message.includes('blocked'))) {
+              throw error;
+            }
+            
+            // For other errors, just mark as failed
+            try {
+              await supabase
+                .from('documents')
+                .update({ processing_status: 'failed' })
+                .eq('id', documentData.id);
+            } catch (updateError) {
+              // Document might have been deleted due to validation failure
+              console.warn('Could not update document status:', updateError);
+            }
           }
 
         } catch (fileError) {
