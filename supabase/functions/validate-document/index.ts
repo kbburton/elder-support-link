@@ -285,17 +285,17 @@ function isTypeCompatible(detected: string, declared: string): boolean {
   const friendlyNameToMimeType: Record<string, string[]> = {
     'PDF Document': ['application/pdf'],
     'PDF': ['application/pdf'],
-    'Word Document': ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
-    'DOCX': ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
-    'Excel Spreadsheet': ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
-    'XLSX': ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
-    'PowerPoint Presentation': ['application/vnd.openxmlformats-officedocument.presentationml.presentation'],
-    'PPTX': ['application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+    'Word Document': ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword'],
+    'DOCX': ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword'],
+    'Excel Spreadsheet': ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'],
+    'XLSX': ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'],
+    'PowerPoint Presentation': ['application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/vnd.ms-powerpoint'],
+    'PPTX': ['application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/vnd.ms-powerpoint'],
     'Text Document': ['text/plain'],
     'TXT': ['text/plain'],
-    'JPG Image': ['image/jpeg'],
-    'JPEG Image': ['image/jpeg'],
-    'JPG/JPEG Image': ['image/jpeg'],
+    'JPG Image': ['image/jpeg', 'image/jpg'],
+    'JPEG Image': ['image/jpeg', 'image/jpg'],
+    'JPG/JPEG Image': ['image/jpeg', 'image/jpg'],
     'PNG Image': ['image/png'],
     'WebP Image': ['image/webp'],
     'GIF Image': ['image/gif'],
@@ -307,6 +307,13 @@ function isTypeCompatible(detected: string, declared: string): boolean {
   // Check if declared type is a friendly name
   if (friendlyNameToMimeType[declared]) {
     return friendlyNameToMimeType[declared].includes(detected);
+  }
+
+  // Reverse lookup - check if detected type maps to declared friendly name
+  for (const [friendlyName, mimeTypes] of Object.entries(friendlyNameToMimeType)) {
+    if (mimeTypes.includes(detected) && friendlyName === declared) {
+      return true;
+    }
   }
   
   // Category matching (image/*, application/*, etc.)
@@ -326,35 +333,69 @@ function isTypeCompatible(detected: string, declared: string): boolean {
     return true;
   }
   
+  // Handle PDF variations
+  if (detected === 'application/pdf' && 
+      (declared === 'PDF Document' || declared === 'PDF' || declared === 'application/pdf')) {
+    return true;
+  }
+  
   return false;
 }
 
 async function basicVirusScan(fileBuffer: ArrayBuffer): Promise<{ safe: boolean; message?: string }> {
   const bytes = new Uint8Array(fileBuffer);
   
-  // Check for common malware signatures (basic heuristics)
-  const malwareSignatures = [
-    // EICAR test string
-    [0x58, 0x35, 0x4F, 0x21, 0x50, 0x25, 0x40, 0x41, 0x50],
-    // Common shellcode patterns
-    [0x90, 0x90, 0x90, 0x90], // NOP sled
-  ];
+  // Check for EICAR test string (standard antivirus test)
+  const eicarSignature = [0x58, 0x35, 0x4F, 0x21, 0x50, 0x25, 0x40]; // X5O!P%@
+  if (containsSequence(bytes, eicarSignature)) {
+    return { safe: false, message: 'EICAR test file detected' };
+  }
   
-  for (const signature of malwareSignatures) {
-    if (containsSequence(bytes, signature)) {
-      return {
-        safe: false,
-        message: 'File contains suspicious patterns'
-      };
+  // Check file type to determine scan level
+  const isPdf = bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46; // %PDF
+  const isImage = (bytes[0] === 0xFF && bytes[1] === 0xD8) || // JPEG
+                  (bytes[0] === 0x89 && bytes[1] === 0x50) || // PNG
+                  (bytes[0] === 0x47 && bytes[1] === 0x49) || // GIF
+                  (bytes[8] === 0x57 && bytes[9] === 0x45);   // WebP
+  
+  // For PDFs and images, be more lenient as they can legitimately contain binary data
+  if (isPdf || isImage) {
+    // Only check for obvious executable patterns, not just MZ headers
+    let suspiciousExecutableCount = 0;
+    
+    // Look for PE signature pattern (more specific than just MZ)
+    for (let i = 0; i < bytes.length - 64; i += 1024) { // Sample every 1KB
+      if (bytes[i] === 0x4D && bytes[i + 1] === 0x5A) { // MZ
+        // Look for PE signature within reasonable distance
+        for (let j = i + 32; j < Math.min(i + 256, bytes.length - 4); j++) {
+          if (bytes[j] === 0x50 && bytes[j + 1] === 0x45 && bytes[j + 2] === 0x00 && bytes[j + 3] === 0x00) {
+            suspiciousExecutableCount++;
+            break;
+          }
+        }
+      }
+    }
+    
+    // Only flag if multiple PE executables found (reduces false positives)
+    if (suspiciousExecutableCount > 1) {
+      return { safe: false, message: 'File contains multiple embedded executables' };
+    }
+    
+  } else {
+    // For other file types, be more strict
+    if (containsSequence(bytes, [0x4D, 0x5A])) { // MZ header
+      return { safe: false, message: 'File contains embedded executable content' };
     }
   }
   
-  // Check for embedded executables in documents
-  if (containsSequence(bytes, [0x4D, 0x5A])) { // MZ header
-    return {
-      safe: false,
-      message: 'File contains embedded executable content'
-    };
+  // Check for obvious script injections
+  try {
+    const textContent = new TextDecoder('utf-8', { fatal: false }).decode(bytes).toLowerCase();
+    if (textContent.includes('javascript:') && textContent.includes('eval(')) {
+      return { safe: false, message: 'Potentially malicious JavaScript detected' };
+    }
+  } catch (e) {
+    // Ignore decode errors - file might be binary
   }
   
   return { safe: true };
