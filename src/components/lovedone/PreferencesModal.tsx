@@ -53,7 +53,7 @@ export const PreferencesModal: React.FC<PreferencesModalProps> = ({
       const { data, error } = await supabase
         .from("preferences")
         .select("*")
-        .eq("care_recipient_id", careRecipientId)
+        .eq("care_group_id", careRecipientId)
         .order("pinned", { ascending: false })
         .order("order_index", { ascending: true });
       if (error) throw error;
@@ -72,8 +72,8 @@ export const PreferencesModal: React.FC<PreferencesModalProps> = ({
 
   const addMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("preferences").insert({
-        care_recipient_id: careRecipientId,
+      const { error } = await (supabase as any).from("preferences").insert({
+        care_group_id: careRecipientId,
         type: form.type,
         text_value: form.text_value,
         category: form.category,

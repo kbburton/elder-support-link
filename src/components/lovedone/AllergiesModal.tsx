@@ -68,7 +68,7 @@ export const AllergiesModal: React.FC<AllergiesModalProps> = ({
 
   const addMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("allergies").insert({
+      const { error } = await (supabase as any).from("allergies").insert({
         care_group_id: careRecipientId,
         allergen: form.allergen,
         severity: form.severity,

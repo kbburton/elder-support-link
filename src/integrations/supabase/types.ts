@@ -2157,7 +2157,7 @@ export type Database = {
         Returns: unknown
       }
       can_access_group: {
-        Args: { group_id: string }
+        Args: { target_group_id: string }
         Returns: boolean
       }
       confirm_role_promotion: {

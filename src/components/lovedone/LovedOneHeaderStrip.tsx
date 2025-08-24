@@ -35,7 +35,7 @@ export const LovedOneHeaderStrip: React.FC<LovedOneHeaderStripProps> = ({
       const { data, error } = await supabase
         .from("allergies")
         .select("id, allergen, severity")
-        .eq("care_recipient_id", careRecipientId)
+        .eq("care_group_id", careRecipientId)
         .order("severity", { ascending: false });
       if (error) throw error;
       return data as { id: string; allergen: string; severity: string }[];
@@ -50,7 +50,7 @@ export const LovedOneHeaderStrip: React.FC<LovedOneHeaderStripProps> = ({
       const { data, error } = await supabase
         .from("preferences")
         .select("id, type, text_value, pinned")
-        .eq("care_recipient_id", careRecipientId)
+        .eq("care_group_id", careRecipientId)
         .order("pinned", { ascending: false })
         .order("updated_at", { ascending: false });
       if (error) throw error;
