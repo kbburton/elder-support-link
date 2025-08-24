@@ -147,6 +147,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "activity_logs_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "v_group_header"
+            referencedColumns: ["care_group_id"]
+          },
+          {
             foreignKeyName: "activity_logs_linked_appointment_id_fkey"
             columns: ["linked_appointment_id"]
             isOneToOne: false
@@ -166,6 +173,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "care_groups"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_activity_logs_group_id"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "v_group_header"
+            referencedColumns: ["care_group_id"]
           },
           {
             foreignKeyName: "fk_activity_logs_linked_appointment_id"
@@ -245,6 +259,66 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      allergies: {
+        Row: {
+          allergen: string
+          care_group_id: string
+          created_at: string
+          has_epipen: boolean
+          id: string
+          notes: string | null
+          reaction: string | null
+          severity: Database["public"]["Enums"]["allergy_severity"]
+          type: Database["public"]["Enums"]["allergy_type"]
+          updated_at: string
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          allergen: string
+          care_group_id: string
+          created_at?: string
+          has_epipen?: boolean
+          id?: string
+          notes?: string | null
+          reaction?: string | null
+          severity?: Database["public"]["Enums"]["allergy_severity"]
+          type?: Database["public"]["Enums"]["allergy_type"]
+          updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          allergen?: string
+          care_group_id?: string
+          created_at?: string
+          has_epipen?: boolean
+          id?: string
+          notes?: string | null
+          reaction?: string | null
+          severity?: Database["public"]["Enums"]["allergy_severity"]
+          type?: Database["public"]["Enums"]["allergy_type"]
+          updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "allergies_care_group_id_fkey"
+            columns: ["care_group_id"]
+            isOneToOne: false
+            referencedRelation: "care_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "allergies_care_group_id_fkey"
+            columns: ["care_group_id"]
+            isOneToOne: false
+            referencedRelation: "v_group_header"
+            referencedColumns: ["care_group_id"]
+          },
+        ]
       }
       analytics_data: {
         Row: {
@@ -525,6 +599,13 @@ export type Database = {
             referencedRelation: "care_groups"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "appointments_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "v_group_header"
+            referencedColumns: ["care_group_id"]
+          },
         ]
       }
       care_group_invitations: {
@@ -581,6 +662,13 @@ export type Database = {
             referencedRelation: "care_groups"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fk_invitations_group_id"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "v_group_header"
+            referencedColumns: ["care_group_id"]
+          },
         ]
       }
       care_group_members: {
@@ -618,6 +706,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "care_groups"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "care_group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "v_group_header"
+            referencedColumns: ["care_group_id"]
           },
         ]
       }
@@ -978,6 +1073,13 @@ export type Database = {
             referencedRelation: "care_groups"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "contacts_care_group_id_fkey"
+            columns: ["care_group_id"]
+            isOneToOne: false
+            referencedRelation: "v_group_header"
+            referencedColumns: ["care_group_id"]
+          },
         ]
       }
       deletion_audit: {
@@ -1186,6 +1288,13 @@ export type Database = {
             referencedRelation: "care_groups"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "documents_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "v_group_header"
+            referencedColumns: ["care_group_id"]
+          },
         ]
       }
       enhanced_audit_logs: {
@@ -1331,6 +1440,13 @@ export type Database = {
             referencedRelation: "care_groups"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "feedback_items_care_group_id_fkey"
+            columns: ["care_group_id"]
+            isOneToOne: false
+            referencedRelation: "v_group_header"
+            referencedColumns: ["care_group_id"]
+          },
         ]
       }
       group_access_logs: {
@@ -1362,6 +1478,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "care_groups"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_access_logs_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "v_group_header"
+            referencedColumns: ["care_group_id"]
           },
         ]
       }
@@ -1478,6 +1601,57 @@ export type Database = {
         }
         Relationships: []
       }
+      preferences: {
+        Row: {
+          care_group_id: string
+          category: Database["public"]["Enums"]["preference_category"]
+          created_at: string
+          id: string
+          order_index: number
+          pinned: boolean
+          text_value: string
+          type: Database["public"]["Enums"]["preference_type"]
+          updated_at: string
+        }
+        Insert: {
+          care_group_id: string
+          category?: Database["public"]["Enums"]["preference_category"]
+          created_at?: string
+          id?: string
+          order_index?: number
+          pinned?: boolean
+          text_value: string
+          type: Database["public"]["Enums"]["preference_type"]
+          updated_at?: string
+        }
+        Update: {
+          care_group_id?: string
+          category?: Database["public"]["Enums"]["preference_category"]
+          created_at?: string
+          id?: string
+          order_index?: number
+          pinned?: boolean
+          text_value?: string
+          type?: Database["public"]["Enums"]["preference_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "preferences_care_group_id_fkey"
+            columns: ["care_group_id"]
+            isOneToOne: false
+            referencedRelation: "care_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "preferences_care_group_id_fkey"
+            columns: ["care_group_id"]
+            isOneToOne: false
+            referencedRelation: "v_group_header"
+            referencedColumns: ["care_group_id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           address: string | null
@@ -1522,6 +1696,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "care_groups"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_last_active_group_id_fkey"
+            columns: ["last_active_group_id"]
+            isOneToOne: false
+            referencedRelation: "v_group_header"
+            referencedColumns: ["care_group_id"]
           },
         ]
       }
@@ -1917,6 +2098,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "tasks_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "v_group_header"
+            referencedColumns: ["care_group_id"]
+          },
+          {
             foreignKeyName: "tasks_primary_owner_id_fkey"
             columns: ["primary_owner_id"]
             isOneToOne: false
@@ -1934,7 +2122,24 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      v_group_header: {
+        Row: {
+          care_group_id: string | null
+          pinned_preferences: Json | null
+          top_allergy: string | null
+        }
+        Insert: {
+          care_group_id?: string | null
+          pinned_preferences?: never
+          top_allergy?: never
+        }
+        Update: {
+          care_group_id?: string | null
+          pinned_preferences?: never
+          top_allergy?: never
+        }
+        Relationships: []
+      }
     }
     Functions: {
       accept_invitation: {
@@ -1950,6 +2155,10 @@ export type Database = {
       build_weighted_tsv: {
         Args: { body_text?: string; snippet_text?: string; title_text?: string }
         Returns: unknown
+      }
+      can_access_group: {
+        Args: { group_id: string }
+        Returns: boolean
       }
       confirm_role_promotion: {
         Args: { p_token: string }
@@ -2298,6 +2507,8 @@ export type Database = {
       }
     }
     Enums: {
+      allergy_severity: "mild" | "moderate" | "severe" | "anaphylaxis"
+      allergy_type: "food" | "drug" | "environment" | "other"
       contact_type_enum: "medical" | "legal" | "family" | "friend" | "other"
       emergency_type_enum:
         | "medical"
@@ -2315,6 +2526,14 @@ export type Database = {
         | "wontfix"
       feedback_type_enum: "defect" | "feature"
       gender_enum: "female" | "male" | "x_or_other" | "prefer_not_to_say"
+      preference_category:
+        | "food"
+        | "activities"
+        | "people"
+        | "environment"
+        | "media"
+        | "other"
+      preference_type: "like" | "dislike"
       task_priority: "High" | "Medium" | "Low"
       task_status: "Open" | "InProgress" | "Completed"
     }
@@ -2444,6 +2663,8 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      allergy_severity: ["mild", "moderate", "severe", "anaphylaxis"],
+      allergy_type: ["food", "drug", "environment", "other"],
       contact_type_enum: ["medical", "legal", "family", "friend", "other"],
       emergency_type_enum: [
         "medical",
@@ -2463,6 +2684,15 @@ export const Constants = {
       ],
       feedback_type_enum: ["defect", "feature"],
       gender_enum: ["female", "male", "x_or_other", "prefer_not_to_say"],
+      preference_category: [
+        "food",
+        "activities",
+        "people",
+        "environment",
+        "media",
+        "other",
+      ],
+      preference_type: ["like", "dislike"],
       task_priority: ["High", "Medium", "Low"],
       task_status: ["Open", "InProgress", "Completed"],
     },
