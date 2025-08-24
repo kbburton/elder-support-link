@@ -51,7 +51,7 @@ export const AllergiesModal: React.FC<AllergiesModalProps> = ({
       const { data, error } = await supabase
         .from("allergies")
         .select("*")
-        .eq("care_recipient_id", careRecipientId)
+        .eq("care_group_id", careRecipientId)
         .order("severity", { ascending: false });
       if (error) throw error;
       return data ?? [];
@@ -69,7 +69,7 @@ export const AllergiesModal: React.FC<AllergiesModalProps> = ({
   const addMutation = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("allergies").insert({
-        care_recipient_id: careRecipientId,
+        care_group_id: careRecipientId,
         allergen: form.allergen,
         severity: form.severity,
         type: form.type,
