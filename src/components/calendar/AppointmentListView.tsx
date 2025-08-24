@@ -132,6 +132,7 @@ export function AppointmentListView({ groupId, onEdit }: AppointmentListViewProp
       filterable: true,
       type: "text",
       render: (row) => {
+        if (!row) return '';
         const addressParts = [
           row.street_address,
           row.city,
