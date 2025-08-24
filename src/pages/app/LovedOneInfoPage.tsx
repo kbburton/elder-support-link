@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,12 +8,28 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import SEO from "@/components/layout/SEO";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ProfileImageUpload } from "@/components/profile/ProfileImageUpload";
+import { LovedOneHeaderStrip } from "@/components/lovedone/LovedOneHeaderStrip";
+import { AllergiesModal } from "@/components/lovedone/AllergiesModal";
+import { PreferencesModal } from "@/components/lovedone/PreferencesModal";
 
 const GroupSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -24,7 +40,11 @@ const GroupSchema = z.object({
   recipient_state: z.string().optional(),
   recipient_zip: z.string().optional(),
   recipient_phone: z.string().optional(),
-  recipient_email: z.string().email("Invalid email address").optional().or(z.literal("")),
+  recipient_email: z
+    .string()
+    .email("Invalid email address")
+    .optional()
+    .or(z.literal("")),
   date_of_birth: z.string().optional(),
   living_situation: z.string().optional(),
   profile_description: z.string().optional(),
@@ -40,7 +60,9 @@ export default function LovedOneInfoPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  console.log('LovedOneInfoPage - Component loaded, groupId:', groupId);
+  // State for controlling the allergies and preferences modals
+  const [allergiesOpen, setAllergiesOpen] = useState(false);
+  const [preferencesOpen, setPreferencesOpen] = useState(false);
 
   const form = useForm<GroupFormValues>({
     resolver: zodResolver(GroupSchema),
@@ -117,7 +139,7 @@ export default function LovedOneInfoPage() {
   const saveMutation = useMutation({
     mutationFn: async (values: GroupFormValues) => {
       if (!groupId) throw new Error("Missing group id");
-      
+
       // Clean up the data - convert empty strings to null for optional fields
       const cleanedValues = {
         ...values,
@@ -131,11 +153,12 @@ export default function LovedOneInfoPage() {
         recipient_zip: values.recipient_zip || null,
         recipient_phone: values.recipient_phone || null,
         living_situation: values.living_situation || null,
-        other_important_information: values.other_important_information || null,
+        other_important_information:
+          values.other_important_information || null,
         gender: values.gender || null,
         profile_picture_url: values.profile_picture_url || null,
       };
-      
+
       const { error } = await supabase
         .from("care_groups")
         .update(cleanedValues)
@@ -147,31 +170,51 @@ export default function LovedOneInfoPage() {
       queryClient.invalidateQueries({ queryKey: ["care_group", groupId] });
       queryClient.invalidateQueries({ queryKey: ["care_group_header", groupId] });
       queryClient.invalidateQueries({ queryKey: ["care_group_name", groupId] });
-      
-      toast({ title: "Saved", description: "Care recipient information updated successfully." });
+
+      toast({
+        title: "Saved",
+        description: "Care recipient information updated successfully.",
+      });
     },
     onError: (err: any) => {
-      toast({ title: "Update failed", description: err.message ?? "Please try again.", variant: "destructive" });
+      toast({
+        title: "Update failed",
+        description: err.message ?? "Please try again.",
+        variant: "destructive",
+      });
     },
   });
 
   const onSubmit = (values: GroupFormValues) => saveMutation.mutate(values);
 
   // Get the first name from the care group name for the page title
-  const firstName = data?.name?.split(' ')[0] || 'Loved One';
+  const firstName = data?.name?.split(" ")[0] || "Loved One";
 
   return (
     <main>
       <SEO
         title={`${firstName} Info - Care recipient details`}
         description="View and update care recipient information including personal details, contact info, and important notes."
-        canonicalPath={typeof window !== "undefined" ? window.location.pathname : "/app/loved-one-info"}
+        canonicalPath={
+          typeof window !== "undefined"
+            ? window.location.pathname
+            : "/app/loved-one-info"
+        }
       />
 
       <header className="mb-6">
         <h1 className="text-2xl font-semibold">{firstName} Info</h1>
-        <p className="text-muted-foreground">Care recipient information and details.</p>
+        <p className="text-muted-foreground">
+          Care recipient information and details.
+        </p>
       </header>
+
+      {/* At-a-glance strip for allergies and preferences */}
+      <LovedOneHeaderStrip
+        careRecipientId={groupId ?? ""}
+        onOpenAllergies={() => setAllergiesOpen(true)}
+        onOpenPreferences={() => setPreferencesOpen(true)}
+      />
 
       <Card>
         <CardHeader>
@@ -179,11 +222,16 @@ export default function LovedOneInfoPage() {
         </CardHeader>
         <CardContent>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <form
+              onSubmit={form.handleSubmit(onSubmit)}
+              className="space-y-6"
+            >
               {/* Profile Picture and Gender Section */}
               <div className="flex items-start gap-6 mb-6 p-4 bg-muted/20 rounded-lg">
                 <div>
-                  <FormLabel className="text-base font-medium mb-2 block">Profile Picture</FormLabel>
+                  <FormLabel className="text-base font-medium mb-2 block">
+                    Profile Picture
+                  </FormLabel>
                   <ProfileImageUpload
                     currentImageUrl={data?.profile_picture_url}
                     gender={data?.gender}
@@ -191,12 +239,12 @@ export default function LovedOneInfoPage() {
                     groupId={groupId!}
                     onImageChange={(url) => {
                       // Update form field but don't trigger form save
-                      form.setValue('profile_picture_url', url || '');
+                      form.setValue("profile_picture_url", url || "");
                       // Don't invalidate queries here since ProfileImageUpload handles the database update
                     }}
                   />
                 </div>
-                
+
                 <div className="flex-1 max-w-xs">
                   <FormField
                     control={form.control}
@@ -204,7 +252,10 @@ export default function LovedOneInfoPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Gender</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                        >
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select gender (optional)" />
@@ -251,7 +302,7 @@ export default function LovedOneInfoPage() {
                     </FormItem>
                   )}
                 />
-                
+
                 <FormField
                   control={form.control}
                   name="recipient_last_name"
@@ -289,7 +340,11 @@ export default function LovedOneInfoPage() {
                     <FormItem>
                       <FormLabel>Email</FormLabel>
                       <FormControl>
-                        <Input type="email" placeholder="example@email.com" {...field} />
+                        <Input
+                          type="email"
+                          placeholder="example@email.com"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -317,7 +372,10 @@ export default function LovedOneInfoPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Living situation</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value}
+                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select living situation (optional)" />
@@ -382,7 +440,10 @@ export default function LovedOneInfoPage() {
                     <FormItem>
                       <FormLabel>Address</FormLabel>
                       <FormControl>
-                        <Input placeholder="620 East Highland" {...field} />
+                        <Input
+                          placeholder="620 East Highland"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -435,14 +496,26 @@ export default function LovedOneInfoPage() {
           </Form>
         </CardContent>
         <CardFooter>
-          <Button 
-            onClick={form.handleSubmit(onSubmit)} 
+          <Button
+            onClick={form.handleSubmit(onSubmit)}
             disabled={saveMutation.isPending || isLoading}
           >
             {saveMutation.isPending ? "Saving..." : "Save changes"}
           </Button>
         </CardFooter>
       </Card>
+
+      {/* Modals for editing allergies and preferences */}
+      <AllergiesModal
+        careRecipientId={groupId ?? ""}
+        isOpen={allergiesOpen}
+        onClose={() => setAllergiesOpen(false)}
+      />
+      <PreferencesModal
+        careRecipientId={groupId ?? ""}
+        isOpen={preferencesOpen}
+        onClose={() => setPreferencesOpen(false)}
+      />
     </main>
   );
 }
