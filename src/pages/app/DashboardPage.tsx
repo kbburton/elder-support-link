@@ -359,3 +359,165 @@ export default function DashboardPage() {
     queryFn: async (): Promise<TaskRow[]> => {
       const { data, error } = await supabase
         .from("tasks")
+        .select("id,title,due_date,status,priority,category,group_id,is_deleted")
+        .eq("group_id", groupId as string)
+        .eq("is_deleted", false)
+        .neq("status", "Completed")
+        .not("due_date", "is", null)
+        .lt("due_date", now.toISOString())
+        .order("due_date", { ascending: true })
+        .limit(20);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <SEO 
+        title={`Dashboard - ${groupName || 'Care Group'}`}
+        description="Manage tasks, appointments, and care coordination"
+      />
+      
+      {showWelcome && (
+        <GroupWelcomeModal
+          isOpen={showWelcome}
+          onClose={closeWelcome}
+          groupId={groupId || ""}
+          groupName={groupName}
+        />
+      )}
+
+      <div className="p-6 space-y-6 max-w-7xl mx-auto">
+        <header className="text-center space-y-4">
+          <h1 className="text-3xl font-bold text-gray-900">
+            {groupName ? `${groupName} Dashboard` : "Dashboard"}
+          </h1>
+          
+          <div className="flex justify-center gap-2">
+            {([7, 14, 30] as const).map((days) => (
+              <Pill
+                key={days}
+                active={timeframe === days}
+                onClick={() => setTimeframe(days)}
+              >
+                {days} days
+              </Pill>
+            ))}
+          </div>
+        </header>
+
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card title="Tasks Due Soon" className="bg-blue-50">
+            <div className="text-2xl font-bold text-blue-900">
+              {tasksDueSoon.length}
+            </div>
+          </Card>
+          <Card title="Overdue Tasks" className="bg-red-50">
+            <div className="text-2xl font-bold text-red-900">
+              {tasksOverdue.length}
+            </div>
+          </Card>
+          <Card title="Allergies" className="bg-amber-50">
+            <div className="text-2xl font-bold text-amber-900">
+              {allergies.length}
+            </div>
+          </Card>
+        </div>
+
+        {/* Quick Actions */}
+        <Card title="Quick Add" className="bg-green-50">
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={() => setTaskModal({ open: true, task: null })}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            >
+              <PlusCircle className="w-4 h-4" />
+              New Task
+            </button>
+            <button
+              onClick={() => setApptModal({ open: true, appointment: null })}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              <PlusCircle className="w-4 h-4" />
+              New Appointment
+            </button>
+            <button
+              onClick={() => setUploadModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+            >
+              <PlusCircle className="w-4 h-4" />
+              Upload Document
+            </button>
+          </div>
+        </Card>
+
+        {/* Recent Items */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card title="Tasks Due Soon">
+            <div className="space-y-2">
+              {tasksDueSoon.slice(0, 5).map((task) => (
+                <Row
+                  key={task.id}
+                  title={task.title}
+                  meta={task.due_date ? fmt(task.due_date) : ""}
+                  badge={<Chip tone={task.priority === "High" ? "danger" : "neutral"}>{task.priority}</Chip>}
+                  onClick={() => setTaskModal({ open: true, task })}
+                />
+              ))}
+              {tasksDueSoon.length === 0 && (
+                <p className="text-gray-500 text-center py-4">No tasks due soon</p>
+              )}
+            </div>
+          </Card>
+
+          <Card title="Overdue Tasks">
+            <div className="space-y-2">
+              {tasksOverdue.slice(0, 5).map((task) => (
+                <Row
+                  key={task.id}
+                  title={task.title}
+                  meta={task.due_date ? fmt(task.due_date) : ""}
+                  badge={<Chip tone="danger">Overdue</Chip>}
+                  onClick={() => setTaskModal({ open: true, task })}
+                />
+              ))}
+              {tasksOverdue.length === 0 && (
+                <p className="text-gray-500 text-center py-4">No overdue tasks</p>
+              )}
+            </div>
+          </Card>
+        </div>
+      </div>
+
+      {/* Modals */}
+      {taskModal.open && (
+        <EnhancedTaskModal
+          isOpen={taskModal.open}
+          onClose={() => setTaskModal({ open: false, task: null })}
+          task={taskModal.task}
+          groupId={groupId || ""}
+        />
+      )}
+
+      {apptModal.open && (
+        <EnhancedAppointmentModal
+          isOpen={apptModal.open}
+          onClose={() => setApptModal({ open: false, appointment: null })}
+          appointment={apptModal.appointment}
+          groupId={groupId || ""}
+        />
+      )}
+
+      {uploadModalOpen && (
+        <DocumentModal
+          isOpen={uploadModalOpen}
+          onClose={() => setUploadModalOpen(false)}
+          document={null}
+          groupId={groupId || ""}
+        />
+      )}
+    </div>
+  );
+}
