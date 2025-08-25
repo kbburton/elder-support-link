@@ -14,8 +14,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarFooter,
-  useSidebar,
 } from "@/components/ui/sidebar";
+import { useSidebar } from "@/components/ui/sidebar";
 import { UserMenu } from "@/components/navigation/UserMenu";
 import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
 import { useDemo } from "@/hooks/useDemo";
