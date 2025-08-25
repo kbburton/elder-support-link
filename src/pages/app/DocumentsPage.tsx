@@ -8,6 +8,7 @@ import SEO from "@/components/layout/SEO";
 import { DocumentUpload } from "@/components/documents/DocumentUpload";
 import { DocumentModal } from "@/components/documents/DocumentModal";
 import { DocumentAssociationsModal } from "@/components/documents/DocumentAssociationsModal";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { UnifiedTableView, TableColumn } from "@/components/shared/UnifiedTableView";
 import { Badge } from "@/components/ui/badge";
 import { format, formatDistanceToNow } from "date-fns";
@@ -405,15 +406,27 @@ export default function DocumentsPage() {
           )}
         />
 
-        {showUpload && (
-          <DocumentUpload
-            onUploadComplete={() => {
-              setShowUpload(false);
-              refetch();
-            }}
-            onClose={() => setShowUpload(false)}
-          />
-        )}
+        <Dialog open={showUpload} onOpenChange={setShowUpload}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Upload Documents</DialogTitle>
+              <DialogDescription>
+                Upload multiple documents to your care group. The modal will stay open until you close it.
+              </DialogDescription>
+            </DialogHeader>
+            <DocumentUpload
+              onUploadComplete={() => {
+                // Don't auto-close the modal to allow multiple uploads
+                refetch();
+                toast({
+                  title: "Upload Complete",
+                  description: "Document uploaded successfully. You can upload more documents or close this dialog.",
+                });
+              }}
+              onClose={() => setShowUpload(false)}
+            />
+          </DialogContent>
+        </Dialog>
 
         <DocumentModal
           document={selectedDocument}
