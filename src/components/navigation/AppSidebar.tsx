@@ -14,6 +14,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarFooter,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { UserMenu } from "@/components/navigation/UserMenu";
 import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
@@ -34,7 +35,7 @@ const mainItems = [
 
 export function AppSidebar() {
   const { groupId } = useParams();
-  const { state } = useSidebar();  // (assuming there's a useSidebar hook from context)
+  const { state } = useSidebar();
   const { isPlatformAdmin } = usePlatformAdmin();
   const { isDemo } = useDemo();
 

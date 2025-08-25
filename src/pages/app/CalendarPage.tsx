@@ -45,12 +45,20 @@ const CalendarPage = () => {
     <div className="container mx-auto p-4">
       <SEO title="Calendar - Care Coordination" description="View and manage care group calendar events" />
       {/* Calendar controls and tabs UI... */}
-      <Tabs defaultValue="month" value={activeView} onValueChange={(val) => setActiveView(val)}>
+      <Tabs defaultValue="month" value={activeView} onValueChange={(val) => setActiveView(val as "month" | "week" | "day" | "list")}>
         <TabsList>
-          {/* tab triggers for Month/Week/Day/List */}
+          <TabsTrigger value="month">Month</TabsTrigger>
+          <TabsTrigger value="week">Week</TabsTrigger>
+          <TabsTrigger value="day">Day</TabsTrigger>
+          <TabsTrigger value="list">List</TabsTrigger>
         </TabsList>
         <TabsContent value="month">
-          <SharedCalendar /* props... */ />
+          <SharedCalendar 
+            view={activeView}
+            selectedDate={selectedDate}
+            onSelectedDateChange={setSelectedDate}
+            groupId={groupId!}
+          />
         </TabsContent>
         <TabsContent value="list">
           <AppointmentListView groupId={groupId!} onEdit={(appointment) => { setSelectedAppointment(appointment); setShowAppointmentModal(true); }} />

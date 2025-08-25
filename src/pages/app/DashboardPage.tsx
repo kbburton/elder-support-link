@@ -159,7 +159,7 @@ export default function DashboardPage() {
       className="border border-input rounded px-2 py-1 text-sm"
       value={task.status}
       onChange={(e) => updateStatusMutation.mutate({ taskId: task.id, newStatus: e.target.value })}
-      disabled={updateStatusMutation.isLoading || updateStatusMutation.isPaused}
+      disabled={updateStatusMutation.isPending}
     >
       <option value="Open">Open</option>
       <option value="InProgress">In Progress</option>
