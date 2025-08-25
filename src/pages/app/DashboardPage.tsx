@@ -1,360 +1,361 @@
-// File: src/pages/app/DashboardPage.tsx
-import { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import React, { useMemo, useRef, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import {
+  CalendarDays,
+  FileText,
+  Users,
+  Activity as ActivityIcon,
+  LogIn as LogInIcon,
+  HeartPulse,
+  LayoutDashboard,
+  PlusCircle,
+  History,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import SEO from "@/components/layout/SEO";
-import { useToast } from "@/hooks/use-toast";
-import { useDemo } from "@/hooks/useDemo";
-import { useDemoTasks, useDemoAppointments } from "@/hooks/useDemoData";
-import { useDemoOperations } from "@/hooks/useDemoOperations";
-import { GroupWelcomeModal } from "@/components/welcome/GroupWelcomeModal";
-import { useGroupWelcome } from "@/hooks/useGroupWelcome";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { UnifiedTableView, TableColumn } from "@/components/shared/UnifiedTableView";
+
+// Edit modals (existing in your codebase, per your spec)
 import { EnhancedTaskModal } from "@/components/tasks/EnhancedTaskModal";
 import { EnhancedAppointmentModal } from "@/components/appointments/EnhancedAppointmentModal";
-import { LayoutDashboard } from "lucide-react";  // icon for header
-import { getPriorityBadgeVariant } from "@/utils/priorityUtils";  // helper for priority badge styling
+import { DocumentModal } from "@/components/documents/DocumentModal";
+import { ContactModal } from "@/components/contacts/ContactModal";
+import { ActivityModal } from "@/components/activities/ActivityModal";
+import { DocumentUpload } from "@/components/documents/DocumentUpload";
 
-export default function DashboardPage() {
-  const { groupId } = useParams<{ groupId: string }>();
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const { isDemo } = useDemo();
-  const { blockOperation } = useDemoOperations();
+// Welcome
+import { GroupWelcomeModal } from "@/components/welcome/GroupWelcomeModal";
+import { useGroupWelcome } from "@/hooks/useGroupWelcome";
 
-  // State for modals (selected item for viewing/editing and modal open flags)
-  const [selectedTask, setSelectedTask] = useState<any>(null);
-  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
-  const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
-  const [isApptModalOpen, setIsApptModalOpen] = useState(false);
+/**
+ * Dashboard (prototype-v2 parity)
+ * - 7/14/30 selector drives: Smart Summary counts, Activity (combined), Recent sections, and Upcoming window.
+ * - Activity + Upcoming side-by-side equal height.
+ * - Row 4: Recent Documents (emerald), Recent Contacts (amber), Recent Activity Logs (purple) — equal size, one row.
+ * - Logins (gray) is last, to the right of Quick Add.
+ * - All edit/create modals wired (open directly on the dashboard).
+ * - Uses your real schemas & field names from the JSON you shared.
+ */
 
-  // Fetch the care group name (for display and welcome message)
-  const [groupName, setGroupName] = useState("");
-  useEffect(() => {
-    // Load group name once groupId is available
-    const fetchGroupName = async () => {
-      if (!groupId || groupId === ":groupId" || groupId === "undefined") return;
-      try {
-        const { data: group, error } = await supabase
-          .from("care_groups")
-          .select("name")
-          .eq("id", groupId)
-          .single();
-        if (error) throw error;
-        if (group) setGroupName(group.name);
-      } catch (error) {
-        console.error("Error fetching group name:", error);
-      }
-    };
-    fetchGroupName();
-  }, [groupId]);
-
-  // Check if this is the first time user accesses this group
-  const { showWelcome, closeWelcome } = useGroupWelcome(groupId || "", groupName);
-
-  // Demo data hooks (for offline/demo mode, provide dummy data instead of real queries)
-  const demoTasks = useDemoTasks(groupId);
-  const demoAppointments = useDemoAppointments(groupId);
-
-  // Query: fetch up to 5 open (not completed) tasks for this group
-  const { data: realTasks = [], isLoading: realTasksLoading } = useQuery({
-    queryKey: ["dashboard-tasks", groupId],
-    enabled: !!groupId && groupId !== ":groupId" && groupId !== "undefined" && !isDemo,
-    queryFn: async () => {
-      if (!groupId || groupId === ":groupId" || groupId === "undefined") {
-        throw new Error("Invalid group ID");
-      }
-      const { data, error } = await supabase
-        .from("tasks")
-        .select(`
-          *,
-          primary_owner: profiles!tasks_primary_owner_id_fkey(first_name, last_name)
-        `)
-        .eq("group_id", groupId)
-        .eq("is_deleted", false)
-        .neq("status", "Completed")
-        .order("due_date", { ascending: true })
-        .order("created_at", { ascending: false })
-        .limit(5);
-      if (error) throw error;
-      return data || [];
-    }
-  });
-  // Use demo data if in demo mode, otherwise use fetched data
-  const tasks = isDemo && demoTasks.data ? demoTasks.data : realTasks;
-  const tasksLoading = isDemo ? false : realTasksLoading;
-
-  // Query: fetch up to 5 upcoming appointments for this group (date in the future)
-  const { data: realAppointments = [], isLoading: realApptLoading } = useQuery({
-    queryKey: ["dashboard-appointments", groupId],
-    enabled: !!groupId && groupId !== ":groupId" && groupId !== "undefined" && !isDemo,
-    queryFn: async () => {
-      if (!groupId || groupId === ":groupId" || groupId === "undefined") {
-        throw new Error("Invalid group ID");
-      }
-      const { data, error } = await supabase
-        .from("appointments")
-        .select("*")
-        .eq("group_id", groupId)
-        .eq("is_deleted", false)
-        .gte("date_time", new Date().toISOString())  // only future appointments
-        .order("date_time", { ascending: true })
-        .limit(5);
-      if (error) throw error;
-      return data || [];
-    }
-  });
-  const appointments = isDemo && demoAppointments.data ? demoAppointments.data : realAppointments;
-  const apptLoading = isDemo ? false : realApptLoading;
-
-  // Handle clicking an appointment row (open the appointment detail modal)
-  const handleEditAppointment = (appointment: any) => {
-    setSelectedAppointment(appointment);
-    setIsApptModalOpen(true);
-  };
-  // Handle clicking a task row (open the task detail modal)
-  const handleEditTask = (task: any) => {
-    setSelectedTask(task);
-    setIsTaskModalOpen(true);
-  };
-
-  // Mutation: update a task's status (e.g., mark as Completed or reopen)
-  const updateStatusMutation = useMutation({
-    mutationFn: async ({ taskId, newStatus }: { taskId: string; newStatus: string }) => {
-      if (blockOperation()) return; // Prevent changes in demo mode
-      // Get current user (to record who completed the task)
-      const { data: { user } } = await supabase.auth.getUser();
-      const updateData: any = { status: newStatus };
-      if (newStatus === "Completed" && user) {
-        // If completing the task, set completion metadata
-        updateData.completed_at = new Date().toISOString();
-        updateData.completed_by_user_id = user.id;
-        updateData.completed_by_email = user.email;
-      } else if (newStatus !== "Completed") {
-        // If reverting status, clear completion fields
-        updateData.completed_at = null;
-        updateData.completed_by_user_id = null;
-        updateData.completed_by_email = null;
-      }
-      const { error } = await supabase.from("tasks").update(updateData).eq("id", taskId);
-      if (error) throw error;
-      // Optionally, trigger reindexing (if search indexing is used in background)
-      try {
-        await supabase.rpc("reindex_row", { p_entity_type: "task", p_entity_id: taskId });
-      } catch (err) {
-        console.warn("Reindex trigger failed (non-critical):", err);
-      }
-      return { taskId, newStatus };
-    },
-    onSuccess: () => {
-      // Invalidate related queries to refresh data after status change
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["tasks-list"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-tasks"] });
-      toast({ title: "Status Updated", description: "Task status has been updated." });
-    },
-    onError: (error) => {
-      console.error("Status update failed:", error);
-      toast({ title: "Error", description: "Failed to update task status.", variant: "destructive" });
-    },
-  });
-
-  // A small component for rendering the status dropdown in the task table
-  const StatusDropdown = ({ task }: { task: any }) => (
-    <select
-      className="border border-input rounded px-2 py-1 text-sm"
-      value={task.status}
-      onChange={(e) => updateStatusMutation.mutate({ taskId: task.id, newStatus: e.target.value })}
-      disabled={updateStatusMutation.isPending}
-    >
-      <option value="Open">Open</option>
-      <option value="InProgress">In Progress</option>
-      <option value="Completed">Completed</option>
-    </select>
-  );
-
-  // Define table columns for the "Pending Tasks" table
-  const taskColumns: TableColumn[] = [
-    {
-      key: "status",
-      label: "Status",
-      sortable: true,
-      filterable: true,
-      // Render a dropdown to change status
-      render: (_, row) => <StatusDropdown task={row} />
-    },
-    {
-      key: "priority",
-      label: "Priority",
-      sortable: true,
-      filterable: true,
-      type: "badge",
-      // Use a helper to get the badge style based on priority (High/Medium/Low)
-      getBadgeVariant: getPriorityBadgeVariant
-    },
-    {
-      key: "title",
-      label: "Title",
-      sortable: true,
-      filterable: true,
-      type: "text"
-    },
-    {
-      key: "due_date",
-      label: "Due Date",
-      sortable: true,
-      type: "date"
-    },
-    {
-      key: "primary_owner",
-      label: "Assigned To",
-      sortable: false,
-      type: "text",
-      // Display the name of the primary owner (assignee) or a placeholder if none
-      render: (_value, row) => {
-        const profile = row.primary_owner;
-        if (!profile) return "-";
-        const name = [profile.first_name, profile.last_name].filter(Boolean).join(" ");
-        return name || "-";
-      }
-    }
-  ];
-
-  // Define table columns for the "Upcoming Appointments" table
-  const apptColumns: TableColumn[] = [
-    {
-      key: "description",
-      label: "Description",
-      sortable: true,
-      filterable: true,
-      type: "text"
-    },
-    {
-      key: "date_time",
-      label: "Date & Time",
-      sortable: true,
-      type: "datetime"
-    },
-    {
-      key: "category",
-      label: "Category",
-      sortable: true,
-      filterable: true,
-      type: "badge",
-      // Just use a secondary badge for any category (for now all categories get the same style)
-      getBadgeVariant: (value) => value ? "secondary" : "outline"
-    },
-    {
-      key: "location",
-      label: "Location",
-      sortable: true,
-      filterable: true,
-      type: "text",
-      // Combine location fields into one string for display
-      render: (_value, row) => {
-        if (!row) return "";
-        const parts = [row.street_address || row.location, row.city, row.state, row.zip_code].filter(Boolean);
-        return parts.length ? parts.join(", ") : "";
-      }
-    },
-    {
-      key: "duration_minutes",
-      label: "Duration",
-      sortable: true,
-      type: "text",
-      render: (value) => value ? `${value} min` : "-"
-    }
-  ];
-
-  // If for some reason groupId is missing (shouldn't happen in normal use since route requires it), show a placeholder
-  if (!groupId || groupId === ":groupId") {
-    return <div className="p-6 text-center">No group selected.</div>;
-  }
-
-  return (
-    <div className="container mx-auto p-4 space-y-6">
-      <SEO title="Dashboard - Care Coordination" description="Overview of your care group’s tasks and appointments" />
-      
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <LayoutDashboard className="h-8 w-8 text-primary" />
-          <div>
-            <h1 className="text-3xl font-bold">Dashboard</h1>
-            <p className="text-muted-foreground">
-              Overview of upcoming events and tasks for your care group
-            </p>
-          </div>
+/* ---------------- Small UI primitives to match the prototype ---------------- */
+const Card: React.FC<{
+  title?: React.ReactNode;
+  subtitle?: string;
+  right?: React.ReactNode;
+  className?: string;
+  bodyClassName?: string;
+  children: React.ReactNode;
+}> = ({ title, subtitle, right, className = "", bodyClassName = "", children }) => (
+  <section
+    className={`rounded-2xl border border-gray-200 shadow-sm ${className}`}
+    role="region"
+    aria-label={typeof title === "string" ? (title as string) : "card"}
+  >
+    {(title || right || subtitle) && (
+      <header className="flex items-start justify-between gap-3 border-b border-gray-100 px-4 py-3">
+        <div>
+          {title ? <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900">{title}</h2> : null}
+          {subtitle ? <p className="text-xs text-gray-600">{subtitle}</p> : null}
         </div>
-        {/* (We could add a global action button here if needed, e.g., "Add Task", but not required for now) */}
+        {right}
+      </header>
+    )}
+    <div className={`p-4 ${bodyClassName}`}>{children}</div>
+  </section>
+);
+
+const Chip: React.FC<{
+  tone?: "neutral" | "like" | "dislike" | "warn" | "danger" | "info";
+  children: React.ReactNode;
+}> = ({ tone = "neutral", children }) => {
+  const map: Record<string, string> = {
+    neutral: "bg-gray-100 text-gray-800",
+    like: "bg-emerald-100 text-emerald-900",
+    dislike: "bg-rose-100 text-rose-900",
+    warn: "bg-amber-100 text-amber-900",
+    danger: "bg-red-100 text-red-900",
+    info: "bg-sky-100 text-sky-900",
+  };
+  return <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${map[tone]}`}>{children}</span>;
+};
+
+const Pill: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean }> = ({
+  active,
+  className = "",
+  ...props
+}) => (
+  <button
+    {...props}
+    className={`rounded-full border px-3 py-1 text-sm outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600 ${
+      active ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-800 border-gray-300 hover:bg-gray-50"
+    } ${className}`}
+  />
+);
+
+const Row: React.FC<{ title: string; meta?: string; badge?: React.ReactNode; onClick?: () => void }> = ({
+  title,
+  meta,
+  badge,
+  onClick,
+}) => (
+  <button
+    onClick={onClick}
+    className="group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-2 py-2 text-left outline-offset-2 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600"
+    aria-label={`${title}${meta ? ", " + meta : ""}`}
+  >
+    <div className="truncate">
+      <div className="truncate text-sm text-gray-900">{title}</div>
+      {meta ? <div className="truncate text-xs text-gray-700">{meta}</div> : null}
+    </div>
+    {badge}
+  </button>
+);
+
+const Modal: React.FC<{
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+}> = ({ open, onClose, title, children }) => {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50" role="dialog" aria-modal>
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="absolute left-1/2 top-12 w-[min(90vw,1000px)] -translate-x-1/2 rounded-2xl bg-white shadow-2xl">
+        <header className="flex items-center justify-between gap-3 border-b px-5 py-3">
+          <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+          <button
+            onClick={onClose}
+            className="rounded-md px-3 py-1 text-sm text-gray-700 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600"
+            aria-label="Close"
+          >
+            Close
+          </button>
+        </header>
+        <div className="max-h-[70vh] overflow-auto p-5">{children}</div>
       </div>
-
-      {/* Upcoming Appointments Section */}
-      <div>
-        <h2 className="text-2xl font-semibold mb-2">Upcoming Appointments</h2>
-        <UnifiedTableView
-          title=""  // no internal title, we use our own heading above
-          data={appointments}
-          columns={apptColumns}
-          loading={apptLoading}
-          onEdit={handleEditAppointment}
-          entityType="appointment"
-          searchable={false}        // disable search in this small table view
-          emptyMessage="No upcoming appointments"
-          emptyDescription="Nothing scheduled for now."
-        />
-      </div>
-
-      {/* Pending Tasks Section */}
-      <div>
-        <h2 className="text-2xl font-semibold mb-2">Pending Tasks</h2>
-        <UnifiedTableView
-          title=""
-          data={tasks}
-          columns={taskColumns}
-          loading={tasksLoading}
-          onEdit={handleEditTask}
-          entityType="task"
-          searchable={false}
-          emptyMessage="No pending tasks"
-          emptyDescription="You're all caught up! No tasks need attention."
-        />
-      </div>
-
-      {/* Welcome Modal for first-time group access */}
-      <GroupWelcomeModal 
-        groupId={groupId}
-        groupName={groupName}
-        isOpen={showWelcome}
-        onClose={closeWelcome}
-      />
-
-      {/* Modals for viewing/editing appointments and tasks */}
-      <EnhancedAppointmentModal
-        isOpen={isApptModalOpen}
-        onClose={() => {
-          setIsApptModalOpen(false);
-          setSelectedAppointment(null);
-          // After closing, refresh appointments in case any were edited
-          queryClient.invalidateQueries({ queryKey: ["dashboard-appointments"] });
-        }}
-        appointment={selectedAppointment}
-        groupId={groupId}
-      />
-      <EnhancedTaskModal
-        isOpen={isTaskModalOpen}
-        onClose={() => {
-          setIsTaskModalOpen(false);
-          setSelectedTask(null);
-          // After closing, refresh tasks in case any changes occurred
-          queryClient.invalidateQueries({ queryKey: ["dashboard-tasks"] });
-        }}
-        task={selectedTask}
-        groupId={groupId}
-      />
     </div>
   );
-}
+};
+
+type Tint = "sky" | "indigo" | "emerald" | "amber" | "purple" | "gray";
+const tintClass: Record<Tint, string> = {
+  sky: "bg-sky-50 border-sky-200",
+  indigo: "bg-indigo-50 border-indigo-200",
+  emerald: "bg-emerald-50 border-emerald-200",
+  amber: "bg-amber-50 border-amber-200",
+  purple: "bg-purple-50 border-purple-200",
+  gray: "bg-gray-50 border-gray-200",
+};
+const CardWithTint: React.FC<React.ComponentProps<typeof Card> & { tint?: Tint }> = ({ tint, className, ...rest }) => (
+  <Card {...rest} className={`${className || ""} ${tint ? tintClass[tint] : ""}`} />
+);
+
+/* ---------------- Helpers ---------------- */
+const fmt = (iso?: string | null) =>
+  iso ? new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "";
+
+const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+const addDays = (base: Date, days: number) => {
+  const x = new Date(base);
+  x.setDate(x.getDate() + days);
+  return x;
+};
+
+/* ---------------- Local types (your app uses local interfaces) ---------------- */
+type TaskRow = {
+  id: string;
+  title: string;
+  due_date: string | null;
+  status: string;
+  priority: "High" | "Medium" | "Low" | string;
+  category?: string | null;
+  group_id: string;
+  is_deleted: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+type AppointmentRow = {
+  id: string;
+  description: string;
+  date_time: string;
+  duration_minutes: number | null;
+  category?: string | null;
+  group_id: string;
+  is_deleted: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+type DocumentRow = {
+  id: string;
+  title: string;
+  file_type?: string | null;
+  file_size?: number | null;
+  upload_date?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  group_id: string;
+  is_deleted: boolean;
+};
+
+type ContactRow = {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  organization_name: string | null;
+  contact_type?: string | null;
+  care_group_id: string;
+  is_deleted: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+type ActivityLogRow = {
+  id: string;
+  title: string;
+  type: string | null;
+  created_at: string;
+  created_by_user_id?: string | null;
+  created_by_email?: string | null;
+  group_id: string;
+  is_deleted: boolean;
+};
+
+type AllergyRow = {
+  id: string;
+  care_group_id: string;
+  allergen: string;
+  type: string | null;
+  severity: "anaphylaxis" | "severe" | "mild" | string | null;
+  has_epipen: boolean | null;
+};
+
+type PreferenceRow = {
+  id: string;
+  care_group_id: string;
+  type: "like" | "dislike" | string;
+  text_value: string;
+  category?: string | null;
+  pinned?: boolean | null;
+};
+
+type LoginRow = { user_id: string; name: string; email?: string; last_login?: string | null };
+
+/* ---------------- Component ---------------- */
+export default function DashboardPage() {
+  const { groupId } = useParams();
+  const navigate = useNavigate();
+
+  const [timeframe, setTimeframe] = useState<7 | 14 | 30>(14);
+  const [upcomingTab, setUpcomingTab] = useState<"appointments" | "tasks">("appointments");
+
+  // Section anchors for colored header chips
+  const refSummary = useRef<HTMLDivElement>(null);
+  const refHP = useRef<HTMLDivElement>(null);
+  const refActivity = useRef<HTMLDivElement>(null);
+  const refUpcoming = useRef<HTMLDivElement>(null);
+  const refDocs = useRef<HTMLDivElement>(null);
+  const refContacts = useRef<HTMLDivElement>(null);
+  const refActLogs = useRef<HTMLDivElement>(null);
+  const refLogins = useRef<HTMLDivElement>(null);
+  const refQuick = useRef<HTMLDivElement>(null);
+  const jump = (r?: React.RefObject<HTMLDivElement>) => r?.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  // Inline "More" modal
+  const [moreOpen, setMoreOpen] = useState<{ open: boolean; title: string; body?: React.ReactNode }>({
+    open: false,
+    title: "",
+  });
+
+  // Edit/Create modals
+  const [taskModal, setTaskModal] = useState<{ open: boolean; task: any | null }>({ open: false, task: null });
+  const [apptModal, setApptModal] = useState<{ open: boolean; appointment: any | null }>({ open: false, appointment: null });
+  const [docModal, setDocModal] = useState<{ open: boolean; document: any | null }>({ open: false, document: null });
+  const [contactModal, setContactModal] = useState<{ open: boolean; contact: any | null }>({ open: false, contact: null });
+  const [activityModal, setActivityModal] = useState<{ open: boolean; activity: any | null }>({ open: false, activity: null });
+  const [uploadModalOpen, setUploadModalOpen] = useState<boolean>(false);
+
+  // Group name + welcome
+  const [groupName, setGroupName] = useState<string>("");
+  React.useEffect(() => {
+    let ignore = false;
+    (async () => {
+      if (!groupId) return;
+      const { data, error } = await supabase.from("care_groups").select("name").eq("id", groupId).single();
+      if (!ignore && data?.name) setGroupName(data.name);
+      if (error) console.warn(error);
+    })();
+    return () => {
+      ignore = true;
+    };
+  }, [groupId]);
+  const { showWelcome, closeWelcome } = useGroupWelcome(groupId || "", groupName);
+
+  const now = new Date();
+  const since = useMemo(() => addDays(now, -timeframe), [timeframe]);
+  const soon = useMemo(() => addDays(now, timeframe), [timeframe]);
+
+  const enabled = !!groupId && groupId !== ":groupId";
+
+  /* ---------------- Queries ---------------- */
+
+  // Allergies (care_group_id)
+  const { data: allergies = [] } = useQuery({
+    queryKey: ["dash-allergies", groupId],
+    enabled,
+    queryFn: async (): Promise<AllergyRow[]> => {
+      const { data, error } = await supabase
+        .from("allergies")
+        .select("id,care_group_id,allergen,type,severity,has_epipen")
+        .eq("care_group_id", groupId as string)
+        .order("allergen", { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Preferences (care_group_id)
+  const { data: preferences = [] } = useQuery({
+    queryKey: ["dash-preferences", groupId],
+    enabled,
+    queryFn: async (): Promise<PreferenceRow[]> => {
+      const { data, error } = await supabase
+        .from("preferences")
+        .select("id,care_group_id,type,text_value,category,pinned")
+        .eq("care_group_id", groupId as string)
+        .order("pinned", { ascending: false })
+        .order("text_value", { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Tasks due soon / overdue (group_id)
+  const { data: tasksDueSoon = [] } = useQuery({
+    queryKey: ["dash-tasks-soon", groupId, timeframe],
+    enabled,
+    queryFn: async (): Promise<TaskRow[]> => {
+      const { data, error } = await supabase
+        .from("tasks")
+        .select("id,title,due_date,status,priority,category,group_id,is_deleted")
+        .eq("group_id", groupId as string)
+        .eq("is_deleted", false)
+        .neq("status", "Completed")
+        .not("due_date", "is", null)
+        .gte("due_date", now.toISOString())
+        .lte("due_date", soon.toISOString())
+        .order("due_date", { ascending: true })
+        .limit(50);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const { data: tasksOverdue = [] } = useQuery({
+    queryKey: ["dash-tasks-overdue", groupId],
+    enabled,
+    queryFn: async (): Promise<TaskRow[]> => {
+      const { data, error } = await supabase
+        .from("tasks")
