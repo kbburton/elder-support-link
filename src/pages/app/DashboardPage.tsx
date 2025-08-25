@@ -15,32 +15,35 @@ import { Badge } from "@/components/ui/badge";
 import { UnifiedTableView, TableColumn } from "@/components/shared/UnifiedTableView";
 import { EnhancedTaskModal } from "@/components/tasks/EnhancedTaskModal";
 import { EnhancedAppointmentModal } from "@/components/appointments/EnhancedAppointmentModal";
-import { LayoutDashboard, Calendar, ListTodo } from "lucide-react";  // icons used in headings (optional)
+import { LayoutDashboard } from "lucide-react";  // icon for header
+import { getPriorityBadgeVariant } from "@/utils/priorityUtils";  // helper for priority badge styling
 
 export default function DashboardPage() {
-  const { groupId } = useParams();
+  const { groupId } = useParams<{ groupId: string }>();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { isDemo } = useDemo();
   const { blockOperation } = useDemoOperations();
 
-  // State for modals and selected items
+  // State for modals (selected item for viewing/editing and modal open flags)
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
   const [isApptModalOpen, setIsApptModalOpen] = useState(false);
 
-  // Load group name and welcome modal logic for first-time access
+  // Fetch the care group name (for display and welcome message)
   const [groupName, setGroupName] = useState("");
   useEffect(() => {
+    // Load group name once groupId is available
     const fetchGroupName = async () => {
       if (!groupId || groupId === ":groupId" || groupId === "undefined") return;
       try {
-        const { data: group } = await supabase
+        const { data: group, error } = await supabase
           .from("care_groups")
           .select("name")
           .eq("id", groupId)
           .single();
+        if (error) throw error;
         if (group) setGroupName(group.name);
       } catch (error) {
         console.error("Error fetching group name:", error);
@@ -48,13 +51,15 @@ export default function DashboardPage() {
     };
     fetchGroupName();
   }, [groupId]);
+
+  // Check if this is the first time user accesses this group
   const { showWelcome, closeWelcome } = useGroupWelcome(groupId || "", groupName);
 
-  // Demo data hooks (if in demo mode, use predefined data instead of querying)
+  // Demo data hooks (for offline/demo mode, provide dummy data instead of real queries)
   const demoTasks = useDemoTasks(groupId);
   const demoAppointments = useDemoAppointments(groupId);
 
-  // Fetch open tasks (not Completed) for this group, limited to a few upcoming
+  // Query: fetch up to 5 open (not completed) tasks for this group
   const { data: realTasks = [], isLoading: realTasksLoading } = useQuery({
     queryKey: ["dashboard-tasks", groupId],
     enabled: !!groupId && groupId !== ":groupId" && groupId !== "undefined" && !isDemo,
@@ -78,10 +83,11 @@ export default function DashboardPage() {
       return data || [];
     }
   });
+  // Use demo data if in demo mode, otherwise use fetched data
   const tasks = isDemo && demoTasks.data ? demoTasks.data : realTasks;
   const tasksLoading = isDemo ? false : realTasksLoading;
 
-  // Fetch upcoming appointments (future appointments) for this group
+  // Query: fetch up to 5 upcoming appointments for this group (date in the future)
   const { data: realAppointments = [], isLoading: realApptLoading } = useQuery({
     queryKey: ["dashboard-appointments", groupId],
     enabled: !!groupId && groupId !== ":groupId" && groupId !== "undefined" && !isDemo,
@@ -94,7 +100,7 @@ export default function DashboardPage() {
         .select("*")
         .eq("group_id", groupId)
         .eq("is_deleted", false)
-        .gte("date_time", new Date().toISOString())
+        .gte("date_time", new Date().toISOString())  // only future appointments
         .order("date_time", { ascending: true })
         .limit(5);
       if (error) throw error;
@@ -104,44 +110,47 @@ export default function DashboardPage() {
   const appointments = isDemo && demoAppointments.data ? demoAppointments.data : realAppointments;
   const apptLoading = isDemo ? false : realApptLoading;
 
-  // Handle editing (viewing) an appointment
+  // Handle clicking an appointment row (open the appointment detail modal)
   const handleEditAppointment = (appointment: any) => {
     setSelectedAppointment(appointment);
     setIsApptModalOpen(true);
   };
-  // Handle editing a task
+  // Handle clicking a task row (open the task detail modal)
   const handleEditTask = (task: any) => {
     setSelectedTask(task);
     setIsTaskModalOpen(true);
   };
 
-  // Mutation to update task status (mark as completed, etc.) from the dashboard
+  // Mutation: update a task's status (e.g., mark as Completed or reopen)
   const updateStatusMutation = useMutation({
     mutationFn: async ({ taskId, newStatus }: { taskId: string; newStatus: string }) => {
-      if (blockOperation()) return; // Prevent updates in demo mode
+      if (blockOperation()) return; // Prevent changes in demo mode
+      // Get current user (to record who completed the task)
       const { data: { user } } = await supabase.auth.getUser();
       const updateData: any = { status: newStatus };
       if (newStatus === "Completed" && user) {
+        // If completing the task, set completion metadata
         updateData.completed_at = new Date().toISOString();
         updateData.completed_by_user_id = user.id;
         updateData.completed_by_email = user.email;
       } else if (newStatus !== "Completed") {
+        // If reverting status, clear completion fields
         updateData.completed_at = null;
         updateData.completed_by_user_id = null;
         updateData.completed_by_email = null;
       }
       const { error } = await supabase.from("tasks").update(updateData).eq("id", taskId);
       if (error) throw error;
-      // Optionally trigger search index update (if used in background)
+      // Optionally, trigger reindexing (if search indexing is used in background)
       try {
         await supabase.rpc("reindex_row", { p_entity_type: "task", p_entity_id: taskId });
       } catch (err) {
-        console.warn("Reindex trigger failed:", err);
+        console.warn("Reindex trigger failed (non-critical):", err);
       }
       return { taskId, newStatus };
     },
     onSuccess: () => {
-      // Refresh tasks queries to reflect updated status
+      // Invalidate related queries to refresh data after status change
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
       queryClient.invalidateQueries({ queryKey: ["tasks-list"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-tasks"] });
@@ -150,10 +159,10 @@ export default function DashboardPage() {
     onError: (error) => {
       console.error("Status update failed:", error);
       toast({ title: "Error", description: "Failed to update task status.", variant: "destructive" });
-    }
+    },
   });
 
-  // Render helper for status dropdown in task table
+  // A small component for rendering the status dropdown in the task table
   const StatusDropdown = ({ task }: { task: any }) => (
     <select
       className="border border-input rounded px-2 py-1 text-sm"
@@ -167,23 +176,14 @@ export default function DashboardPage() {
     </select>
   );
 
-  // Helper to style the priority badge colors
-  const getPriorityBadgeVariant = (priority?: string) => {
-    switch (priority) {
-      case "High": return "destructive";
-      case "Medium": return "default";
-      case "Low": return "secondary";
-      default: return "outline";
-    }
-  };
-
-  // Define table columns for tasks (open tasks preview)
+  // Define table columns for the "Pending Tasks" table
   const taskColumns: TableColumn[] = [
     {
       key: "status",
       label: "Status",
       sortable: true,
       filterable: true,
+      // Render a dropdown to change status
       render: (_, row) => <StatusDropdown task={row} />
     },
     {
@@ -192,6 +192,7 @@ export default function DashboardPage() {
       sortable: true,
       filterable: true,
       type: "badge",
+      // Use a helper to get the badge style based on priority (High/Medium/Low)
       getBadgeVariant: getPriorityBadgeVariant
     },
     {
@@ -212,7 +213,8 @@ export default function DashboardPage() {
       label: "Assigned To",
       sortable: false,
       type: "text",
-      render: (_, row) => {
+      // Display the name of the primary owner (assignee) or a placeholder if none
+      render: (_value, row) => {
         const profile = row.primary_owner;
         if (!profile) return "-";
         const name = [profile.first_name, profile.last_name].filter(Boolean).join(" ");
@@ -221,7 +223,7 @@ export default function DashboardPage() {
     }
   ];
 
-  // Define table columns for appointments (upcoming appointments preview)
+  // Define table columns for the "Upcoming Appointments" table
   const apptColumns: TableColumn[] = [
     {
       key: "description",
@@ -242,6 +244,7 @@ export default function DashboardPage() {
       sortable: true,
       filterable: true,
       type: "badge",
+      // Just use a secondary badge for any category (for now all categories get the same style)
       getBadgeVariant: (value) => value ? "secondary" : "outline"
     },
     {
@@ -250,8 +253,8 @@ export default function DashboardPage() {
       sortable: true,
       filterable: true,
       type: "text",
-      render: (value, row) => {
-        // Combine address fields if available
+      // Combine location fields into one string for display
+      render: (_value, row) => {
         if (!row) return "";
         const parts = [row.street_address || row.location, row.city, row.state, row.zip_code].filter(Boolean);
         return parts.length ? parts.join(", ") : "";
@@ -266,14 +269,15 @@ export default function DashboardPage() {
     }
   ];
 
+  // If for some reason groupId is missing (shouldn't happen in normal use since route requires it), show a placeholder
   if (!groupId || groupId === ":groupId") {
-    // If groupId is not provided in URL (unlikely in normal use), show a placeholder
     return <div className="p-6 text-center">No group selected.</div>;
   }
 
   return (
     <div className="container mx-auto p-4 space-y-6">
       <SEO title="Dashboard - Care Coordination" description="Overview of your care group’s tasks and appointments" />
+      
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -285,20 +289,20 @@ export default function DashboardPage() {
             </p>
           </div>
         </div>
-        {/* (Optional) Add any global action buttons here if needed */}
+        {/* (We could add a global action button here if needed, e.g., "Add Task", but not required for now) */}
       </div>
 
       {/* Upcoming Appointments Section */}
       <div>
         <h2 className="text-2xl font-semibold mb-2">Upcoming Appointments</h2>
         <UnifiedTableView
-          title=""  // no internal title since we use our own heading
+          title=""  // no internal title, we use our own heading above
           data={appointments}
           columns={apptColumns}
           loading={apptLoading}
           onEdit={handleEditAppointment}
           entityType="appointment"
-          searchable={false}
+          searchable={false}        // disable search in this small table view
           emptyMessage="No upcoming appointments"
           emptyDescription="Nothing scheduled for now."
         />
@@ -320,7 +324,7 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Welcome modal for first-time group access */}
+      {/* Welcome Modal for first-time group access */}
       <GroupWelcomeModal 
         groupId={groupId}
         groupName={groupName}
@@ -328,13 +332,13 @@ export default function DashboardPage() {
         onClose={closeWelcome}
       />
 
-      {/* Modals for editing/creating appointments and tasks */}
+      {/* Modals for viewing/editing appointments and tasks */}
       <EnhancedAppointmentModal
         isOpen={isApptModalOpen}
         onClose={() => {
           setIsApptModalOpen(false);
           setSelectedAppointment(null);
-          // Optionally refetch appointments list after any changes
+          // After closing, refresh appointments in case any were edited
           queryClient.invalidateQueries({ queryKey: ["dashboard-appointments"] });
         }}
         appointment={selectedAppointment}
@@ -345,6 +349,7 @@ export default function DashboardPage() {
         onClose={() => {
           setIsTaskModalOpen(false);
           setSelectedTask(null);
+          // After closing, refresh tasks in case any changes occurred
           queryClient.invalidateQueries({ queryKey: ["dashboard-tasks"] });
         }}
         task={selectedTask}
@@ -353,4 +358,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
