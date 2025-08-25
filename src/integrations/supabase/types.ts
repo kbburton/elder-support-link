@@ -1658,6 +1658,7 @@ export type Database = {
           created_at: string
           first_name: string | null
           last_active_group_id: string | null
+          last_login: string | null
           last_name: string | null
           phone: string | null
           state: string | null
@@ -1670,6 +1671,7 @@ export type Database = {
           created_at?: string
           first_name?: string | null
           last_active_group_id?: string | null
+          last_login?: string | null
           last_name?: string | null
           phone?: string | null
           state?: string | null
@@ -1682,6 +1684,7 @@ export type Database = {
           created_at?: string
           first_name?: string | null
           last_active_group_id?: string | null
+          last_login?: string | null
           last_name?: string | null
           phone?: string | null
           state?: string | null
