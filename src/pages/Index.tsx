@@ -29,7 +29,7 @@ const Index = () => {
       
       if (result.success) {
         setShowDemoModal(false);
-        navigate(`/app/${demoData.demoGroupId}/calendar`);
+        navigate(`/app/${demoData.demoGroupId}/dashboard`);
       } else {
         // Check if we need to redirect to landing page
         if (result.redirectToLanding) {
