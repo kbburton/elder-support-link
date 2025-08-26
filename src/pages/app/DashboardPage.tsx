@@ -1,43 +1,54 @@
-import React, { useMemo, useRef, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   CalendarDays,
+  CheckSquare,
   FileText,
   Users,
-  Activity as ActivityIcon,
-  LogIn as LogInIcon,
+  History,
+  LogIn,
   HeartPulse,
   LayoutDashboard,
-  PlusCircle,
-  History,
+  ArrowRight,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import SEO from "@/components/layout/SEO";
-
-// Edit modals (existing in your codebase, per your spec)
-import { EnhancedTaskModal } from "@/components/tasks/EnhancedTaskModal";
-import { EnhancedAppointmentModal } from "@/components/appointments/EnhancedAppointmentModal";
-import { DocumentModal } from "@/components/documents/DocumentModal";
-import { ContactModal } from "@/components/contacts/ContactModal";
-import { ActivityModal } from "@/components/activities/ActivityModal";
-import { DocumentUpload } from "@/components/documents/DocumentUpload";
-
-// Welcome
-import { GroupWelcomeModal } from "@/components/welcome/GroupWelcomeModal";
-import { useGroupWelcome } from "@/hooks/useGroupWelcome";
 
 /**
- * Dashboard (prototype-v2 parity)
- * - 7/14/30 selector drives: Smart Summary counts, Activity (combined), Recent sections, and Upcoming window.
- * - Activity + Upcoming side-by-side equal height.
- * - Row 4: Recent Documents (emerald), Recent Contacts (amber), Recent Activity Logs (purple) — equal size, one row.
- * - Logins (gray) is last, to the right of Quick Add.
- * - All edit/create modals wired (open directly on the dashboard).
- * - Uses your real schemas & field names from the JSON you shared.
+ * DashboardPage
+ * Mirrors the care_dashboard_prototype_v_2 design with:
+ *  - Smart summary (colored tiles)
+ *  - Health & preferences banner (Allergies + Preferences)
+ *  - Activity (last X days, aggregated across entities)
+ *  - Upcoming (appointments/tasks, respects time window tab)
+ *  - Recent Documents, Recent Contacts, Recent Activity Logs (3 equal cards)
+ *  - Quick Navigate (buttons to each section)
+ *  - Logins (last X days) as final card
+ *
+ * Click behavior:
+ *  - Clicking any item (rows or “More” modal items) navigates to the section page
+ *    AND adds ?edit=<id>. Each section page should open its modal on seeing this param.
+ *
+ *  Window behavior:
+ *  - 7d / 14d / 30d controls both:
+ *      a) "recent/new" look-back window (created_at OR updated_at within window)
+ *      b) "Upcoming" look-forward window (date_time/due_date within window)
+ *
+ *  RLS/filters:
+ *  - Filters is_deleted = false where present
+ *  - Group filter uses:
+ *      tasks.group_id
+ *      appointments.group_id
+ *      documents.group_id
+ *      contacts.care_group_id
+ *      activity_logs.group_id
+ *      allergies.care_group_id
+ *      preferences.care_group_id
+ *
+ *  Minimal dependencies and no repo-specific utility imports to avoid resolution errors.
  */
 
-/* ---------------- Small UI primitives to match the prototype ---------------- */
+/* ----------------------------- Local UI primitives ----------------------------- */
+
 const Card: React.FC<{
   title?: React.ReactNode;
   subtitle?: string;
@@ -47,14 +58,18 @@ const Card: React.FC<{
   children: React.ReactNode;
 }> = ({ title, subtitle, right, className = "", bodyClassName = "", children }) => (
   <section
-    className={`rounded-2xl border border-gray-200 shadow-sm ${className}`}
+    className={`rounded-2xl border shadow-sm ${className}`}
     role="region"
     aria-label={typeof title === "string" ? (title as string) : "card"}
   >
     {(title || right || subtitle) && (
-      <header className="flex items-start justify-between gap-3 border-b border-gray-100 px-4 py-3">
+      <header className="flex items-start justify-between gap-3 border-b px-4 py-3">
         <div>
-          {title ? <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900">{title}</h2> : null}
+          {title ? (
+            <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900">
+              {title}
+            </h2>
+          ) : null}
           {subtitle ? <p className="text-xs text-gray-600">{subtitle}</p> : null}
         </div>
         {right}
@@ -64,43 +79,15 @@ const Card: React.FC<{
   </section>
 );
 
-const Chip: React.FC<{
-  tone?: "neutral" | "like" | "dislike" | "warn" | "danger" | "info";
-  children: React.ReactNode;
-}> = ({ tone = "neutral", children }) => {
-  const map: Record<string, string> = {
-    neutral: "bg-gray-100 text-gray-800",
-    like: "bg-emerald-100 text-emerald-900",
-    dislike: "bg-rose-100 text-rose-900",
-    warn: "bg-amber-100 text-amber-900",
-    danger: "bg-red-100 text-red-900",
-    info: "bg-sky-100 text-sky-900",
-  };
-  return <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${map[tone]}`}>{children}</span>;
-};
-
-const Pill: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean }> = ({
-  active,
-  className = "",
-  ...props
-}) => (
-  <button
-    {...props}
-    className={`rounded-full border px-3 py-1 text-sm outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600 ${
-      active ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-800 border-gray-300 hover:bg-gray-50"
-    } ${className}`}
-  />
-);
-
-const Row: React.FC<{ title: string; meta?: string; badge?: React.ReactNode; onClick?: () => void }> = ({
-  title,
-  meta,
-  badge,
-  onClick,
-}) => (
+const Row: React.FC<{
+  title: string;
+  meta?: string;
+  badge?: React.ReactNode;
+  onClick?: () => void;
+}> = ({ title, meta, badge, onClick }) => (
   <button
     onClick={onClick}
-    className="group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-2 py-2 text-left outline-offset-2 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600"
+    className="group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600"
     aria-label={`${title}${meta ? ", " + meta : ""}`}
   >
     <div className="truncate">
@@ -110,6 +97,56 @@ const Row: React.FC<{ title: string; meta?: string; badge?: React.ReactNode; onC
     {badge}
   </button>
 );
+
+const Pill: React.FC<
+  React.ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean }
+> = ({ active, className = "", ...props }) => (
+  <button
+    {...props}
+    className={`rounded-full border px-3 py-1 text-sm outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600 ${
+      active
+        ? "bg-gray-900 text-white border-gray-900"
+        : "bg-white text-gray-800 border-gray-300 hover:bg-gray-50"
+    } ${className}`}
+  />
+);
+
+const Chip: React.FC<{
+  tone?:
+    | "neutral"
+    | "like"
+    | "dislike"
+    | "warn"
+    | "danger"
+    | "info"
+    | "indigo"
+    | "sky"
+    | "emerald"
+    | "amber"
+    | "purple";
+  children: React.ReactNode;
+}> = ({ tone = "neutral", children }) => {
+  const map: Record<string, string> = {
+    neutral: "bg-gray-100 text-gray-800",
+    like: "bg-emerald-100 text-emerald-900",
+    dislike: "bg-rose-100 text-rose-900",
+    warn: "bg-amber-100 text-amber-900",
+    danger: "bg-red-100 text-red-900",
+    info: "bg-sky-100 text-sky-900",
+    indigo: "bg-indigo-100 text-indigo-900",
+    sky: "bg-sky-100 text-sky-900",
+    emerald: "bg-emerald-100 text-emerald-900",
+    amber: "bg-amber-100 text-amber-900",
+    purple: "bg-purple-100 text-purple-900",
+  };
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${map[tone]}`}
+    >
+      {children}
+    </span>
+  );
+};
 
 const Modal: React.FC<{
   open: boolean;
@@ -121,7 +158,7 @@ const Modal: React.FC<{
   return (
     <div className="fixed inset-0 z-50" role="dialog" aria-modal>
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="absolute left-1/2 top-12 w-[min(90vw,1000px)] -translate-x-1/2 rounded-2xl bg-white shadow-2xl">
+      <div className="absolute left-1/2 top-12 w-[min(92vw,900px)] -translate-x-1/2 rounded-2xl bg-white shadow-2xl">
         <header className="flex items-center justify-between gap-3 border-b px-5 py-3">
           <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
           <button
@@ -132,392 +169,1309 @@ const Modal: React.FC<{
             Close
           </button>
         </header>
-        <div className="max-h-[70vh] overflow-auto p-5">{children}</div>
+        <div className="max-h-[65vh] overflow-auto p-5">{children}</div>
       </div>
     </div>
   );
 };
 
-type Tint = "sky" | "indigo" | "emerald" | "amber" | "purple" | "gray";
-const tintClass: Record<Tint, string> = {
-  sky: "bg-sky-50 border-sky-200",
-  indigo: "bg-indigo-50 border-indigo-200",
-  emerald: "bg-emerald-50 border-emerald-200",
-  amber: "bg-amber-50 border-amber-200",
-  purple: "bg-purple-50 border-purple-200",
-  gray: "bg-gray-50 border-gray-200",
-};
-const CardWithTint: React.FC<React.ComponentProps<typeof Card> & { tint?: Tint }> = ({ tint, className, ...rest }) => (
-  <Card {...rest} className={`${className || ""} ${tint ? tintClass[tint] : ""}`} />
-);
+/* ----------------------------- Local types we use ------------------------------ */
 
-/* ---------------- Helpers ---------------- */
-const fmt = (iso?: string | null) =>
-  iso ? new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "";
+type UUID = string;
 
-const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-const addDays = (base: Date, days: number) => {
-  const x = new Date(base);
-  x.setDate(x.getDate() + days);
-  return x;
-};
-
-/* ---------------- Local types (your app uses local interfaces) ---------------- */
-type TaskRow = {
-  id: string;
+type Task = {
+  id: UUID;
+  group_id: UUID;
   title: string;
-  due_date: string | null;
-  status: string;
-  priority: "High" | "Medium" | "Low" | string;
+  description?: string | null;
   category?: string | null;
-  group_id: string;
-  is_deleted: boolean;
+  due_date: string | null; // date
+  priority?: "High" | "Medium" | "Low" | null;
+  status?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  is_deleted?: boolean | null;
 };
 
-type AppointmentRow = {
-  id: string;
-  description: string;
-  date_time: string;
+type Appointment = {
+  id: UUID;
+  group_id: UUID;
+  description: string | null;
+  category: string | null;
+  date_time: string; // timestamptz
   duration_minutes: number | null;
-  category?: string | null;
-  group_id: string;
-  is_deleted: boolean;
   created_at?: string | null;
   updated_at?: string | null;
+  is_deleted?: boolean | null;
 };
 
-type DocumentRow = {
-  id: string;
+type Document = {
+  id: UUID;
+  group_id: UUID;
   title: string;
   file_type?: string | null;
   file_size?: number | null;
+  original_filename?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
   upload_date?: string | null;
-  created_at?: string | null;
-  updated_at?: string | null;
-  group_id: string;
-  is_deleted: boolean;
+  is_deleted?: boolean | null;
 };
 
-type ContactRow = {
-  id: string;
-  first_name: string | null;
-  last_name: string | null;
-  organization_name: string | null;
+type Contact = {
+  id: UUID;
+  care_group_id: UUID;
+  first_name?: string | null;
+  last_name?: string | null;
+  organization_name?: string | null;
   contact_type?: string | null;
-  care_group_id: string;
-  is_deleted: boolean;
   created_at?: string | null;
   updated_at?: string | null;
+  is_deleted?: boolean | null;
 };
 
-type ActivityLogRow = {
-  id: string;
-  title: string;
+type ActivityLog = {
+  id: UUID;
+  group_id: UUID;
+  created_by_user_id: UUID | null;
+  title: string | null;
   type: string | null;
-  created_at: string;
-  created_by_user_id?: string | null;
-  created_by_email?: string | null;
-  group_id: string;
-  is_deleted: boolean;
+  date_time?: string | null;
+  created_at?: string | null;
+  is_deleted?: boolean | null;
 };
 
-type AllergyRow = {
-  id: string;
-  care_group_id: string;
+type Profile = {
+  user_id: UUID;
+  first_name?: string | null;
+  last_name?: string | null;
+  last_login?: string | null;
+};
+
+type Allergy = {
+  id: UUID;
+  care_group_id: UUID;
   allergen: string;
-  type: string | null;
-  severity: "anaphylaxis" | "severe" | "mild" | string | null;
-  has_epipen: boolean | null;
+  type?: string | null; // food, drug, etc.
+  severity?: string | null; // mild, severe, anaphylaxis
 };
 
-type PreferenceRow = {
-  id: string;
-  care_group_id: string;
-  type: "like" | "dislike" | string;
+type Preference = {
+  id: UUID;
+  care_group_id: UUID;
+  type: "like" | "dislike";
   text_value: string;
-  category?: string | null;
-  pinned?: boolean | null;
 };
 
-type LoginRow = { user_id: string; name: string; email?: string; last_login?: string | null };
+type Group = { id: UUID; name: string };
 
-/* ---------------- Component ---------------- */
+/* ----------------------------- Helper functions ------------------------------- */
+
+const toISO = (d: Date) => d.toISOString();
+const fromNowMinusDays = (days: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d;
+};
+const fromNowPlusDays = (days: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d;
+};
+const fmt = (v: string | Date | null | undefined) =>
+  v
+    ? new Date(v).toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "";
+
+/* ----------------------------- Component starts ------------------------------- */
+
 export default function DashboardPage() {
-  const { groupId } = useParams();
   const navigate = useNavigate();
+  const { groupId } = useParams<{ groupId: string }>();
 
-  const [timeframe, setTimeframe] = useState<7 | 14 | 30>(14);
-  const [upcomingTab, setUpcomingTab] = useState<"appointments" | "tasks">("appointments");
+  // safety guard
+  const gid = groupId || ""; // required by queries
 
-  // Section anchors for colored header chips
-  const refSummary = useRef<HTMLDivElement>(null);
-  const refHP = useRef<HTMLDivElement>(null);
-  const refActivity = useRef<HTMLDivElement>(null);
-  const refUpcoming = useRef<HTMLDivElement>(null);
-  const refDocs = useRef<HTMLDivElement>(null);
-  const refContacts = useRef<HTMLDivElement>(null);
-  const refActLogs = useRef<HTMLDivElement>(null);
-  const refLogins = useRef<HTMLDivElement>(null);
-  const refQuick = useRef<HTMLDivElement>(null);
-  const jump = (r?: React.RefObject<HTMLDivElement>) => r?.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const [windowDays, setWindowDays] = useState<7 | 14 | 30>(14);
+  const [tabUpcoming, setTabUpcoming] = useState<"appointments" | "tasks">(
+    "appointments"
+  );
 
-  // Inline "More" modal
-  const [moreOpen, setMoreOpen] = useState<{ open: boolean; title: string; body?: React.ReactNode }>({
-    open: false,
-    title: "",
-  });
+  const [group, setGroup] = useState<Group | null>(null);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [appts, setAppts] = useState<Appointment[]>([]);
+  const [docs, setDocs] = useState<Document[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [activities, setActivities] = useState<ActivityLog[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [allergies, setAllergies] = useState<Allergy[]>([]);
+  const [prefs, setPrefs] = useState<Preference[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [errorText, setErrorText] = useState<string | null>(null);
 
-  // Edit/Create modals
-  const [taskModal, setTaskModal] = useState<{ open: boolean; task: any | null }>({ open: false, task: null });
-  const [apptModal, setApptModal] = useState<{ open: boolean; appointment: any | null }>({ open: false, appointment: null });
-  const [docModal, setDocModal] = useState<{ open: boolean; document: any | null }>({ open: false, document: null });
-  const [contactModal, setContactModal] = useState<{ open: boolean; contact: any | null }>({ open: false, contact: null });
-  const [activityModal, setActivityModal] = useState<{ open: boolean; activity: any | null }>({ open: false, activity: null });
-  const [uploadModalOpen, setUploadModalOpen] = useState<boolean>(false);
+  // Modal state for “More”
+  const [moreOpen, setMoreOpen] = useState<
+    | null
+    | {
+        title: string;
+        content: React.ReactNode;
+      }
+  >(null);
 
-  // Group name + welcome
-  const [groupName, setGroupName] = useState<string>("");
-  React.useEffect(() => {
-    let ignore = false;
-    (async () => {
-      if (!groupId) return;
-      const { data, error } = await supabase.from("care_groups").select("name").eq("id", groupId).single();
-      if (!ignore && data?.name) setGroupName(data.name);
-      if (error) console.warn(error);
-    })();
-    return () => {
-      ignore = true;
+  // anchor refs for jump links (optional future use)
+  const summaryRef = useRef<HTMLDivElement>(null);
+  const hpRef = useRef<HTMLDivElement>(null);
+  const activityRef = useRef<HTMLDivElement>(null);
+  const upcomingRef = useRef<HTMLDivElement>(null);
+  const docsRef = useRef<HTMLDivElement>(null);
+  const contactsRef = useRef<HTMLDivElement>(null);
+
+  /* --------------------------- Data fetching (Supabase) --------------------------- */
+
+  useEffect(() => {
+    if (!gid) return;
+
+    const fetchAll = async () => {
+      setLoading(true);
+      setErrorText(null);
+
+      try {
+        // Group name
+        const { data: g, error: gErr } = await supabase
+          .from("care_groups")
+          .select("id,name")
+          .eq("id", gid)
+          .single();
+        if (gErr) throw gErr;
+        setGroup(g as Group);
+
+        // Parallel fetches
+        const [
+          tasksRes,
+          apptsRes,
+          docsRes,
+          contactsRes,
+          actsRes,
+          allergiesRes,
+          prefsRes,
+        ] = await Promise.all([
+          supabase
+            .from("tasks")
+            .select(
+              "id,group_id,title,description,category,due_date,priority,status,created_at,updated_at,is_deleted"
+            )
+            .eq("group_id", gid),
+          supabase
+            .from("appointments")
+            .select(
+              "id,group_id,description,category,date_time,duration_minutes,created_at,updated_at,is_deleted"
+            )
+            .eq("group_id", gid),
+          supabase
+            .from("documents")
+            .select(
+              "id,group_id,title,file_type,file_size,original_filename,created_at,updated_at,upload_date,is_deleted"
+            )
+            .eq("group_id", gid),
+          supabase
+            .from("contacts")
+            .select(
+              "id,care_group_id,first_name,last_name,organization_name,contact_type,created_at,updated_at,is_deleted"
+            )
+            .eq("care_group_id", gid),
+          supabase
+            .from("activity_logs")
+            .select(
+              "id,group_id,created_by_user_id,title,type,date_time,created_at,is_deleted"
+            )
+            .eq("group_id", gid),
+          supabase
+            .from("allergies")
+            .select("id,care_group_id,allergen,type,severity")
+            .eq("care_group_id", gid),
+          supabase
+            .from("preferences")
+            .select("id,care_group_id,type,text_value")
+            .eq("care_group_id", gid),
+        ]);
+
+        if (tasksRes.error) throw tasksRes.error;
+        if (apptsRes.error) throw apptsRes.error;
+        if (docsRes.error) throw docsRes.error;
+        if (contactsRes.error) throw contactsRes.error;
+        if (actsRes.error) throw actsRes.error;
+        if (allergiesRes.error) throw allergiesRes.error;
+        if (prefsRes.error) throw prefsRes.error;
+
+        const cleanTasks = (tasksRes.data as Task[]).filter(
+          (t) => !t.is_deleted
+        );
+        const cleanAppts = (apptsRes.data as Appointment[]).filter(
+          (a) => !a.is_deleted
+        );
+        const cleanDocs = (docsRes.data as Document[]).filter(
+          (d) => !d.is_deleted
+        );
+        const cleanContacts = (contactsRes.data as Contact[]).filter(
+          (c) => !c.is_deleted
+        );
+        const cleanActs = (actsRes.data as ActivityLog[]).filter(
+          (a) => !a.is_deleted
+        );
+
+        setTasks(cleanTasks);
+        setAppts(cleanAppts);
+        setDocs(cleanDocs);
+        setContacts(cleanContacts);
+        setActivities(cleanActs);
+        setAllergies(allergiesRes.data as Allergy[]);
+        setPrefs(prefsRes.data as Preference[]);
+
+        // Fetch member profiles for login info and activity author names
+        const { data: members, error: memErr } = await supabase.rpc(
+          "get_group_members",
+          { p_group_id: gid }
+        );
+        if (memErr) throw memErr;
+
+        const memberIds: UUID[] = (members || []).map((m: any) => m.user_id);
+        if (memberIds.length) {
+          const { data: profs, error: profErr } = await supabase
+            .from("profiles")
+            .select("user_id,first_name,last_name,last_login")
+            .in("user_id", memberIds);
+          if (profErr) throw profErr;
+          setProfiles((profs as Profile[]) || []);
+        } else {
+          setProfiles([]);
+        }
+      } catch (e: any) {
+        console.error(e);
+        setErrorText(e.message ?? "Failed to load dashboard data.");
+      } finally {
+        setLoading(false);
+      }
     };
-  }, [groupId]);
-  const { showWelcome, closeWelcome } = useGroupWelcome(groupId || "", groupName);
+
+    fetchAll();
+  }, [gid]);
+
+  /* ------------------------------ Derived datasets ------------------------------ */
 
   const now = new Date();
-  const since = useMemo(() => addDays(now, -timeframe), [timeframe]);
-  const soon = useMemo(() => addDays(now, timeframe), [timeframe]);
+  const lookbackFrom = useMemo(
+    () => fromNowMinusDays(windowDays),
+    [windowDays]
+  );
+  const lookaheadTo = useMemo(
+    () => fromNowPlusDays(windowDays),
+    [windowDays]
+  );
 
-  const enabled = !!groupId && groupId !== ":groupId";
+  const tasksDueSoon = useMemo(
+    () =>
+      tasks
+        .filter(
+          (t) =>
+            t.due_date &&
+            new Date(t.due_date) >= now &&
+            new Date(t.due_date) <= lookaheadTo &&
+            (t.status || "Open") !== "Completed"
+        )
+        .sort(
+          (a, b) =>
+            new Date(a.due_date || 0).getTime() -
+            new Date(b.due_date || 0).getTime()
+        ),
+    [tasks, lookaheadTo]
+  );
 
-  /* ---------------- Queries ---------------- */
+  const tasksOverdue = useMemo(
+    () =>
+      tasks
+        .filter(
+          (t) =>
+            t.due_date &&
+            new Date(t.due_date) < now &&
+            (t.status || "Open") !== "Completed"
+        )
+        .sort(
+          (a, b) =>
+            new Date(b.due_date || 0).getTime() -
+            new Date(a.due_date || 0).getTime()
+        ),
+    [tasks]
+  );
 
-  // Allergies (care_group_id)
-  const { data: allergies = [] } = useQuery({
-    queryKey: ["dash-allergies", groupId],
-    enabled,
-    queryFn: async (): Promise<AllergyRow[]> => {
-      const { data, error } = await supabase
-        .from("allergies")
-        .select("id,care_group_id,allergen,type,severity,has_epipen")
-        .eq("care_group_id", groupId as string)
-        .order("allergen", { ascending: true });
-      if (error) throw error;
-      return data || [];
-    },
-  });
+  const apptsSoon = useMemo(
+    () =>
+      appts
+        .filter(
+          (a) =>
+            a.date_time &&
+            new Date(a.date_time) >= now &&
+            new Date(a.date_time) <= lookaheadTo
+        )
+        .sort(
+          (a, b) =>
+            new Date(a.date_time).getTime() - new Date(b.date_time).getTime()
+        ),
+    [appts, lookaheadTo]
+  );
 
-  // Preferences (care_group_id)
-  const { data: preferences = [] } = useQuery({
-    queryKey: ["dash-preferences", groupId],
-    enabled,
-    queryFn: async (): Promise<PreferenceRow[]> => {
-      const { data, error } = await supabase
-        .from("preferences")
-        .select("id,care_group_id,type,text_value,category,pinned")
-        .eq("care_group_id", groupId as string)
-        .order("pinned", { ascending: false })
-        .order("text_value", { ascending: true });
-      if (error) throw error;
-      return data || [];
-    },
-  });
+  // “New/recent” within window (created OR updated)
+  const isRecent = (created_at?: string | null, updated_at?: string | null) => {
+    const createdOK = created_at
+      ? new Date(created_at) >= lookbackFrom
+      : false;
+    const updatedOK = updated_at
+      ? new Date(updated_at) >= lookbackFrom
+      : false;
+    return createdOK || updatedOK;
+  };
 
-  // Tasks due soon / overdue (group_id)
-  const { data: tasksDueSoon = [] } = useQuery({
-    queryKey: ["dash-tasks-soon", groupId, timeframe],
-    enabled,
-    queryFn: async (): Promise<TaskRow[]> => {
-      const { data, error } = await supabase
-        .from("tasks")
-        .select("id,title,due_date,status,priority,category,group_id,is_deleted")
-        .eq("group_id", groupId as string)
-        .eq("is_deleted", false)
-        .neq("status", "Completed")
-        .not("due_date", "is", null)
-        .gte("due_date", now.toISOString())
-        .lte("due_date", soon.toISOString())
-        .order("due_date", { ascending: true })
-        .limit(50);
-      if (error) throw error;
-      return data || [];
-    },
-  });
+  const recentDocs = useMemo(
+    () => docs.filter((d) => isRecent(d.created_at, d.updated_at)),
+    [docs, lookbackFrom]
+  );
+  const recentContacts = useMemo(
+    () => contacts.filter((c) => isRecent(c.created_at, c.updated_at)),
+    [contacts, lookbackFrom]
+  );
+  const recentTasks = useMemo(
+    () => tasks.filter((t) => isRecent(t.created_at, t.updated_at)),
+    [tasks, lookbackFrom]
+  );
+  const recentAppts = useMemo(
+    () => appts.filter((a) => isRecent(a.created_at, a.updated_at)),
+    [appts, lookbackFrom]
+  );
+  const recentActs = useMemo(
+    () => activities.filter((a) => isRecent(a.created_at, a.created_at)),
+    [activities, lookbackFrom]
+  );
 
-  const { data: tasksOverdue = [] } = useQuery({
-    queryKey: ["dash-tasks-overdue", groupId],
-    enabled,
-    queryFn: async (): Promise<TaskRow[]> => {
-      const { data, error } = await supabase
-        .from("tasks")
-        .select("id,title,due_date,status,priority,category,group_id,is_deleted")
-        .eq("group_id", groupId as string)
-        .eq("is_deleted", false)
-        .neq("status", "Completed")
-        .not("due_date", "is", null)
-        .lt("due_date", now.toISOString())
-        .order("due_date", { ascending: true })
-        .limit(20);
-      if (error) throw error;
-      return data || [];
-    },
-  });
+  // Unified Activity feed (last X days): includes documents, contacts, appointments, tasks, activity_logs
+  type FeedItem = {
+    id: UUID;
+    type:
+      | "Document"
+      | "Contact"
+      | "Appointment"
+      | "Task"
+      | "Activity";
+    title: string;
+    when: Date;
+    meta?: string;
+    open: () => void;
+  };
+
+  const nameForUser = (uid?: UUID | null) => {
+    if (!uid) return "Unknown";
+    const p = profiles.find((x) => x.user_id === uid);
+    const full = [p?.first_name, p?.last_name].filter(Boolean).join(" ");
+    return full || "Unknown";
+    // Emails are accessible via the RPC on the server side if needed, but we avoid it here
+  };
+
+  const feed: FeedItem[] = useMemo(() => {
+    const items: FeedItem[] = [];
+
+    recentDocs.forEach((d) =>
+      items.push({
+        id: d.id,
+        type: "Document",
+        title: d.title,
+        when: new Date(d.updated_at || d.created_at || d.upload_date || now),
+        meta: `${d.file_type || "File"} · ${fmt(
+          d.updated_at || d.created_at || d.upload_date
+        )}`,
+        open: () => navigate(`/app/${gid}/documents?edit=${d.id}`),
+      })
+    );
+
+    recentContacts.forEach((c) => {
+      const label =
+        c.first_name || c.last_name
+          ? [c.first_name, c.last_name].filter(Boolean).join(" ")
+          : c.organization_name || "Contact";
+      items.push({
+        id: c.id,
+        type: "Contact",
+        title: label,
+        when: new Date(c.updated_at || c.created_at || now),
+        meta: `${c.contact_type || "contact"} · ${fmt(
+          c.updated_at || c.created_at
+        )}`,
+        open: () => navigate(`/app/${gid}/contacts?edit=${c.id}`),
+      });
+    });
+
+    recentAppts.forEach((a) =>
+      items.push({
+        id: a.id,
+        type: "Appointment",
+        title: a.description || "Appointment",
+        when: new Date(a.updated_at || a.created_at || now),
+        meta: `${a.category || "Appointment"} · ${fmt(
+          a.updated_at || a.created_at
+        )}`,
+        open: () => navigate(`/app/${gid}/appointments?edit=${a.id}`),
+      })
+    );
+
+    recentTasks.forEach((t) =>
+      items.push({
+        id: t.id,
+        type: "Task",
+        title: t.title,
+        when: new Date(t.updated_at || t.created_at || now),
+        meta: `${t.category || "Task"} · ${fmt(t.updated_at || t.created_at)}`,
+        open: () => navigate(`/app/${gid}/tasks?edit=${t.id}`),
+      })
+    );
+
+    recentActs.forEach((a) =>
+      items.push({
+        id: a.id,
+        type: "Activity",
+        title: a.title || "Activity log",
+        when: new Date(a.created_at || a.date_time || now),
+        meta: `${nameForUser(a.created_by_user_id)} · ${fmt(
+          a.created_at || a.date_time
+        )}`,
+        open: () => navigate(`/app/${gid}/activity?edit=${a.id}`),
+      })
+    );
+
+    return items.sort((x, y) => +y.when - +x.when);
+  }, [
+    gid,
+    recentDocs,
+    recentContacts,
+    recentAppts,
+    recentTasks,
+    recentActs,
+    profiles,
+    navigate,
+  ]);
+
+  // Summary metrics/counters (order: apptsSoon, tasksDueSoon, overdue, newDocs, newContacts, newActivity)
+  const summary = useMemo(
+    () => ({
+      apptsSoon: apptsSoon.length,
+      dueSoon: tasksDueSoon.length,
+      overdue: tasksOverdue.length,
+      newDocs: recentDocs.length,
+      newContacts: recentContacts.length,
+      newActivity:
+        recentDocs.length +
+        recentContacts.length +
+        recentAppts.length +
+        recentTasks.length +
+        recentActs.length,
+    }),
+    [
+      apptsSoon.length,
+      tasksDueSoon.length,
+      tasksOverdue.length,
+      recentDocs.length,
+      recentContacts.length,
+      recentAppts.length,
+      recentTasks.length,
+      recentActs.length,
+    ]
+  );
+
+  // Logins (profiles.last_login within window)
+  const recentLogins = useMemo(
+    () =>
+      profiles
+        .filter((p) => p.last_login && new Date(p.last_login) >= lookbackFrom)
+        .sort(
+          (a, b) =>
+            new Date(b.last_login || 0).getTime() -
+            new Date(a.last_login || 0).getTime()
+        ),
+    [profiles, lookbackFrom]
+  );
+
+  /* ----------------------------------- UI ----------------------------------- */
+
+  const openMoreModal = (title: string, nodes: React.ReactNode) =>
+    setMoreOpen({ title, content: nodes });
+
+  const closeMore = () => setMoreOpen(null);
+
+  const jump = (ref?: React.RefObject<HTMLDivElement>) =>
+    ref?.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  // Colors (match your prototype)
+  const cardTint = {
+    summary: "bg-gray-50 border-gray-200",
+    health: "bg-gray-50 border-gray-200",
+    activity: "bg-gray-50 border-gray-200",
+    upcomingAppts: "bg-sky-50 border-sky-200",
+    upcomingTasks: "bg-indigo-50 border-indigo-200",
+    documents: "bg-emerald-50 border-emerald-200",
+    contacts: "bg-amber-50 border-amber-200",
+    activityLogs: "bg-purple-50 border-purple-200",
+    logins: "bg-gray-50 border-gray-200",
+    quick: "bg-gray-50 border-gray-200",
+  } as const;
+
+  const SectionNav: React.FC = () => (
+    <nav className="mt-3 flex flex-wrap gap-2" aria-label="Section navigation">
+      {/* colored pills to match sections */}
+      <button
+        className="rounded-full border border-gray-300 bg-gray-50 px-3 py-1 text-sm text-gray-900 hover:bg-gray-100"
+        onClick={() => jump(summaryRef)}
+      >
+        Summary
+      </button>
+      <button
+        className="rounded-full border border-gray-300 bg-gray-50 px-3 py-1 text-sm text-gray-900 hover:bg-gray-100"
+        onClick={() => jump(hpRef)}
+      >
+        Health & prefs
+      </button>
+      <button
+        className="rounded-full border border-gray-300 bg-gray-50 px-3 py-1 text-sm text-gray-900 hover:bg-gray-100"
+        onClick={() => jump(activityRef)}
+      >
+        Activity
+      </button>
+      <button
+        className={`rounded-full border px-3 py-1 text-sm ${
+          tabUpcoming === "appointments"
+            ? "border-sky-300 bg-sky-50 text-sky-900 hover:bg-sky-100"
+            : "border-indigo-300 bg-indigo-50 text-indigo-900 hover:bg-indigo-100"
+        }`}
+        onClick={() => jump(upcomingRef)}
+      >
+        Upcoming
+      </button>
+      <button
+        className="rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-sm text-emerald-900 hover:bg-emerald-100"
+        onClick={() => jump(docsRef)}
+      >
+        Documents
+      </button>
+      <button
+        className="rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-sm text-amber-900 hover:bg-amber-100"
+        onClick={() => jump(contactsRef)}
+      >
+        Contacts & Activity logs
+      </button>
+    </nav>
+  );
+
+  if (!gid) {
+    return (
+      <div className="p-4">
+        <p className="text-sm text-red-700">
+          Missing groupId in route. Navigate via /app/:groupId.
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <SEO 
-        title={`Dashboard - ${groupName || 'Care Group'}`}
-        description="Manage tasks, appointments, and care coordination"
-      />
-      
-      {showWelcome && (
-        <GroupWelcomeModal
-          isOpen={showWelcome}
-          onClose={closeWelcome}
-          groupId={groupId || ""}
-          groupName={groupName}
-        />
-      )}
+    <div className="mx-auto max-w-7xl space-y-5 p-4">
+      {/* Header with chip window selector */}
+      <div className="rounded-2xl bg-gradient-to-r from-indigo-500 via-sky-500 to-emerald-500 p-[1px]">
+        <div className="rounded-2xl bg-white px-5 py-4">
+          <header className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight text-gray-900">
+                Dashboard for {group?.name || "Care group"}
+              </h1>
+              <p className="text-sm text-gray-700">
+                Snapshot of the last {windowDays} days • Upcoming shows the next{" "}
+                {windowDays} days
+              </p>
+            </div>
+            <div className="flex items-center gap-2" aria-label="Select window">
+              {[7, 14, 30].map((d) => (
+                <Pill
+                  key={d}
+                  active={windowDays === d}
+                  onClick={() => setWindowDays(d as 7 | 14 | 30)}
+                  aria-pressed={windowDays === d}
+                >
+                  {d}d
+                </Pill>
+              ))}
+            </div>
+          </header>
+          <SectionNav />
+        </div>
+      </div>
 
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
-        <header className="text-center space-y-4">
-          <h1 className="text-3xl font-bold text-gray-900">
-            {groupName ? `${groupName} Dashboard` : "Dashboard"}
-          </h1>
-          
-          <div className="flex justify-center gap-2">
-            {([7, 14, 30] as const).map((days) => (
-              <Pill
-                key={days}
-                active={timeframe === days}
-                onClick={() => setTimeframe(days)}
+      {/* Smart summary */}
+      <div ref={summaryRef} />
+      <Card
+        className={`${cardTint.summary}`}
+        title={
+          <>
+            <LayoutDashboard className="h-4 w-4" />
+            Smart summary
+          </>
+        }
+        subtitle="Key signals at a glance"
+        right={
+          <button
+            className="text-sm text-gray-800 hover:underline"
+            onClick={() =>
+              openMoreModal(
+                "Summary details",
+                <ul className="space-y-2 text-sm">
+                  <li>Upcoming appointments: {summary.apptsSoon}</li>
+                  <li>Tasks due soon: {summary.dueSoon}</li>
+                  <li>Overdue: {summary.overdue}</li>
+                  <li>New docs: {summary.newDocs}</li>
+                  <li>New contacts: {summary.newContacts}</li>
+                  <li>New activity: {summary.newActivity}</li>
+                </ul>
+              )
+            }
+          >
+            More
+          </button>
+        }
+      >
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <button
+            onClick={() => {
+              setTabUpcoming("appointments");
+              jump(upcomingRef);
+            }}
+            className="rounded-xl bg-sky-50 p-3 text-left hover:bg-sky-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600"
+          >
+            <div className="text-xs text-sky-800">Upcoming appointments</div>
+            <div className="text-2xl font-semibold text-sky-950">
+              {summary.apptsSoon}
+            </div>
+          </button>
+          <button
+            onClick={() => {
+              setTabUpcoming("tasks");
+              jump(upcomingRef);
+            }}
+            className="rounded-xl bg-indigo-50 p-3 text-left hover:bg-indigo-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600"
+          >
+            <div className="text-xs text-indigo-800">Tasks due soon</div>
+            <div className="text-2xl font-semibold text-indigo-950">
+              {summary.dueSoon}
+            </div>
+          </button>
+          <button className="rounded-xl bg-rose-50 p-3 text-left">
+            <div className="text-xs text-rose-800">Overdue</div>
+            <div className="text-2xl font-semibold text-rose-950">
+              {summary.overdue}
+            </div>
+          </button>
+          <button
+            onClick={() => jump(docsRef)}
+            className="rounded-xl bg-emerald-50 p-3 text-left"
+          >
+            <div className="text-xs text-emerald-800">New docs</div>
+            <div className="text-2xl font-semibold text-emerald-950">
+              {summary.newDocs}
+            </div>
+          </button>
+          <button
+            onClick={() => jump(contactsRef)}
+            className="rounded-xl bg-amber-50 p-3 text-left"
+          >
+            <div className="text-xs text-amber-800">New contacts</div>
+            <div className="text-2xl font-semibold text-amber-950">
+              {summary.newContacts}
+            </div>
+          </button>
+          <button
+            onClick={() => jump(activityRef)}
+            className="rounded-xl bg-purple-50 p-3 text-left"
+          >
+            <div className="text-xs text-purple-800">New activity</div>
+            <div className="text-2xl font-semibold text-purple-950">
+              {summary.newActivity}
+            </div>
+          </button>
+        </div>
+      </Card>
+
+      {/* Health & preferences */}
+      <div ref={hpRef} />
+      <Card
+        className={`${cardTint.health}`}
+        title={
+          <>
+            <HeartPulse className="h-4 w-4" />
+            Health & preferences
+          </>
+        }
+        subtitle="Critical notes always visible"
+      >
+        {/* Allergies row */}
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-gray-900">Allergies:</span>
+          {allergies.length === 0 && (
+            <span className="text-sm text-gray-700">None listed</span>
+          )}
+          {allergies.map((a) => {
+            const tone =
+              a.severity?.toLowerCase() === "anaphylaxis"
+                ? "danger"
+                : a.severity?.toLowerCase() === "severe"
+                ? "warn"
+                : "neutral";
+            return (
+              <Chip key={a.id} tone={tone as any}>
+                {a.allergen}
+                {a.severity ? ` • ${a.severity}` : ""}
+              </Chip>
+            );
+          })}
+        </div>
+
+        {/* Preferences row */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-gray-900">
+            Preferences:
+          </span>
+          {prefs.length === 0 && (
+            <span className="text-sm text-gray-700">None listed</span>
+          )}
+          {prefs.slice(0, 8).map((p) => (
+            <Chip key={p.id} tone={p.type === "like" ? "like" : "dislike"}>
+              {p.text_value}
+            </Chip>
+          ))}
+        </div>
+      </Card>
+
+      {/* Activity + Upcoming row */}
+      <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-12">
+        <div ref={activityRef} className="lg:col-span-6">
+          <Card
+            className={`${cardTint.activity} min-h-[360px] h-full`}
+            title={
+              <>
+                <History className="h-4 w-4" />
+                Activity
+              </>
+            }
+            subtitle={`Last ${windowDays} days · includes documents, contacts, appointments, tasks, and activities`}
+            right={
+              <button
+                className="text-sm text-gray-800 hover:underline"
+                onClick={() =>
+                  openMoreModal(
+                    "More activity",
+                    <div role="list" className="space-y-1">
+                      {feed.map((f) => (
+                        <Row
+                          key={`${f.type}-${f.id}`}
+                          title={f.title}
+                          meta={`${f.type} · ${fmt(f.when)}${
+                            f.meta ? ` · ${f.meta}` : ""
+                          }`}
+                          onClick={f.open}
+                        />
+                      ))}
+                    </div>
+                  )
+                }
               >
-                {days} days
-              </Pill>
-            ))}
-          </div>
-        </header>
-
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card title="Tasks Due Soon" className="bg-blue-50">
-            <div className="text-2xl font-bold text-blue-900">
-              {tasksDueSoon.length}
-            </div>
-          </Card>
-          <Card title="Overdue Tasks" className="bg-red-50">
-            <div className="text-2xl font-bold text-red-900">
-              {tasksOverdue.length}
-            </div>
-          </Card>
-          <Card title="Allergies" className="bg-amber-50">
-            <div className="text-2xl font-bold text-amber-900">
-              {allergies.length}
+                More
+              </button>
+            }
+          >
+            <div role="list" className="space-y-1">
+              {feed.slice(0, 5).map((f) => (
+                <Row
+                  key={`${f.type}-${f.id}`}
+                  title={f.title}
+                  meta={`${f.type} · ${fmt(f.when)}${
+                    f.meta ? ` · ${f.meta}` : ""
+                  }`}
+                  onClick={f.open}
+                />
+              ))}
+              {feed.length === 0 && (
+                <div className="text-sm text-gray-800">
+                  No activity in this range.
+                </div>
+              )}
             </div>
           </Card>
         </div>
 
-        {/* Quick Actions */}
-        <Card title="Quick Add" className="bg-green-50">
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={() => setTaskModal({ open: true, task: null })}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-            >
-              <PlusCircle className="w-4 h-4" />
-              New Task
-            </button>
-            <button
-              onClick={() => setApptModal({ open: true, appointment: null })}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              <PlusCircle className="w-4 h-4" />
-              New Appointment
-            </button>
-            <button
-              onClick={() => setUploadModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-            >
-              <PlusCircle className="w-4 h-4" />
-              Upload Document
-            </button>
-          </div>
-        </Card>
+        <div ref={upcomingRef} className="lg:col-span-6">
+          <Card
+            className={`${
+              tabUpcoming === "appointments"
+                ? cardTint.upcomingAppts
+                : cardTint.upcomingTasks
+            } min-h-[360px] h-full`}
+            title={
+              <>
+                <CalendarDays className="h-4 w-4" />
+                Upcoming (next {windowDays} days)
+              </>
+            }
+            right={
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1" role="tablist" aria-label="switch">
+                  <Pill
+                    active={tabUpcoming === "appointments"}
+                    onClick={() => setTabUpcoming("appointments")}
+                    aria-selected={tabUpcoming === "appointments"}
+                  >
+                    Appointments
+                  </Pill>
+                  <Pill
+                    active={tabUpcoming === "tasks"}
+                    onClick={() => setTabUpcoming("tasks")}
+                    aria-selected={tabUpcoming === "tasks"}
+                  >
+                    Tasks
+                  </Pill>
+                </div>
+              </div>
+            }
+          >
+            {tabUpcoming === "appointments" ? (
+              <div className="space-y-1">
+                {apptsSoon.slice(0, 5).map((a) => (
+                  <Row
+                    key={a.id}
+                    title={a.description || "Appointment"}
+                    meta={`${a.category || "Medical"} · ${fmt(a.date_time)}${
+                      a.duration_minutes ? ` · ${a.duration_minutes} min` : ""
+                    }`}
+                    onClick={() =>
+                      navigate(`/app/${gid}/appointments?edit=${a.id}`)
+                    }
+                    badge={
+                      a.duration_minutes ? (
+                        <Chip tone="info">{a.duration_minutes} min</Chip>
+                      ) : undefined
+                    }
+                  />
+                ))}
+                {apptsSoon.length === 0 && (
+                  <div className="text-sm text-gray-900">
+                    No appointments in the next {windowDays} days.
+                  </div>
+                )}
+                {apptsSoon.length > 5 && (
+                  <button
+                    className="mt-2 inline-flex items-center gap-1 text-sm text-blue-700 underline"
+                    onClick={() =>
+                      openMoreModal(
+                        "All upcoming appointments",
+                        <div className="space-y-1">
+                          {apptsSoon.map((a) => (
+                            <Row
+                              key={a.id}
+                              title={a.description || "Appointment"}
+                              meta={`${a.category || "Medical"} · ${fmt(
+                                a.date_time
+                              )}${
+                                a.duration_minutes
+                                  ? ` · ${a.duration_minutes} min`
+                                  : ""
+                              }`}
+                              onClick={() =>
+                                navigate(
+                                  `/app/${gid}/appointments?edit=${a.id}`
+                                )
+                              }
+                            />
+                          ))}
+                        </div>
+                      )
+                    }
+                  >
+                    More
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {tasksDueSoon.slice(0, 5).map((t) => (
+                  <Row
+                    key={t.id}
+                    title={t.title}
+                    meta={`${t.category || "Task"} · due ${fmt(t.due_date)}`}
+                    onClick={() => navigate(`/app/${gid}/tasks?edit=${t.id}`)}
+                    badge={
+                      t.due_date && new Date(t.due_date) < now ? (
+                        <Chip tone="danger">Overdue</Chip>
+                      ) : t.priority ? (
+                        <Chip
+                          tone={
+                            t.priority === "High"
+                              ? "warn"
+                              : t.priority === "Low"
+                              ? "neutral"
+                              : "indigo"
+                          }
+                        >
+                          {t.priority}
+                        </Chip>
+                      ) : undefined
+                    }
+                  />
+                ))}
+                {tasksDueSoon.length === 0 && (
+                  <div className="text-sm text-gray-900">
+                    No open tasks due in the next {windowDays} days.
+                  </div>
+                )}
+                {tasksDueSoon.length > 5 && (
+                  <button
+                    className="mt-2 inline-flex items-center gap-1 text-sm text-blue-700 underline"
+                    onClick={() =>
+                      openMoreModal(
+                        "All upcoming tasks",
+                        <div className="space-y-1">
+                          {tasksDueSoon.map((t) => (
+                            <Row
+                              key={t.id}
+                              title={t.title}
+                              meta={`${t.category || "Task"} · due ${fmt(
+                                t.due_date
+                              )}`}
+                              onClick={() =>
+                                navigate(`/app/${gid}/tasks?edit=${t.id}`)
+                              }
+                            />
+                          ))}
+                        </div>
+                      )
+                    }
+                  >
+                    More
+                  </button>
+                )}
+              </div>
+            )}
+          </Card>
+        </div>
+      </div>
 
-        {/* Recent Items */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card title="Tasks Due Soon">
-            <div className="space-y-2">
-              {tasksDueSoon.slice(0, 5).map((task) => (
+      {/* Documents + Contacts + Activity Logs (same row, equal height) */}
+      <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-12">
+        <div ref={docsRef} className="lg:col-span-4">
+          <Card
+            className={`${cardTint.documents} min-h-[280px] h-full`}
+            title={
+              <>
+                <FileText className="h-4 w-4" />
+                Recent documents
+              </>
+            }
+            right={
+              <button
+                className="text-sm text-gray-800 hover:underline"
+                onClick={() =>
+                  openMoreModal(
+                    "More documents",
+                    <div className="space-y-1">
+                      {recentDocs.map((d) => (
+                        <Row
+                          key={d.id}
+                          title={d.title}
+                          meta={`${d.file_type || "File"} · ${fmt(
+                            d.updated_at || d.created_at || d.upload_date
+                          )}`}
+                          onClick={() =>
+                            navigate(`/app/${gid}/documents?edit=${d.id}`)
+                          }
+                        />
+                      ))}
+                    </div>
+                  )
+                }
+              >
+                More
+              </button>
+            }
+          >
+            <div className="space-y-1">
+              {recentDocs.slice(0, 5).map((d) => (
                 <Row
-                  key={task.id}
-                  title={task.title}
-                  meta={task.due_date ? fmt(task.due_date) : ""}
-                  badge={<Chip tone={task.priority === "High" ? "danger" : "neutral"}>{task.priority}</Chip>}
-                  onClick={() => setTaskModal({ open: true, task })}
+                  key={d.id}
+                  title={d.title}
+                  meta={`${d.file_type || "File"} · ${fmt(
+                    d.updated_at || d.created_at || d.upload_date
+                  )}`}
+                  onClick={() =>
+                    navigate(`/app/${gid}/documents?edit=${d.id}`)
+                  }
                 />
               ))}
-              {tasksDueSoon.length === 0 && (
-                <p className="text-gray-500 text-center py-4">No tasks due soon</p>
+              {recentDocs.length === 0 && (
+                <div className="text-sm text-gray-900">No recent documents.</div>
               )}
             </div>
           </Card>
+        </div>
 
-          <Card title="Overdue Tasks">
-            <div className="space-y-2">
-              {tasksOverdue.slice(0, 5).map((task) => (
+        <div className="lg:col-span-4">
+          <Card
+            className={`${cardTint.contacts} min-h-[280px] h-full`}
+            title={
+              <>
+                <Users className="h-4 w-4" />
+                Recent contacts
+              </>
+            }
+            right={
+              <button
+                className="text-sm text-gray-800 hover:underline"
+                onClick={() =>
+                  openMoreModal(
+                    "More contacts",
+                    <div className="space-y-1">
+                      {recentContacts.map((c) => {
+                        const title =
+                          c.first_name || c.last_name
+                            ? [c.first_name, c.last_name]
+                                .filter(Boolean)
+                                .join(" ")
+                            : c.organization_name || "Contact";
+                        return (
+                          <Row
+                            key={c.id}
+                            title={title}
+                            meta={`${c.contact_type || "contact"} · ${fmt(
+                              c.updated_at || c.created_at
+                            )}`}
+                            onClick={() =>
+                              navigate(`/app/${gid}/contacts?edit=${c.id}`)
+                            }
+                          />
+                        );
+                      })}
+                    </div>
+                  )
+                }
+              >
+                More
+              </button>
+            }
+          >
+            <div className="space-y-1">
+              {recentContacts.slice(0, 5).map((c) => {
+                const title =
+                  c.first_name || c.last_name
+                    ? [c.first_name, c.last_name].filter(Boolean).join(" ")
+                    : c.organization_name || "Contact";
+                return (
+                  <Row
+                    key={c.id}
+                    title={title}
+                    meta={`${c.contact_type || "contact"} · ${fmt(
+                      c.updated_at || c.created_at
+                    )}`}
+                    onClick={() =>
+                      navigate(`/app/${gid}/contacts?edit=${c.id}`)
+                    }
+                  />
+                );
+              })}
+              {recentContacts.length === 0 && (
+                <div className="text-sm text-gray-900">No recent contacts.</div>
+              )}
+            </div>
+          </Card>
+        </div>
+
+        <div className="lg:col-span-4">
+          <Card
+            className={`${cardTint.activityLogs} min-h-[280px] h-full`}
+            title={
+              <>
+                <History className="h-4 w-4" />
+                Recent activity logs
+              </>
+            }
+            right={
+              <button
+                className="text-sm text-gray-800 hover:underline"
+                onClick={() =>
+                  openMoreModal(
+                    "More activity logs",
+                    <div className="space-y-1">
+                      {recentActs.map((a) => (
+                        <Row
+                          key={a.id}
+                          title={a.title || "Activity log"}
+                          meta={`${nameForUser(a.created_by_user_id)} · ${fmt(
+                            a.created_at || a.date_time
+                          )}`}
+                          onClick={() =>
+                            navigate(`/app/${gid}/activity?edit=${a.id}`)
+                          }
+                        />
+                      ))}
+                    </div>
+                  )
+                }
+              >
+                More
+              </button>
+            }
+          >
+            <div className="space-y-1">
+              {recentActs.slice(0, 5).map((a) => (
                 <Row
-                  key={task.id}
-                  title={task.title}
-                  meta={task.due_date ? fmt(task.due_date) : ""}
-                  badge={<Chip tone="danger">Overdue</Chip>}
-                  onClick={() => setTaskModal({ open: true, task })}
+                  key={a.id}
+                  title={a.title || "Activity log"}
+                  meta={`${nameForUser(a.created_by_user_id)} · ${fmt(
+                    a.created_at || a.date_time
+                  )}`}
+                  onClick={() => navigate(`/app/${gid}/activity?edit=${a.id}`)}
                 />
               ))}
-              {tasksOverdue.length === 0 && (
-                <p className="text-gray-500 text-center py-4">No overdue tasks</p>
+              {recentActs.length === 0 && (
+                <div className="text-sm text-gray-900">
+                  No recent activity logs.
+                </div>
               )}
             </div>
           </Card>
         </div>
       </div>
 
-      {/* Modals */}
-      {taskModal.open && (
-        <EnhancedTaskModal
-          isOpen={taskModal.open}
-          onClose={() => setTaskModal({ open: false, task: null })}
-          task={taskModal.task}
-          groupId={groupId || ""}
-        />
+      {/* Quick Navigate + Logins (final row) */}
+      <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-12">
+        <div className="lg:col-span-10">
+          <Card
+            className={`${cardTint.quick}`}
+            title={
+              <>
+                <ArrowRight className="h-4 w-4" />
+                Quick navigate
+              </>
+            }
+            subtitle="Jump straight to a section"
+          >
+            <div className="flex flex-wrap gap-2">
+              {[
+                {
+                  label: "Appointments",
+                  to: `/app/${gid}/appointments`,
+                  tone: "sky",
+                  Icon: CalendarDays,
+                },
+                {
+                  label: "Tasks",
+                  to: `/app/${gid}/tasks`,
+                  tone: "indigo",
+                  Icon: CheckSquare,
+                },
+                {
+                  label: "Documents",
+                  to: `/app/${gid}/documents`,
+                  tone: "emerald",
+                  Icon: FileText,
+                },
+                {
+                  label: "Contacts",
+                  to: `/app/${gid}/contacts`,
+                  tone: "amber",
+                  Icon: Users,
+                },
+                {
+                  label: "Activity logs",
+                  to: `/app/${gid}/activity`,
+                  tone: "purple",
+                  Icon: History,
+                },
+              ].map(({ label, to, tone, Icon }) => {
+                const toneClass =
+                  tone === "sky"
+                    ? "border-sky-300 bg-sky-50 text-sky-900 hover:bg-sky-100"
+                    : tone === "indigo"
+                    ? "border-indigo-300 bg-indigo-50 text-indigo-900 hover:bg-indigo-100"
+                    : tone === "emerald"
+                    ? "border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100"
+                    : tone === "amber"
+                    ? "border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100"
+                    : "border-purple-300 bg-purple-50 text-purple-900 hover:bg-purple-100";
+                return (
+                  <button
+                    key={label}
+                    onClick={() => navigate(to)}
+                    className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm ${toneClass}`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </Card>
+        </div>
+
+        <div className="lg:col-span-2">
+          <Card
+            className={`${cardTint.logins} min-h-[120px] h-full`}
+            title={
+              <>
+                <LogIn className="h-4 w-4" />
+                Logins (last {windowDays}d)
+              </>
+            }
+          >
+            <div className="space-y-1">
+              {recentLogins.slice(0, 6).map((p) => (
+                <Row
+                  key={p.user_id}
+                  title={
+                    [p.first_name, p.last_name].filter(Boolean).join(" ") ||
+                    "Unknown"
+                  }
+                  meta={fmt(p.last_login)}
+                />
+              ))}
+              {recentLogins.length === 0 && (
+                <div className="text-sm text-gray-900">No recent logins.</div>
+              )}
+            </div>
+          </Card>
+        </div>
+      </div>
+
+      {/* Loading / Error states */}
+      {loading && (
+        <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-700">
+          Loading dashboard…
+        </div>
+      )}
+      {errorText && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          {errorText}
+        </div>
       )}
 
-      {apptModal.open && (
-        <EnhancedAppointmentModal
-          isOpen={apptModal.open}
-          onClose={() => setApptModal({ open: false, appointment: null })}
-          appointment={apptModal.appointment}
-          groupId={groupId || ""}
-        />
-      )}
-
-      {uploadModalOpen && (
-        <DocumentModal
-          isOpen={uploadModalOpen}
-          onClose={() => setUploadModalOpen(false)}
-          document={null}
-          groupId={groupId || ""}
-        />
-      )}
+      {/* “More” Modal */}
+      <Modal
+        open={!!moreOpen}
+        onClose={closeMore}
+        title={moreOpen?.title || ""}
+      >
+        {moreOpen?.content}
+      </Modal>
     </div>
   );
 }
