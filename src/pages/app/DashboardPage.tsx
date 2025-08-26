@@ -174,7 +174,6 @@ type Appointment = {
   date_time: string;
   duration_minutes: number | null;
   created_at?: string | null;
-  updated_at?: string | null;
   is_deleted?: boolean | null;
 };
 
@@ -323,7 +322,7 @@ export default function DashboardPage() {
           supabase
             .from("appointments")
             .select(
-              "id,group_id,description,category,date_time,duration_minutes,created_at,updated_at,is_deleted"
+              "id,group_id,description,category,date_time,duration_minutes,created_at,is_deleted"
             )
             .eq("group_id", gid),
           supabase
@@ -476,7 +475,7 @@ export default function DashboardPage() {
     [tasks, lookbackFrom]
   );
   const recentAppts = useMemo(
-    () => appts.filter((a) => isRecent(a.created_at, a.updated_at)),
+    () => appts.filter((a) => isRecent(a.created_at, a.created_at)),
     [appts, lookbackFrom]
   );
   const recentActs = useMemo(
@@ -538,9 +537,9 @@ export default function DashboardPage() {
         id: a.id,
         type: "Appointment",
         title: a.description || "Appointment",
-        when: new Date(a.updated_at || a.created_at || now),
+        when: new Date(a.created_at || now),
         meta: `${a.category || "Appointment"} · ${fmt(
-          a.updated_at || a.created_at
+          a.created_at
         )}`,
         open: () => navigate(`/app/${gid}/${APPOINTMENTS_ROUTE_SEGMENT}?edit=${a.id}`),
       })

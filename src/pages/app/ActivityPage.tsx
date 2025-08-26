@@ -1,30 +1,3 @@
-import { useSearchParams, useNavigate, useParams } from "react-router-dom";
-// … your other imports …
-
-export default function TasksPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
-  const { groupId } = useParams<{ groupId: string }>();
-
-  const editId = searchParams.get("edit"); // if present, open modal for this id
-
-  // Load the entity by id from your existing list or via fetch
-  const taskToEdit = useMemo(
-    () => tasks.find((t) => t.id === editId) ?? null,
-    [tasks, editId]
-  );
-
-  const handleCloseModal = () => {
-    // Close modal AND remove ?edit while staying on the same page
-    searchParams.delete("edit");
-    setSearchParams(searchParams, { replace: true });
-  };
-
-  // Render your existing EnhancedTaskModal with task={taskToEdit}
-  // <EnhancedTaskModal task={taskToEdit} isOpen={!!editId} onClose={handleCloseModal} groupId={groupId!} />
-  // …rest of your page
-}
-
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";

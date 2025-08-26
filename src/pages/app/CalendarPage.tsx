@@ -1,64 +1,6 @@
 
-import { useSearchParams, useParams } from "react-router-dom";
-import { useMemo } from "react";
-// import { EnhancedAppointmentModal } from "@/components/appointments/EnhancedAppointmentModal";
-
-export default function CalendarsPage() {
-  const { groupId } = useParams<{ groupId: string }>();
-  const [searchParams, setSearchParams] = useSearchParams();
-
-  const editId = searchParams.get("edit");
-
-  // TODO: replace `appointments` with your page's appointments source
-  const apptToEdit = useMemo(
-    () => appointments.find((a) => a.id === editId) ?? null,
-    [appointments, editId]
-  );
-
-  const closeEdit = () => {
-    searchParams.delete("edit");
-    setSearchParams(searchParams, { replace: true });
-  };
-
-  // ...
-  // <EnhancedAppointmentModal
-  //   appointment={apptToEdit}
-  //   isOpen={!!editId}
-  //   onClose={closeEdit}
-  //   groupId={groupId!}
-  // />
-  // ...
-}
 import { useSearchParams, useNavigate, useParams } from "react-router-dom";
-// … your other imports …
-
-export default function TasksPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
-  const { groupId } = useParams<{ groupId: string }>();
-
-  const editId = searchParams.get("edit"); // if present, open modal for this id
-
-  // Load the entity by id from your existing list or via fetch
-  const taskToEdit = useMemo(
-    () => tasks.find((t) => t.id === editId) ?? null,
-    [tasks, editId]
-  );
-
-  const handleCloseModal = () => {
-    // Close modal AND remove ?edit while staying on the same page
-    searchParams.delete("edit");
-    setSearchParams(searchParams, { replace: true });
-  };
-
-  // Render your existing EnhancedTaskModal with task={taskToEdit}
-  // <EnhancedTaskModal task={taskToEdit} isOpen={!!editId} onClose={handleCloseModal} groupId={groupId!} />
-  // …rest of your page
-}
-
-// File: src/pages/app/CalendarPage.tsx  (only relevant changes shown for brevity)
 import { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
 import SEO from "@/components/layout/SEO";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
