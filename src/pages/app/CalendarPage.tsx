@@ -1,3 +1,34 @@
+
+import { useSearchParams, useParams } from "react-router-dom";
+import { useMemo } from "react";
+// import { EnhancedAppointmentModal } from "@/components/appointments/EnhancedAppointmentModal";
+
+export default function CalendarsPage() {
+  const { groupId } = useParams<{ groupId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const editId = searchParams.get("edit");
+
+  // TODO: replace `appointments` with your page's appointments source
+  const apptToEdit = useMemo(
+    () => appointments.find((a) => a.id === editId) ?? null,
+    [appointments, editId]
+  );
+
+  const closeEdit = () => {
+    searchParams.delete("edit");
+    setSearchParams(searchParams, { replace: true });
+  };
+
+  // ...
+  // <EnhancedAppointmentModal
+  //   appointment={apptToEdit}
+  //   isOpen={!!editId}
+  //   onClose={closeEdit}
+  //   groupId={groupId!}
+  // />
+  // ...
+}
 import { useSearchParams, useNavigate, useParams } from "react-router-dom";
 // … your other imports …
 
