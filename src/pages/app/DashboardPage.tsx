@@ -991,50 +991,70 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Quick Navigate + Logins */}
-      <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-12">
-        <div className="lg:col-span-10">
-          <Card className={`${cardTint.quick}`} title={<><ArrowRight className="h-4 w-4" /> Quick navigate</>} subtitle="Jump straight to a section">
-            <div className="flex flex-wrap gap-2">
-              {[
-                { label: "Appointments", to: `/app/${gid}/${APPOINTMENTS_ROUTE_SEGMENT}`, tone: "sky", Icon: CalendarDays },
-                { label: "Tasks", to: `/app/${gid}/tasks`, tone: "indigo", Icon: CheckSquare },
-                { label: "Documents", to: `/app/${gid}/documents`, tone: "emerald", Icon: FileText },
-                { label: "Contacts", to: `/app/${gid}/contacts`, tone: "amber", Icon: Users },
-                { label: "Activity logs", to: `/app/${gid}/activity`, tone: "purple", Icon: History },
-              ].map(({ label, to, tone, Icon }) => {
-                const toneClass =
-                  tone === "sky"
-                    ? "border-sky-300 bg-sky-50 text-sky-900 hover:bg-sky-100"
-                    : tone === "indigo"
-                    ? "border-indigo-300 bg-indigo-50 text-indigo-900 hover:bg-indigo-100"
-                    : tone === "emerald"
-                    ? "border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100"
-                    : tone === "amber"
-                    ? "border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100"
-                    : "border-purple-300 bg-purple-50 text-purple-900 hover:bg-purple-100";
-                return (
-                  <button key={label} onClick={() => navigate(to)} className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm ${toneClass}`}>
-                    <Icon className="h-4 w-4" />
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          </Card>
+      {/* Quick Navigate */}
+      <Card className={`${cardTint.quick}`} title={<><ArrowRight className="h-4 w-4" /> Quick navigate</>} subtitle="Jump straight to a section">
+        <div className="flex flex-wrap gap-2">
+          {[
+            { label: "Appointments", to: `/app/${gid}/${APPOINTMENTS_ROUTE_SEGMENT}`, tone: "sky", Icon: CalendarDays },
+            { label: "Tasks", to: `/app/${gid}/tasks`, tone: "indigo", Icon: CheckSquare },
+            { label: "Documents", to: `/app/${gid}/documents`, tone: "emerald", Icon: FileText },
+            { label: "Contacts", to: `/app/${gid}/contacts`, tone: "amber", Icon: Users },
+            { label: "Activity logs", to: `/app/${gid}/activity`, tone: "purple", Icon: History },
+          ].map(({ label, to, tone, Icon }) => {
+            const toneClass =
+              tone === "sky"
+                ? "border-sky-300 bg-sky-50 text-sky-900 hover:bg-sky-100"
+                : tone === "indigo"
+                ? "border-indigo-300 bg-indigo-50 text-indigo-900 hover:bg-indigo-100"
+                : tone === "emerald"
+                ? "border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100"
+                : tone === "amber"
+                ? "border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100"
+                : "border-purple-300 bg-purple-50 text-purple-900 hover:bg-purple-100";
+            return (
+              <button key={label} onClick={() => navigate(to)} className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm ${toneClass}`}>
+                <Icon className="h-4 w-4" />
+                {label}
+              </button>
+            );
+          })}
         </div>
+      </Card>
 
-        <div className="lg:col-span-2">
-          <Card className={`${cardTint.logins} min-h-[120px] h-full`} title={<><LogIn className="h-4 w-4" /> Logins (last {windowDays}d)</>}>
-            <div className="space-y-1">
-              {recentLogins.slice(0, 6).map((p) => (
-                <Row key={p.user_id} title={[p.first_name, p.last_name].filter(Boolean).join(" ") || "Unknown"} meta={fmt(p.last_login)} />
-              ))}
-              {recentLogins.length === 0 && <div className="text-sm text-gray-900">No recent logins.</div>}
-            </div>
-          </Card>
+      {/* Recent Logins */}
+      <Card 
+        className={`${cardTint.logins}`} 
+        title={<><LogIn className="h-4 w-4" /> Recent logins</>} 
+        subtitle={`Last ${windowDays} days`}
+        right={
+          recentLogins.length > 6 ? (
+            <button className="text-sm text-gray-800 hover:underline" onClick={() =>
+              openMoreModal("All recent logins",
+                <div className="space-y-1">
+                  {recentLogins.map((p) => (
+                    <Row key={p.user_id} title={[p.first_name, p.last_name].filter(Boolean).join(" ") || `User ${p.user_id.slice(0, 8)}`} meta={fmt(p.last_login)} />
+                  ))}
+                </div>
+              )}>
+              More
+            </button>
+          ) : undefined
+        }
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          {recentLogins.length === 0 && <span className="text-sm text-gray-700">No recent logins</span>}
+          {recentLogins.slice(0, 6).map((p) => (
+            <Chip key={p.user_id} tone="info">
+              {[p.first_name, p.last_name].filter(Boolean).join(" ") || `User ${p.user_id.slice(0, 8)}`}
+            </Chip>
+          ))}
+          {recentLogins.length > 6 && (
+            <Chip tone="neutral">
+              +{recentLogins.length - 6} more
+            </Chip>
+          )}
         </div>
-      </div>
+      </Card>
 
       {loading && <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-700">Loading dashboard…</div>}
       {errorText && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{errorText}</div>}
