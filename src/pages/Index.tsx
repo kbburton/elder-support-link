@@ -5,6 +5,7 @@ import { useState } from "react";
 import { DemoEmailModal } from "@/components/demo/DemoEmailModal";
 import { useDemoContext } from "@/contexts/DemoContext";
 import demoData from "@/data/demo-data.json";
+import { useToast } from "@/components/ui/use-toast";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -12,6 +13,7 @@ const Index = () => {
   const [showDemoModal, setShowDemoModal] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
   const [demoError, setDemoError] = useState("");
+  const { toast } = useToast();
   
   const { startDemoSession } = useDemoContext();
 
@@ -29,6 +31,16 @@ const Index = () => {
       
       if (result.success) {
         setShowDemoModal(false);
+        
+        // Show message if user was logged out
+        if (result.loggedOut) {
+          toast({
+            title: "Logged out for demo",
+            description: "You were automatically logged out to start the demo session.",
+            variant: "default"
+          });
+        }
+        
         navigate(`/app/${demoData.demoGroupId}/dashboard`);
       } else {
         // Check if we need to redirect to landing page

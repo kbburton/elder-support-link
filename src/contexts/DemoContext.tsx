@@ -13,7 +13,7 @@ interface DemoContextType {
   isDemo: boolean;
   demoSession: DemoSession | null;
   demoData: typeof demoData;
-  startDemoSession: (email: string) => Promise<{ success: boolean; error?: string; redirectToLanding?: boolean }>;
+  startDemoSession: (email: string) => Promise<{ success: boolean; error?: string; redirectToLanding?: boolean; loggedOut?: boolean }>;
   endDemoSession: () => void;
   trackPageVisit: (pagePath: string) => void;
   trackPageLeave: (pagePath: string, timeSpent?: number) => void;
@@ -106,9 +106,30 @@ export const DemoProvider: React.FC<DemoProviderProps> = ({ children }) => {
     }
   };
 
-  const startDemoSession = useCallback(async (email: string): Promise<{ success: boolean; error?: string; redirectToLanding?: boolean }> => {
+  const startDemoSession = useCallback(async (email: string): Promise<{ success: boolean; error?: string; redirectToLanding?: boolean; loggedOut?: boolean }> => {
     try {
       console.log('🎭 Starting demo session for:', email);
+      
+      // Check if user is currently logged in
+      const { data: { session: authSession } } = await supabase.auth.getSession();
+      let wasLoggedOut = false;
+      
+      if (authSession?.user) {
+        console.log('🔐 User is logged in, logging them out for demo session');
+        
+        // Sign out the user
+        await supabase.auth.signOut();
+        
+        // Clear any localStorage auth tokens
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('sb-') && key.includes('-auth-token')) {
+            localStorage.removeItem(key);
+          }
+        });
+        
+        wasLoggedOut = true;
+        console.log('✅ User logged out successfully');
+      }
       
       const { data, error } = await supabase.functions.invoke('demo-auth', {
         body: { email }
@@ -149,18 +170,18 @@ export const DemoProvider: React.FC<DemoProviderProps> = ({ children }) => {
         return { success: false, error: data?.error || 'Authentication failed' };
       }
 
-      const session: DemoSession = {
+      const demoSession: DemoSession = {
         sessionId: data.sessionId,
         email,
         token: data.token,
         isDemo: true
       };
 
-      setDemoSession(session);
-      localStorage.setItem('demo-session', JSON.stringify(session));
+      setDemoSession(demoSession);
+      localStorage.setItem('demo-session', JSON.stringify(demoSession));
 
       console.log('✅ Demo session started for:', email);
-      return { success: true };
+      return { success: true, loggedOut: wasLoggedOut };
     } catch (error) {
       console.error('🚨 Error starting demo session:', error);
       
