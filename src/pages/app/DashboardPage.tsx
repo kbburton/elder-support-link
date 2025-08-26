@@ -12,6 +12,16 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useDemo } from "@/hooks/useDemo";
+import {
+  useDemoTasks,
+  useDemoAppointments,
+  useDemoDocuments,
+  useDemoContacts,
+  useDemoActivities,
+  useDemoProfiles,
+  useDemoCareGroup
+} from "@/hooks/useDemoData";
 
 /** 
  * CARE DASHBOARD (routes adjusted for CalendarsPage)
@@ -264,6 +274,16 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const { groupId } = useParams<{ groupId: string }>();
   const gid = groupId || "";
+  const { isDemo } = useDemo();
+
+  // Demo data hooks
+  const demoTasks = useDemoTasks(gid);
+  const demoAppointments = useDemoAppointments(gid);
+  const demoDocuments = useDemoDocuments(gid);
+  const demoContacts = useDemoContacts(gid);
+  const demoActivities = useDemoActivities(gid);
+  const demoProfiles = useDemoProfiles();
+  const demoCareGroup = useDemoCareGroup(gid);
 
   const [windowDays, setWindowDays] = useState<7 | 14 | 30>(14);
   const [tabUpcoming, setTabUpcoming] = useState<"appointments" | "tasks">(
@@ -293,6 +313,32 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!gid) return;
+    
+    // Use demo data if in demo mode
+    if (isDemo) {
+      setLoading(true);
+      
+      // Set demo data
+      if (demoCareGroup?.data) {
+        setGroup({ id: demoCareGroup.data.id, name: demoCareGroup.data.name });
+      }
+      
+      setTasks(demoTasks?.data || []);
+      setAppts(demoAppointments?.data || []);
+      setDocs(demoDocuments?.data || []);
+      setContacts(demoContacts?.data || []);
+      setActivities(demoActivities?.data || []);
+      setProfiles(demoProfiles?.data || []);
+      
+      // Skip allergies and preferences for now (empty state)
+      setAllergies([]);
+      setPrefs([]);
+      
+      setLoading(false);
+      return;
+    }
+    
+    // Regular database fetch for non-demo mode
     const fetchAll = async () => {
       setLoading(true);
       setErrorText(null);
@@ -410,7 +456,7 @@ export default function DashboardPage() {
       }
     };
     fetchAll();
-  }, [gid]);
+  }, [gid, isDemo, demoTasks, demoAppointments, demoDocuments, demoContacts, demoActivities, demoProfiles, demoCareGroup]);
 
   const now = new Date();
   const lookbackFrom = useMemo(() => fromNowMinusDays(windowDays), [windowDays]);
