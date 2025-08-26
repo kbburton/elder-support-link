@@ -13,42 +13,16 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
-/**
- * DashboardPage
- * Mirrors the care_dashboard_prototype_v_2 design with:
- *  - Smart summary (colored tiles)
- *  - Health & preferences banner (Allergies + Preferences)
- *  - Activity (last X days, aggregated across entities)
- *  - Upcoming (appointments/tasks, respects time window tab)
- *  - Recent Documents, Recent Contacts, Recent Activity Logs (3 equal cards)
- *  - Quick Navigate (buttons to each section)
- *  - Logins (last X days) as final card
- *
- * Click behavior:
- *  - Clicking any item (rows or “More” modal items) navigates to the section page
- *    AND adds ?edit=<id>. Each section page should open its modal on seeing this param.
- *
- *  Window behavior:
- *  - 7d / 14d / 30d controls both:
- *      a) "recent/new" look-back window (created_at OR updated_at within window)
- *      b) "Upcoming" look-forward window (date_time/due_date within window)
- *
- *  RLS/filters:
- *  - Filters is_deleted = false where present
- *  - Group filter uses:
- *      tasks.group_id
- *      appointments.group_id
- *      documents.group_id
- *      contacts.care_group_id
- *      activity_logs.group_id
- *      allergies.care_group_id
- *      preferences.care_group_id
- *
- *  Minimal dependencies and no repo-specific utility imports to avoid resolution errors.
+/** 
+ * CARE DASHBOARD (routes adjusted for CalendarsPage)
+ * - Matches the care_dashboard_prototype_v_2 look/behavior
+ * - Uses ?edit=<id> navigation so section pages can auto-open their modals
  */
 
-/* ----------------------------- Local UI primitives ----------------------------- */
+// 🔧 If your app uses /app/:groupId/calendars set this to "calendars".
+const APPOINTMENTS_ROUTE_SEGMENT = "calendar";
 
+/* ----------------------------- Local UI primitives ----------------------------- */
 const Card: React.FC<{
   title?: React.ReactNode;
   subtitle?: string;
@@ -175,8 +149,7 @@ const Modal: React.FC<{
   );
 };
 
-/* ----------------------------- Local types we use ------------------------------ */
-
+/* ----------------------------- Local types ----------------------------- */
 type UUID = string;
 
 type Task = {
@@ -185,7 +158,7 @@ type Task = {
   title: string;
   description?: string | null;
   category?: string | null;
-  due_date: string | null; // date
+  due_date: string | null;
   priority?: "High" | "Medium" | "Low" | null;
   status?: string | null;
   created_at?: string | null;
@@ -198,7 +171,7 @@ type Appointment = {
   group_id: UUID;
   description: string | null;
   category: string | null;
-  date_time: string; // timestamptz
+  date_time: string;
   duration_minutes: number | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -252,8 +225,8 @@ type Allergy = {
   id: UUID;
   care_group_id: UUID;
   allergen: string;
-  type?: string | null; // food, drug, etc.
-  severity?: string | null; // mild, severe, anaphylaxis
+  type?: string | null;
+  severity?: string | null;
 };
 
 type Preference = {
@@ -265,8 +238,7 @@ type Preference = {
 
 type Group = { id: UUID; name: string };
 
-/* ----------------------------- Helper functions ------------------------------- */
-
+/* ----------------------------- Helpers ----------------------------- */
 const toISO = (d: Date) => d.toISOString();
 const fromNowMinusDays = (days: number) => {
   const d = new Date();
@@ -287,14 +259,11 @@ const fmt = (v: string | Date | null | undefined) =>
       })
     : "";
 
-/* ----------------------------- Component starts ------------------------------- */
-
+/* ----------------------------- Component ----------------------------- */
 export default function DashboardPage() {
   const navigate = useNavigate();
   const { groupId } = useParams<{ groupId: string }>();
-
-  // safety guard
-  const gid = groupId || ""; // required by queries
+  const gid = groupId || "";
 
   const [windowDays, setWindowDays] = useState<7 | 14 | 30>(14);
   const [tabUpcoming, setTabUpcoming] = useState<"appointments" | "tasks">(
@@ -313,16 +282,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [errorText, setErrorText] = useState<string | null>(null);
 
-  // Modal state for “More”
-  const [moreOpen, setMoreOpen] = useState<
-    | null
-    | {
-        title: string;
-        content: React.ReactNode;
-      }
-  >(null);
+  const [moreOpen, setMoreOpen] = useState<null | { title: string; content: React.ReactNode }>(null);
 
-  // anchor refs for jump links (optional future use)
   const summaryRef = useRef<HTMLDivElement>(null);
   const hpRef = useRef<HTMLDivElement>(null);
   const activityRef = useRef<HTMLDivElement>(null);
@@ -330,17 +291,12 @@ export default function DashboardPage() {
   const docsRef = useRef<HTMLDivElement>(null);
   const contactsRef = useRef<HTMLDivElement>(null);
 
-  /* --------------------------- Data fetching (Supabase) --------------------------- */
-
   useEffect(() => {
     if (!gid) return;
-
     const fetchAll = async () => {
       setLoading(true);
       setErrorText(null);
-
       try {
-        // Group name
         const { data: g, error: gErr } = await supabase
           .from("care_groups")
           .select("id,name")
@@ -349,7 +305,6 @@ export default function DashboardPage() {
         if (gErr) throw gErr;
         setGroup(g as Group);
 
-        // Parallel fetches
         const [
           tasksRes,
           apptsRes,
@@ -407,21 +362,11 @@ export default function DashboardPage() {
         if (allergiesRes.error) throw allergiesRes.error;
         if (prefsRes.error) throw prefsRes.error;
 
-        const cleanTasks = (tasksRes.data as Task[]).filter(
-          (t) => !t.is_deleted
-        );
-        const cleanAppts = (apptsRes.data as Appointment[]).filter(
-          (a) => !a.is_deleted
-        );
-        const cleanDocs = (docsRes.data as Document[]).filter(
-          (d) => !d.is_deleted
-        );
-        const cleanContacts = (contactsRes.data as Contact[]).filter(
-          (c) => !c.is_deleted
-        );
-        const cleanActs = (actsRes.data as ActivityLog[]).filter(
-          (a) => !a.is_deleted
-        );
+        const cleanTasks = (tasksRes.data as Task[]).filter((t) => !t.is_deleted);
+        const cleanAppts = (apptsRes.data as Appointment[]).filter((a) => !a.is_deleted);
+        const cleanDocs = (docsRes.data as Document[]).filter((d) => !d.is_deleted);
+        const cleanContacts = (contactsRes.data as Contact[]).filter((c) => !c.is_deleted);
+        const cleanActs = (actsRes.data as ActivityLog[]).filter((a) => !a.is_deleted);
 
         setTasks(cleanTasks);
         setAppts(cleanAppts);
@@ -431,11 +376,9 @@ export default function DashboardPage() {
         setAllergies(allergiesRes.data as Allergy[]);
         setPrefs(prefsRes.data as Preference[]);
 
-        // Fetch member profiles for login info and activity author names
-        const { data: members, error: memErr } = await supabase.rpc(
-          "get_group_members",
-          { p_group_id: gid }
-        );
+        const { data: members, error: memErr } = await supabase.rpc("get_group_members", {
+          p_group_id: gid,
+        });
         if (memErr) throw memErr;
 
         const memberIds: UUID[] = (members || []).map((m: any) => m.user_id);
@@ -456,21 +399,12 @@ export default function DashboardPage() {
         setLoading(false);
       }
     };
-
     fetchAll();
   }, [gid]);
 
-  /* ------------------------------ Derived datasets ------------------------------ */
-
   const now = new Date();
-  const lookbackFrom = useMemo(
-    () => fromNowMinusDays(windowDays),
-    [windowDays]
-  );
-  const lookaheadTo = useMemo(
-    () => fromNowPlusDays(windowDays),
-    [windowDays]
-  );
+  const lookbackFrom = useMemo(() => fromNowMinusDays(windowDays), [windowDays]);
+  const lookaheadTo = useMemo(() => fromNowPlusDays(windowDays), [windowDays]);
 
   const tasksDueSoon = useMemo(
     () =>
@@ -523,14 +457,9 @@ export default function DashboardPage() {
     [appts, lookaheadTo]
   );
 
-  // “New/recent” within window (created OR updated)
   const isRecent = (created_at?: string | null, updated_at?: string | null) => {
-    const createdOK = created_at
-      ? new Date(created_at) >= lookbackFrom
-      : false;
-    const updatedOK = updated_at
-      ? new Date(updated_at) >= lookbackFrom
-      : false;
+    const createdOK = created_at ? new Date(created_at) >= lookbackFrom : false;
+    const updatedOK = updated_at ? new Date(updated_at) >= lookbackFrom : false;
     return createdOK || updatedOK;
   };
 
@@ -555,15 +484,9 @@ export default function DashboardPage() {
     [activities, lookbackFrom]
   );
 
-  // Unified Activity feed (last X days): includes documents, contacts, appointments, tasks, activity_logs
   type FeedItem = {
     id: UUID;
-    type:
-      | "Document"
-      | "Contact"
-      | "Appointment"
-      | "Task"
-      | "Activity";
+    type: "Document" | "Contact" | "Appointment" | "Task" | "Activity";
     title: string;
     when: Date;
     meta?: string;
@@ -575,7 +498,6 @@ export default function DashboardPage() {
     const p = profiles.find((x) => x.user_id === uid);
     const full = [p?.first_name, p?.last_name].filter(Boolean).join(" ");
     return full || "Unknown";
-    // Emails are accessible via the RPC on the server side if needed, but we avoid it here
   };
 
   const feed: FeedItem[] = useMemo(() => {
@@ -620,7 +542,7 @@ export default function DashboardPage() {
         meta: `${a.category || "Appointment"} · ${fmt(
           a.updated_at || a.created_at
         )}`,
-        open: () => navigate(`/app/${gid}/appointments?edit=${a.id}`),
+        open: () => navigate(`/app/${gid}/${APPOINTMENTS_ROUTE_SEGMENT}?edit=${a.id}`),
       })
     );
 
@@ -660,7 +582,6 @@ export default function DashboardPage() {
     navigate,
   ]);
 
-  // Summary metrics/counters (order: apptsSoon, tasksDueSoon, overdue, newDocs, newContacts, newActivity)
   const summary = useMemo(
     () => ({
       apptsSoon: apptsSoon.length,
@@ -687,7 +608,6 @@ export default function DashboardPage() {
     ]
   );
 
-  // Logins (profiles.last_login within window)
   const recentLogins = useMemo(
     () =>
       profiles
@@ -700,17 +620,12 @@ export default function DashboardPage() {
     [profiles, lookbackFrom]
   );
 
-  /* ----------------------------------- UI ----------------------------------- */
-
   const openMoreModal = (title: string, nodes: React.ReactNode) =>
     setMoreOpen({ title, content: nodes });
-
   const closeMore = () => setMoreOpen(null);
-
   const jump = (ref?: React.RefObject<HTMLDivElement>) =>
     ref?.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
-  // Colors (match your prototype)
   const cardTint = {
     summary: "bg-gray-50 border-gray-200",
     health: "bg-gray-50 border-gray-200",
@@ -726,25 +641,9 @@ export default function DashboardPage() {
 
   const SectionNav: React.FC = () => (
     <nav className="mt-3 flex flex-wrap gap-2" aria-label="Section navigation">
-      {/* colored pills to match sections */}
-      <button
-        className="rounded-full border border-gray-300 bg-gray-50 px-3 py-1 text-sm text-gray-900 hover:bg-gray-100"
-        onClick={() => jump(summaryRef)}
-      >
-        Summary
-      </button>
-      <button
-        className="rounded-full border border-gray-300 bg-gray-50 px-3 py-1 text-sm text-gray-900 hover:bg-gray-100"
-        onClick={() => jump(hpRef)}
-      >
-        Health & prefs
-      </button>
-      <button
-        className="rounded-full border border-gray-300 bg-gray-50 px-3 py-1 text-sm text-gray-900 hover:bg-gray-100"
-        onClick={() => jump(activityRef)}
-      >
-        Activity
-      </button>
+      <button className="rounded-full border border-gray-300 bg-gray-50 px-3 py-1 text-sm text-gray-900 hover:bg-gray-100" onClick={() => jump(summaryRef)}>Summary</button>
+      <button className="rounded-full border border-gray-300 bg-gray-50 px-3 py-1 text-sm text-gray-900 hover:bg-gray-100" onClick={() => jump(hpRef)}>Health & prefs</button>
+      <button className="rounded-full border border-gray-300 bg-gray-50 px-3 py-1 text-sm text-gray-900 hover:bg-gray-100" onClick={() => jump(activityRef)}>Activity</button>
       <button
         className={`rounded-full border px-3 py-1 text-sm ${
           tabUpcoming === "appointments"
@@ -755,34 +654,22 @@ export default function DashboardPage() {
       >
         Upcoming
       </button>
-      <button
-        className="rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-sm text-emerald-900 hover:bg-emerald-100"
-        onClick={() => jump(docsRef)}
-      >
-        Documents
-      </button>
-      <button
-        className="rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-sm text-amber-900 hover:bg-amber-100"
-        onClick={() => jump(contactsRef)}
-      >
-        Contacts & Activity logs
-      </button>
+      <button className="rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-sm text-emerald-900 hover:bg-emerald-100" onClick={() => jump(docsRef)}>Documents</button>
+      <button className="rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-sm text-amber-900 hover:bg-amber-100" onClick={() => jump(contactsRef)}>Contacts & Activity logs</button>
     </nav>
   );
 
   if (!gid) {
     return (
       <div className="p-4">
-        <p className="text-sm text-red-700">
-          Missing groupId in route. Navigate via /app/:groupId.
-        </p>
+        <p className="text-sm text-red-700">Missing groupId in route. Navigate via /app/:groupId.</p>
       </div>
     );
   }
 
   return (
     <div className="mx-auto max-w-7xl space-y-5 p-4">
-      {/* Header with chip window selector */}
+      {/* Header */}
       <div className="rounded-2xl bg-gradient-to-r from-indigo-500 via-sky-500 to-emerald-500 p-[1px]">
         <div className="rounded-2xl bg-white px-5 py-4">
           <header className="flex flex-wrap items-center justify-between gap-3">
@@ -791,18 +678,12 @@ export default function DashboardPage() {
                 Dashboard for {group?.name || "Care group"}
               </h1>
               <p className="text-sm text-gray-700">
-                Snapshot of the last {windowDays} days • Upcoming shows the next{" "}
-                {windowDays} days
+                Snapshot of the last {windowDays} days • Upcoming shows the next {windowDays} days
               </p>
             </div>
             <div className="flex items-center gap-2" aria-label="Select window">
               {[7, 14, 30].map((d) => (
-                <Pill
-                  key={d}
-                  active={windowDays === d}
-                  onClick={() => setWindowDays(d as 7 | 14 | 30)}
-                  aria-pressed={windowDays === d}
-                >
+                <Pill key={d} active={windowDays === d} onClick={() => setWindowDays(d as 7 | 14 | 30)} aria-pressed={windowDays === d}>
                   {d}d
                 </Pill>
               ))}
@@ -816,120 +697,65 @@ export default function DashboardPage() {
       <div ref={summaryRef} />
       <Card
         className={`${cardTint.summary}`}
-        title={
-          <>
-            <LayoutDashboard className="h-4 w-4" />
-            Smart summary
-          </>
-        }
+        title={<><LayoutDashboard className="h-4 w-4" /> Smart summary</>}
         subtitle="Key signals at a glance"
         right={
-          <button
-            className="text-sm text-gray-800 hover:underline"
-            onClick={() =>
-              openMoreModal(
-                "Summary details",
-                <ul className="space-y-2 text-sm">
-                  <li>Upcoming appointments: {summary.apptsSoon}</li>
-                  <li>Tasks due soon: {summary.dueSoon}</li>
-                  <li>Overdue: {summary.overdue}</li>
-                  <li>New docs: {summary.newDocs}</li>
-                  <li>New contacts: {summary.newContacts}</li>
-                  <li>New activity: {summary.newActivity}</li>
-                </ul>
-              )
-            }
-          >
+          <button className="text-sm text-gray-800 hover:underline" onClick={() =>
+            openMoreModal("Summary details",
+              <ul className="space-y-2 text-sm">
+                <li>Upcoming appointments: {summary.apptsSoon}</li>
+                <li>Tasks due soon: {summary.dueSoon}</li>
+                <li>Overdue: {summary.overdue}</li>
+                <li>New docs: {summary.newDocs}</li>
+                <li>New contacts: {summary.newContacts}</li>
+                <li>New activity: {summary.newActivity}</li>
+              </ul>
+            )}>
             More
           </button>
         }
       >
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          <button
-            onClick={() => {
-              setTabUpcoming("appointments");
-              jump(upcomingRef);
-            }}
-            className="rounded-xl bg-sky-50 p-3 text-left hover:bg-sky-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600"
-          >
+          <button onClick={() => { setTabUpcoming("appointments"); jump(upcomingRef); }} className="rounded-xl bg-sky-50 p-3 text-left hover:bg-sky-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600">
             <div className="text-xs text-sky-800">Upcoming appointments</div>
-            <div className="text-2xl font-semibold text-sky-950">
-              {summary.apptsSoon}
-            </div>
+            <div className="text-2xl font-semibold text-sky-950">{summary.apptsSoon}</div>
           </button>
-          <button
-            onClick={() => {
-              setTabUpcoming("tasks");
-              jump(upcomingRef);
-            }}
-            className="rounded-xl bg-indigo-50 p-3 text-left hover:bg-indigo-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600"
-          >
+          <button onClick={() => { setTabUpcoming("tasks"); jump(upcomingRef); }} className="rounded-xl bg-indigo-50 p-3 text-left hover:bg-indigo-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600">
             <div className="text-xs text-indigo-800">Tasks due soon</div>
-            <div className="text-2xl font-semibold text-indigo-950">
-              {summary.dueSoon}
-            </div>
+            <div className="text-2xl font-semibold text-indigo-950">{summary.dueSoon}</div>
           </button>
           <button className="rounded-xl bg-rose-50 p-3 text-left">
             <div className="text-xs text-rose-800">Overdue</div>
-            <div className="text-2xl font-semibold text-rose-950">
-              {summary.overdue}
-            </div>
+            <div className="text-2xl font-semibold text-rose-950">{summary.overdue}</div>
           </button>
-          <button
-            onClick={() => jump(docsRef)}
-            className="rounded-xl bg-emerald-50 p-3 text-left"
-          >
+          <button onClick={() => jump(docsRef)} className="rounded-xl bg-emerald-50 p-3 text-left">
             <div className="text-xs text-emerald-800">New docs</div>
-            <div className="text-2xl font-semibold text-emerald-950">
-              {summary.newDocs}
-            </div>
+            <div className="text-2xl font-semibold text-emerald-950">{summary.newDocs}</div>
           </button>
-          <button
-            onClick={() => jump(contactsRef)}
-            className="rounded-xl bg-amber-50 p-3 text-left"
-          >
+          <button onClick={() => jump(contactsRef)} className="rounded-xl bg-amber-50 p-3 text-left">
             <div className="text-xs text-amber-800">New contacts</div>
-            <div className="text-2xl font-semibold text-amber-950">
-              {summary.newContacts}
-            </div>
+            <div className="text-2xl font-semibold text-amber-950">{summary.newContacts}</div>
           </button>
-          <button
-            onClick={() => jump(activityRef)}
-            className="rounded-xl bg-purple-50 p-3 text-left"
-          >
+          <button onClick={() => jump(activityRef)} className="rounded-xl bg-purple-50 p-3 text-left">
             <div className="text-xs text-purple-800">New activity</div>
-            <div className="text-2xl font-semibold text-purple-950">
-              {summary.newActivity}
-            </div>
+            <div className="text-2xl font-semibold text-purple-950">{summary.newActivity}</div>
           </button>
         </div>
       </Card>
 
       {/* Health & preferences */}
       <div ref={hpRef} />
-      <Card
-        className={`${cardTint.health}`}
-        title={
-          <>
-            <HeartPulse className="h-4 w-4" />
-            Health & preferences
-          </>
-        }
-        subtitle="Critical notes always visible"
-      >
-        {/* Allergies row */}
+      <Card className={`${cardTint.health}`} title={<><HeartPulse className="h-4 w-4" /> Health & preferences</>} subtitle="Critical notes always visible">
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium text-gray-900">Allergies:</span>
-          {allergies.length === 0 && (
-            <span className="text-sm text-gray-700">None listed</span>
-          )}
+          {/* Map severities to tones */}
+          {/* anaphylaxis -> danger; severe -> warn; else neutral */}
+          {/* null safe */}
+          {/* empty state */}
+          {allergies.length === 0 && <span className="text-sm text-gray-700">None listed</span>}
           {allergies.map((a) => {
-            const tone =
-              a.severity?.toLowerCase() === "anaphylaxis"
-                ? "danger"
-                : a.severity?.toLowerCase() === "severe"
-                ? "warn"
-                : "neutral";
+            const sev = a.severity?.toLowerCase();
+            const tone = sev === "anaphylaxis" ? "danger" : sev === "severe" ? "warn" : "neutral";
             return (
               <Chip key={a.id} tone={tone as any}>
                 {a.allergen}
@@ -939,14 +765,9 @@ export default function DashboardPage() {
           })}
         </div>
 
-        {/* Preferences row */}
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium text-gray-900">
-            Preferences:
-          </span>
-          {prefs.length === 0 && (
-            <span className="text-sm text-gray-700">None listed</span>
-          )}
+          <span className="text-sm font-medium text-gray-900">Preferences:</span>
+          {prefs.length === 0 && <span className="text-sm text-gray-700">None listed</span>}
           {prefs.slice(0, 8).map((p) => (
             <Chip key={p.id} tone={p.type === "like" ? "like" : "dislike"}>
               {p.text_value}
@@ -955,93 +776,44 @@ export default function DashboardPage() {
         </div>
       </Card>
 
-      {/* Activity + Upcoming row */}
+      {/* Activity + Upcoming */}
       <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-12">
         <div ref={activityRef} className="lg:col-span-6">
           <Card
             className={`${cardTint.activity} min-h-[360px] h-full`}
-            title={
-              <>
-                <History className="h-4 w-4" />
-                Activity
-              </>
-            }
+            title={<><History className="h-4 w-4" /> Activity</>}
             subtitle={`Last ${windowDays} days · includes documents, contacts, appointments, tasks, and activities`}
             right={
-              <button
-                className="text-sm text-gray-800 hover:underline"
-                onClick={() =>
-                  openMoreModal(
-                    "More activity",
-                    <div role="list" className="space-y-1">
-                      {feed.map((f) => (
-                        <Row
-                          key={`${f.type}-${f.id}`}
-                          title={f.title}
-                          meta={`${f.type} · ${fmt(f.when)}${
-                            f.meta ? ` · ${f.meta}` : ""
-                          }`}
-                          onClick={f.open}
-                        />
-                      ))}
-                    </div>
-                  )
-                }
-              >
+              <button className="text-sm text-gray-800 hover:underline" onClick={() =>
+                openMoreModal("More activity",
+                  <div role="list" className="space-y-1">
+                    {feed.map((f) => (
+                      <Row key={`${f.type}-${f.id}`} title={f.title} meta={`${f.type} · ${fmt(f.when)}${f.meta ? ` · ${f.meta}` : ""}`} onClick={f.open} />
+                    ))}
+                  </div>
+                )}>
                 More
               </button>
             }
           >
             <div role="list" className="space-y-1">
               {feed.slice(0, 5).map((f) => (
-                <Row
-                  key={`${f.type}-${f.id}`}
-                  title={f.title}
-                  meta={`${f.type} · ${fmt(f.when)}${
-                    f.meta ? ` · ${f.meta}` : ""
-                  }`}
-                  onClick={f.open}
-                />
+                <Row key={`${f.type}-${f.id}`} title={f.title} meta={`${f.type} · ${fmt(f.when)}${f.meta ? ` · ${f.meta}` : ""}`} onClick={f.open} />
               ))}
-              {feed.length === 0 && (
-                <div className="text-sm text-gray-800">
-                  No activity in this range.
-                </div>
-              )}
+              {feed.length === 0 && <div className="text-sm text-gray-800">No activity in this range.</div>}
             </div>
           </Card>
         </div>
 
         <div ref={upcomingRef} className="lg:col-span-6">
           <Card
-            className={`${
-              tabUpcoming === "appointments"
-                ? cardTint.upcomingAppts
-                : cardTint.upcomingTasks
-            } min-h-[360px] h-full`}
-            title={
-              <>
-                <CalendarDays className="h-4 w-4" />
-                Upcoming (next {windowDays} days)
-              </>
-            }
+            className={`${tabUpcoming === "appointments" ? cardTint.upcomingAppts : cardTint.upcomingTasks} min-h-[360px] h-full`}
+            title={<><CalendarDays className="h-4 w-4" /> Upcoming (next {windowDays} days)</>}
             right={
               <div className="flex items-center gap-2">
-                <div className="flex gap-1" role="tablist" aria-label="switch">
-                  <Pill
-                    active={tabUpcoming === "appointments"}
-                    onClick={() => setTabUpcoming("appointments")}
-                    aria-selected={tabUpcoming === "appointments"}
-                  >
-                    Appointments
-                  </Pill>
-                  <Pill
-                    active={tabUpcoming === "tasks"}
-                    onClick={() => setTabUpcoming("tasks")}
-                    aria-selected={tabUpcoming === "tasks"}
-                  >
-                    Tasks
-                  </Pill>
+                <div className="flex gap-1" role="tablist" aria-label="Upcoming switch">
+                  <Pill active={tabUpcoming === "appointments"} onClick={() => setTabUpcoming("appointments")} aria-selected={tabUpcoming === "appointments"}>Appointments</Pill>
+                  <Pill active={tabUpcoming === "tasks"} onClick={() => setTabUpcoming("tasks")} aria-selected={tabUpcoming === "tasks"}>Tasks</Pill>
                 </div>
               </div>
             }
@@ -1052,47 +824,24 @@ export default function DashboardPage() {
                   <Row
                     key={a.id}
                     title={a.description || "Appointment"}
-                    meta={`${a.category || "Medical"} · ${fmt(a.date_time)}${
-                      a.duration_minutes ? ` · ${a.duration_minutes} min` : ""
-                    }`}
-                    onClick={() =>
-                      navigate(`/app/${gid}/appointments?edit=${a.id}`)
-                    }
-                    badge={
-                      a.duration_minutes ? (
-                        <Chip tone="info">{a.duration_minutes} min</Chip>
-                      ) : undefined
-                    }
+                    meta={`${a.category || "Medical"} · ${fmt(a.date_time)}${a.duration_minutes ? ` · ${a.duration_minutes} min` : ""}`}
+                    onClick={() => navigate(`/app/${gid}/${APPOINTMENTS_ROUTE_SEGMENT}?edit=${a.id}`)}
+                    badge={a.duration_minutes ? <Chip tone="info">{a.duration_minutes} min</Chip> : undefined}
                   />
                 ))}
-                {apptsSoon.length === 0 && (
-                  <div className="text-sm text-gray-900">
-                    No appointments in the next {windowDays} days.
-                  </div>
-                )}
+                {apptsSoon.length === 0 && <div className="text-sm text-gray-900">No appointments in the next {windowDays} days.</div>}
                 {apptsSoon.length > 5 && (
                   <button
                     className="mt-2 inline-flex items-center gap-1 text-sm text-blue-700 underline"
                     onClick={() =>
-                      openMoreModal(
-                        "All upcoming appointments",
+                      openMoreModal("All upcoming appointments",
                         <div className="space-y-1">
                           {apptsSoon.map((a) => (
                             <Row
                               key={a.id}
                               title={a.description || "Appointment"}
-                              meta={`${a.category || "Medical"} · ${fmt(
-                                a.date_time
-                              )}${
-                                a.duration_minutes
-                                  ? ` · ${a.duration_minutes} min`
-                                  : ""
-                              }`}
-                              onClick={() =>
-                                navigate(
-                                  `/app/${gid}/appointments?edit=${a.id}`
-                                )
-                              }
+                              meta={`${a.category || "Medical"} · ${fmt(a.date_time)}${a.duration_minutes ? ` · ${a.duration_minutes} min` : ""}`}
+                              onClick={() => navigate(`/app/${gid}/${APPOINTMENTS_ROUTE_SEGMENT}?edit=${a.id}`)}
                             />
                           ))}
                         </div>
@@ -1115,43 +864,26 @@ export default function DashboardPage() {
                       t.due_date && new Date(t.due_date) < now ? (
                         <Chip tone="danger">Overdue</Chip>
                       ) : t.priority ? (
-                        <Chip
-                          tone={
-                            t.priority === "High"
-                              ? "warn"
-                              : t.priority === "Low"
-                              ? "neutral"
-                              : "indigo"
-                          }
-                        >
+                        <Chip tone={t.priority === "High" ? "warn" : t.priority === "Low" ? "neutral" : "indigo"}>
                           {t.priority}
                         </Chip>
                       ) : undefined
                     }
                   />
                 ))}
-                {tasksDueSoon.length === 0 && (
-                  <div className="text-sm text-gray-900">
-                    No open tasks due in the next {windowDays} days.
-                  </div>
-                )}
+                {tasksDueSoon.length === 0 && <div className="text-sm text-gray-900">No open tasks due in the next {windowDays} days.</div>}
                 {tasksDueSoon.length > 5 && (
                   <button
                     className="mt-2 inline-flex items-center gap-1 text-sm text-blue-700 underline"
                     onClick={() =>
-                      openMoreModal(
-                        "All upcoming tasks",
+                      openMoreModal("All upcoming tasks",
                         <div className="space-y-1">
                           {tasksDueSoon.map((t) => (
                             <Row
                               key={t.id}
                               title={t.title}
-                              meta={`${t.category || "Task"} · due ${fmt(
-                                t.due_date
-                              )}`}
-                              onClick={() =>
-                                navigate(`/app/${gid}/tasks?edit=${t.id}`)
-                              }
+                              meta={`${t.category || "Task"} · due ${fmt(t.due_date)}`}
+                              onClick={() => navigate(`/app/${gid}/tasks?edit=${t.id}`)}
                             />
                           ))}
                         </div>
@@ -1167,60 +899,30 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Documents + Contacts + Activity Logs (same row, equal height) */}
+      {/* Documents + Contacts + Activity Logs */}
       <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-12">
         <div ref={docsRef} className="lg:col-span-4">
           <Card
             className={`${cardTint.documents} min-h-[280px] h-full`}
-            title={
-              <>
-                <FileText className="h-4 w-4" />
-                Recent documents
-              </>
-            }
+            title={<><FileText className="h-4 w-4" /> Recent documents</>}
             right={
-              <button
-                className="text-sm text-gray-800 hover:underline"
-                onClick={() =>
-                  openMoreModal(
-                    "More documents",
-                    <div className="space-y-1">
-                      {recentDocs.map((d) => (
-                        <Row
-                          key={d.id}
-                          title={d.title}
-                          meta={`${d.file_type || "File"} · ${fmt(
-                            d.updated_at || d.created_at || d.upload_date
-                          )}`}
-                          onClick={() =>
-                            navigate(`/app/${gid}/documents?edit=${d.id}`)
-                          }
-                        />
-                      ))}
-                    </div>
-                  )
-                }
-              >
+              <button className="text-sm text-gray-800 hover:underline" onClick={() =>
+                openMoreModal("More documents",
+                  <div className="space-y-1">
+                    {recentDocs.map((d) => (
+                      <Row key={d.id} title={d.title} meta={`${d.file_type || "File"} · ${fmt(d.updated_at || d.created_at || d.upload_date)}`} onClick={() => navigate(`/app/${gid}/documents?edit=${d.id}`)} />
+                    ))}
+                  </div>
+                )}>
                 More
               </button>
             }
           >
             <div className="space-y-1">
               {recentDocs.slice(0, 5).map((d) => (
-                <Row
-                  key={d.id}
-                  title={d.title}
-                  meta={`${d.file_type || "File"} · ${fmt(
-                    d.updated_at || d.created_at || d.upload_date
-                  )}`}
-                  onClick={() =>
-                    navigate(`/app/${gid}/documents?edit=${d.id}`)
-                  }
-                />
+                <Row key={d.id} title={d.title} meta={`${d.file_type || "File"} · ${fmt(d.updated_at || d.created_at || d.upload_date)}`} onClick={() => navigate(`/app/${gid}/documents?edit=${d.id}`)} />
               ))}
-              {recentDocs.length === 0 && (
-                <div className="text-sm text-gray-900">No recent documents.</div>
-              )}
+              {recentDocs.length === 0 && <div className="text-sm text-gray-900">No recent documents.</div>}
             </div>
           </Card>
         </div>
@@ -1228,43 +930,22 @@ export default function DashboardPage() {
         <div className="lg:col-span-4">
           <Card
             className={`${cardTint.contacts} min-h-[280px] h-full`}
-            title={
-              <>
-                <Users className="h-4 w-4" />
-                Recent contacts
-              </>
-            }
+            title={<><Users className="h-4 w-4" /> Recent contacts</>}
             right={
-              <button
-                className="text-sm text-gray-800 hover:underline"
-                onClick={() =>
-                  openMoreModal(
-                    "More contacts",
-                    <div className="space-y-1">
-                      {recentContacts.map((c) => {
-                        const title =
-                          c.first_name || c.last_name
-                            ? [c.first_name, c.last_name]
-                                .filter(Boolean)
-                                .join(" ")
-                            : c.organization_name || "Contact";
-                        return (
-                          <Row
-                            key={c.id}
-                            title={title}
-                            meta={`${c.contact_type || "contact"} · ${fmt(
-                              c.updated_at || c.created_at
-                            )}`}
-                            onClick={() =>
-                              navigate(`/app/${gid}/contacts?edit=${c.id}`)
-                            }
-                          />
-                        );
-                      })}
-                    </div>
-                  )
-                }
-              >
+              <button className="text-sm text-gray-800 hover:underline" onClick={() =>
+                openMoreModal("More contacts",
+                  <div className="space-y-1">
+                    {recentContacts.map((c) => {
+                      const title =
+                        c.first_name || c.last_name
+                          ? [c.first_name, c.last_name].filter(Boolean).join(" ")
+                          : c.organization_name || "Contact";
+                      return (
+                        <Row key={c.id} title={title} meta={`${c.contact_type || "contact"} · ${fmt(c.updated_at || c.created_at)}`} onClick={() => navigate(`/app/${gid}/contacts?edit=${c.id}`)} />
+                      );
+                    })}
+                  </div>
+                )}>
                 More
               </button>
             }
@@ -1276,21 +957,10 @@ export default function DashboardPage() {
                     ? [c.first_name, c.last_name].filter(Boolean).join(" ")
                     : c.organization_name || "Contact";
                 return (
-                  <Row
-                    key={c.id}
-                    title={title}
-                    meta={`${c.contact_type || "contact"} · ${fmt(
-                      c.updated_at || c.created_at
-                    )}`}
-                    onClick={() =>
-                      navigate(`/app/${gid}/contacts?edit=${c.id}`)
-                    }
-                  />
+                  <Row key={c.id} title={title} meta={`${c.contact_type || "contact"} · ${fmt(c.updated_at || c.created_at)}`} onClick={() => navigate(`/app/${gid}/contacts?edit=${c.id}`)} />
                 );
               })}
-              {recentContacts.length === 0 && (
-                <div className="text-sm text-gray-900">No recent contacts.</div>
-              )}
+              {recentContacts.length === 0 && <div className="text-sm text-gray-900">No recent contacts.</div>}
             </div>
           </Card>
         </div>
@@ -1298,105 +968,41 @@ export default function DashboardPage() {
         <div className="lg:col-span-4">
           <Card
             className={`${cardTint.activityLogs} min-h-[280px] h-full`}
-            title={
-              <>
-                <History className="h-4 w-4" />
-                Recent activity logs
-              </>
-            }
+            title={<><History className="h-4 w-4" /> Recent activity logs</>}
             right={
-              <button
-                className="text-sm text-gray-800 hover:underline"
-                onClick={() =>
-                  openMoreModal(
-                    "More activity logs",
-                    <div className="space-y-1">
-                      {recentActs.map((a) => (
-                        <Row
-                          key={a.id}
-                          title={a.title || "Activity log"}
-                          meta={`${nameForUser(a.created_by_user_id)} · ${fmt(
-                            a.created_at || a.date_time
-                          )}`}
-                          onClick={() =>
-                            navigate(`/app/${gid}/activity?edit=${a.id}`)
-                          }
-                        />
-                      ))}
-                    </div>
-                  )
-                }
-              >
+              <button className="text-sm text-gray-800 hover:underline" onClick={() =>
+                openMoreModal("More activity logs",
+                  <div className="space-y-1">
+                    {recentActs.map((a) => (
+                      <Row key={a.id} title={a.title || "Activity log"} meta={`${nameForUser(a.created_by_user_id)} · ${fmt(a.created_at || a.date_time)}`} onClick={() => navigate(`/app/${gid}/activity?edit=${a.id}`)} />
+                    ))}
+                  </div>
+                )}>
                 More
               </button>
             }
           >
             <div className="space-y-1">
               {recentActs.slice(0, 5).map((a) => (
-                <Row
-                  key={a.id}
-                  title={a.title || "Activity log"}
-                  meta={`${nameForUser(a.created_by_user_id)} · ${fmt(
-                    a.created_at || a.date_time
-                  )}`}
-                  onClick={() => navigate(`/app/${gid}/activity?edit=${a.id}`)}
-                />
+                <Row key={a.id} title={a.title || "Activity log"} meta={`${nameForUser(a.created_by_user_id)} · ${fmt(a.created_at || a.date_time)}`} onClick={() => navigate(`/app/${gid}/activity?edit=${a.id}`)} />
               ))}
-              {recentActs.length === 0 && (
-                <div className="text-sm text-gray-900">
-                  No recent activity logs.
-                </div>
-              )}
+              {recentActs.length === 0 && <div className="text-sm text-gray-900">No recent activity logs.</div>}
             </div>
           </Card>
         </div>
       </div>
 
-      {/* Quick Navigate + Logins (final row) */}
+      {/* Quick Navigate + Logins */}
       <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-12">
         <div className="lg:col-span-10">
-          <Card
-            className={`${cardTint.quick}`}
-            title={
-              <>
-                <ArrowRight className="h-4 w-4" />
-                Quick navigate
-              </>
-            }
-            subtitle="Jump straight to a section"
-          >
+          <Card className={`${cardTint.quick}`} title={<><ArrowRight className="h-4 w-4" /> Quick navigate</>} subtitle="Jump straight to a section">
             <div className="flex flex-wrap gap-2">
               {[
-                {
-                  label: "Appointments",
-                  to: `/app/${gid}/appointments`,
-                  tone: "sky",
-                  Icon: CalendarDays,
-                },
-                {
-                  label: "Tasks",
-                  to: `/app/${gid}/tasks`,
-                  tone: "indigo",
-                  Icon: CheckSquare,
-                },
-                {
-                  label: "Documents",
-                  to: `/app/${gid}/documents`,
-                  tone: "emerald",
-                  Icon: FileText,
-                },
-                {
-                  label: "Contacts",
-                  to: `/app/${gid}/contacts`,
-                  tone: "amber",
-                  Icon: Users,
-                },
-                {
-                  label: "Activity logs",
-                  to: `/app/${gid}/activity`,
-                  tone: "purple",
-                  Icon: History,
-                },
+                { label: "Appointments", to: `/app/${gid}/${APPOINTMENTS_ROUTE_SEGMENT}`, tone: "sky", Icon: CalendarDays },
+                { label: "Tasks", to: `/app/${gid}/tasks`, tone: "indigo", Icon: CheckSquare },
+                { label: "Documents", to: `/app/${gid}/documents`, tone: "emerald", Icon: FileText },
+                { label: "Contacts", to: `/app/${gid}/contacts`, tone: "amber", Icon: Users },
+                { label: "Activity logs", to: `/app/${gid}/activity`, tone: "purple", Icon: History },
               ].map(({ label, to, tone, Icon }) => {
                 const toneClass =
                   tone === "sky"
@@ -1409,11 +1015,7 @@ export default function DashboardPage() {
                     ? "border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100"
                     : "border-purple-300 bg-purple-50 text-purple-900 hover:bg-purple-100";
                 return (
-                  <button
-                    key={label}
-                    onClick={() => navigate(to)}
-                    className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm ${toneClass}`}
-                  >
+                  <button key={label} onClick={() => navigate(to)} className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm ${toneClass}`}>
                     <Icon className="h-4 w-4" />
                     {label}
                   </button>
@@ -1424,52 +1026,21 @@ export default function DashboardPage() {
         </div>
 
         <div className="lg:col-span-2">
-          <Card
-            className={`${cardTint.logins} min-h-[120px] h-full`}
-            title={
-              <>
-                <LogIn className="h-4 w-4" />
-                Logins (last {windowDays}d)
-              </>
-            }
-          >
+          <Card className={`${cardTint.logins} min-h-[120px] h-full`} title={<><LogIn className="h-4 w-4" /> Logins (last {windowDays}d)</>}>
             <div className="space-y-1">
               {recentLogins.slice(0, 6).map((p) => (
-                <Row
-                  key={p.user_id}
-                  title={
-                    [p.first_name, p.last_name].filter(Boolean).join(" ") ||
-                    "Unknown"
-                  }
-                  meta={fmt(p.last_login)}
-                />
+                <Row key={p.user_id} title={[p.first_name, p.last_name].filter(Boolean).join(" ") || "Unknown"} meta={fmt(p.last_login)} />
               ))}
-              {recentLogins.length === 0 && (
-                <div className="text-sm text-gray-900">No recent logins.</div>
-              )}
+              {recentLogins.length === 0 && <div className="text-sm text-gray-900">No recent logins.</div>}
             </div>
           </Card>
         </div>
       </div>
 
-      {/* Loading / Error states */}
-      {loading && (
-        <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-700">
-          Loading dashboard…
-        </div>
-      )}
-      {errorText && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          {errorText}
-        </div>
-      )}
+      {loading && <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-700">Loading dashboard…</div>}
+      {errorText && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{errorText}</div>}
 
-      {/* “More” Modal */}
-      <Modal
-        open={!!moreOpen}
-        onClose={closeMore}
-        title={moreOpen?.title || ""}
-      >
+      <Modal open={!!moreOpen} onClose={() => setMoreOpen(null)} title={moreOpen?.title || ""}>
         {moreOpen?.content}
       </Modal>
     </div>
