@@ -218,6 +218,7 @@ type Profile = {
   first_name?: string | null;
   last_name?: string | null;
   last_login?: string | null;
+  email?: string | null;
 };
 
 type Allergy = {
@@ -387,7 +388,17 @@ export default function DashboardPage() {
             .select("user_id,first_name,last_name,last_login")
             .in("user_id", memberIds);
           if (profErr) throw profErr;
-          setProfiles((profs as Profile[]) || []);
+          
+          // Add email from members data to profiles
+          const profsWithEmail = (profs as Profile[]).map(prof => {
+            const member = members.find((m: any) => m.user_id === prof.user_id);
+            return {
+              ...prof,
+              email: member?.email || null
+            };
+          });
+          
+          setProfiles(profsWithEmail);
         } else {
           setProfiles([]);
         }
@@ -1032,7 +1043,7 @@ export default function DashboardPage() {
               openMoreModal("All recent logins",
                 <div className="space-y-1">
                   {recentLogins.map((p) => (
-                    <Row key={p.user_id} title={[p.first_name, p.last_name].filter(Boolean).join(" ") || `User ${p.user_id.slice(0, 8)}`} meta={fmt(p.last_login)} />
+                    <Row key={p.user_id} title={p.email || `User ${p.user_id.slice(0, 8)}`} meta={fmt(p.last_login)} />
                   ))}
                 </div>
               )}>
@@ -1045,7 +1056,7 @@ export default function DashboardPage() {
           {recentLogins.length === 0 && <span className="text-sm text-gray-700">No recent logins</span>}
           {recentLogins.slice(0, 6).map((p) => (
             <Chip key={p.user_id} tone="info">
-              {[p.first_name, p.last_name].filter(Boolean).join(" ") || `User ${p.user_id.slice(0, 8)}`}
+              {p.email || `User ${p.user_id.slice(0, 8)}`}
             </Chip>
           ))}
           {recentLogins.length > 6 && (
