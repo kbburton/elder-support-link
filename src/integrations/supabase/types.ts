@@ -147,13 +147,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "activity_logs_group_id_fkey"
-            columns: ["group_id"]
-            isOneToOne: false
-            referencedRelation: "v_group_header"
-            referencedColumns: ["care_group_id"]
-          },
-          {
             foreignKeyName: "activity_logs_linked_appointment_id_fkey"
             columns: ["linked_appointment_id"]
             isOneToOne: false
@@ -173,13 +166,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "care_groups"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_activity_logs_group_id"
-            columns: ["group_id"]
-            isOneToOne: false
-            referencedRelation: "v_group_header"
-            referencedColumns: ["care_group_id"]
           },
           {
             foreignKeyName: "fk_activity_logs_linked_appointment_id"
@@ -310,13 +296,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "care_groups"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "allergies_care_group_id_fkey"
-            columns: ["care_group_id"]
-            isOneToOne: false
-            referencedRelation: "v_group_header"
-            referencedColumns: ["care_group_id"]
           },
         ]
       }
@@ -599,13 +578,6 @@ export type Database = {
             referencedRelation: "care_groups"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "appointments_group_id_fkey"
-            columns: ["group_id"]
-            isOneToOne: false
-            referencedRelation: "v_group_header"
-            referencedColumns: ["care_group_id"]
-          },
         ]
       }
       care_group_invitations: {
@@ -662,13 +634,6 @@ export type Database = {
             referencedRelation: "care_groups"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "fk_invitations_group_id"
-            columns: ["group_id"]
-            isOneToOne: false
-            referencedRelation: "v_group_header"
-            referencedColumns: ["care_group_id"]
-          },
         ]
       }
       care_group_members: {
@@ -706,13 +671,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "care_groups"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "care_group_members_group_id_fkey"
-            columns: ["group_id"]
-            isOneToOne: false
-            referencedRelation: "v_group_header"
-            referencedColumns: ["care_group_id"]
           },
         ]
       }
@@ -1073,13 +1031,6 @@ export type Database = {
             referencedRelation: "care_groups"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "contacts_care_group_id_fkey"
-            columns: ["care_group_id"]
-            isOneToOne: false
-            referencedRelation: "v_group_header"
-            referencedColumns: ["care_group_id"]
-          },
         ]
       }
       deletion_audit: {
@@ -1288,13 +1239,6 @@ export type Database = {
             referencedRelation: "care_groups"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "documents_group_id_fkey"
-            columns: ["group_id"]
-            isOneToOne: false
-            referencedRelation: "v_group_header"
-            referencedColumns: ["care_group_id"]
-          },
         ]
       }
       enhanced_audit_logs: {
@@ -1440,13 +1384,6 @@ export type Database = {
             referencedRelation: "care_groups"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "feedback_items_care_group_id_fkey"
-            columns: ["care_group_id"]
-            isOneToOne: false
-            referencedRelation: "v_group_header"
-            referencedColumns: ["care_group_id"]
-          },
         ]
       }
       group_access_logs: {
@@ -1478,13 +1415,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "care_groups"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "group_access_logs_group_id_fkey"
-            columns: ["group_id"]
-            isOneToOne: false
-            referencedRelation: "v_group_header"
-            referencedColumns: ["care_group_id"]
           },
         ]
       }
@@ -1643,13 +1573,6 @@ export type Database = {
             referencedRelation: "care_groups"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "preferences_care_group_id_fkey"
-            columns: ["care_group_id"]
-            isOneToOne: false
-            referencedRelation: "v_group_header"
-            referencedColumns: ["care_group_id"]
-          },
         ]
       }
       profiles: {
@@ -1699,13 +1622,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "care_groups"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "profiles_last_active_group_id_fkey"
-            columns: ["last_active_group_id"]
-            isOneToOne: false
-            referencedRelation: "v_group_header"
-            referencedColumns: ["care_group_id"]
           },
         ]
       }
@@ -2101,13 +2017,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "tasks_group_id_fkey"
-            columns: ["group_id"]
-            isOneToOne: false
-            referencedRelation: "v_group_header"
-            referencedColumns: ["care_group_id"]
-          },
-          {
             foreignKeyName: "tasks_primary_owner_id_fkey"
             columns: ["primary_owner_id"]
             isOneToOne: false
@@ -2125,24 +2034,7 @@ export type Database = {
       }
     }
     Views: {
-      v_group_header: {
-        Row: {
-          care_group_id: string | null
-          pinned_preferences: Json | null
-          top_allergy: string | null
-        }
-        Insert: {
-          care_group_id?: string | null
-          pinned_preferences?: never
-          top_allergy?: never
-        }
-        Update: {
-          care_group_id?: string | null
-          pinned_preferences?: never
-          top_allergy?: never
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       accept_invitation: {
@@ -2228,6 +2120,14 @@ export type Database = {
           associated_type: string
           association_count: number
           junction_table: string
+        }[]
+      }
+      get_group_header_data: {
+        Args: { p_care_group_id: string }
+        Returns: {
+          care_group_id: string
+          pinned_preferences: Json
+          top_allergy: string
         }[]
       }
       get_group_members: {
