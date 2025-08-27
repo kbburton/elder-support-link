@@ -270,12 +270,11 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
         try {
           logger.documentUploadStart(file.name, file.size, groupId!, user.id);
 
-          // Create filename with new format: careGroupId_filename_timestamp_random.ext
+          // Create filename with new format: filename_timestamp_groupId.ext
           const fileExt = file.name.split('.').pop();
           const baseName = file.name.replace(/\.[^/.]+$/, "");
           const timestamp = Date.now();
-          const randomSuffix = Math.random().toString(36).substring(2, 8);
-          const fileName = `${groupId}_${baseName}_${timestamp}_${randomSuffix}.${fileExt}`;
+          const fileName = `${baseName}_${timestamp}_${groupId}.${fileExt}`;
           filePath = fileName;
 
           let uploadSuccess = false;
@@ -293,10 +292,9 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
                 });
 
               if (existingFiles && existingFiles.length > 0) {
-                // File exists, regenerate filename
-                const newRandomSuffix = Math.random().toString(36).substring(2, 8);
-                const newTimestamp = Date.now();
-                filePath = `${groupId}_${baseName}_${newTimestamp}_${newRandomSuffix}.${fileExt}`;
+                // File exists, regenerate filename with new timestamp
+                const newTimestamp = Date.now() + attempt;
+                filePath = `${baseName}_${newTimestamp}_${groupId}.${fileExt}`;
                 continue; // Try again with new filename
               }
 
@@ -307,9 +305,8 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
               if (uploadError) {
                 if (uploadError.message.includes('already exists')) {
                   // File was created between our check and upload, try with new filename
-                  const newRandomSuffix = Math.random().toString(36).substring(2, 8);
-                  const newTimestamp = Date.now();
-                  filePath = `${groupId}_${baseName}_${newTimestamp}_${newRandomSuffix}.${fileExt}`;
+                  const newTimestamp = Date.now() + attempt;
+                  filePath = `${baseName}_${newTimestamp}_${groupId}.${fileExt}`;
                   continue;
                 }
                 throw new Error(`Storage upload failed: ${uploadError.message}`);
@@ -334,9 +331,8 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
                 await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
                 
                 // Generate completely new filename for next attempt
-                const newRandomSuffix = Math.random().toString(36).substring(2, 8);
                 const newTimestamp = Date.now() + attempt; // Add attempt to timestamp
-                filePath = `${groupId}_${baseName}_${newTimestamp}_${newRandomSuffix}.${fileExt}`;
+                filePath = `${baseName}_${newTimestamp}_${groupId}.${fileExt}`;
               }
             }
           }
