@@ -13,6 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Progress } from '@/components/ui/progress';
 import { validateFile, validateBatch, FILE_LIMITS } from '@/utils/file-limits';
 import { logger } from '@/utils/logger';
+import { DuplicateConfirmDialog } from './DuplicateConfirmDialog';
 
 interface DocumentUploadProps {
   onUploadComplete: () => void;
@@ -41,6 +42,9 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('');
   const [notes, setNotes] = useState('');
+  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
+  const [duplicateFiles, setDuplicateFiles] = useState<string[]>([]);
+  const [pendingUpload, setPendingUpload] = useState(false);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const validFiles: File[] = [];
@@ -163,7 +167,65 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
     }
   };
 
-  const handleUpload = async () => {
+  // Parse careGroupId from existing file_url format
+  const parseFileUrl = (fileUrl: string): { careGroupId?: string; originalFilename?: string; timestamp?: string } => {
+    try {
+      // Expected format: careGroupId_filename_timestamp.ext
+      const parts = fileUrl.split('_');
+      if (parts.length < 3) {
+        return {}; // Invalid format
+      }
+      
+      const careGroupId = parts[0];
+      const lastPart = parts[parts.length - 1]; // timestamp.ext
+      const timestampWithExt = lastPart.split('.')[0]; // remove extension
+      const originalFilename = parts.slice(1, -1).join('_'); // everything between careGroupId and timestamp
+      
+      return {
+        careGroupId,
+        originalFilename,
+        timestamp: timestampWithExt
+      };
+    } catch (error) {
+      logger.warn('Failed to parse file URL', { fileUrl }, error as Error);
+      return {};
+    }
+  };
+
+  // Check for duplicate filenames within the care group
+  const checkForDuplicates = async (files: File[]): Promise<string[]> => {
+    if (!groupId) return [];
+
+    try {
+      const { data: existingDocs, error } = await supabase
+        .from('documents')
+        .select('original_filename, file_url')
+        .eq('group_id', groupId)
+        .eq('is_deleted', false);
+
+      if (error) {
+        logger.warn('Failed to check for duplicates', { groupId }, error);
+        return [];
+      }
+
+      const duplicates: string[] = [];
+      const existingFilenames = new Set(existingDocs?.map(doc => doc.original_filename.toLowerCase()) || []);
+
+      for (const file of files) {
+        if (existingFilenames.has(file.name.toLowerCase())) {
+          duplicates.push(file.name);
+        }
+      }
+
+      return duplicates;
+    } catch (error) {
+      logger.warn('Error checking duplicates', { groupId }, error as Error);
+      return [];
+    }
+  };
+
+  // Handle the actual upload process
+  const performUpload = async () => {
     if (selectedFiles.length === 0 || !category || !groupId) {
       toast({
         title: 'Missing information',
@@ -208,11 +270,11 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
         try {
           logger.documentUploadStart(file.name, file.size, groupId!, user.id);
 
-          // Upload to Supabase Storage with retry logic
+          // Create filename with new format: careGroupId_filename_timestamp.ext
           const fileExt = file.name.split('.').pop();
           const baseName = file.name.replace(/\.[^/.]+$/, "");
           const timestamp = Date.now();
-          const fileName = `${baseName}_${timestamp}_${i}.${fileExt}`;
+          const fileName = `${groupId}_${baseName}_${timestamp}.${fileExt}`;
           filePath = fileName;
 
           let uploadSuccess = false;
@@ -381,7 +443,41 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
     } finally {
       setUploading(false);
       setUploadProgress(0);
+      setPendingUpload(false);
     }
+  };
+
+  const handleUpload = async () => {
+    // Check for duplicates first
+    try {
+      const duplicates = await checkForDuplicates(selectedFiles);
+      if (duplicates.length > 0) {
+        setDuplicateFiles(duplicates);
+        setShowDuplicateDialog(true);
+        setPendingUpload(true);
+        return;
+      }
+    } catch (error) {
+      // If duplicate check fails, show warning but continue
+      toast({
+        title: "Warning",
+        description: "Could not check for duplicate files. Upload will continue.",
+        variant: "default",
+      });
+    }
+
+    // Proceed with upload
+    await performUpload();
+  };
+
+  const handleConfirmDuplicateUpload = () => {
+    setShowDuplicateDialog(false);
+    performUpload();
+  };
+
+  const handleCancelDuplicateUpload = () => {
+    setShowDuplicateDialog(false);
+    setPendingUpload(false);
   };
 
   return (
@@ -508,19 +604,26 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
           </div>
         )}
 
-        {/* Actions */}
-        <div className="flex space-x-2">
-          <Button onClick={onClose} variant="outline" disabled={uploading}>
+        {/* Upload Actions */}
+        <div className="flex justify-end space-x-2 pt-4">
+          <Button variant="outline" onClick={onClose} disabled={uploading || pendingUpload}>
             Cancel
           </Button>
           <Button 
             onClick={handleUpload} 
-            disabled={selectedFiles.length === 0 || !category || uploading}
-            className="flex-1"
+            disabled={selectedFiles.length === 0 || !category || uploading || pendingUpload}
           >
-            {uploading ? 'Uploading...' : `Upload ${selectedFiles.length} Document${selectedFiles.length > 1 ? 's' : ''}`}
+            {uploading ? "Uploading..." : pendingUpload ? "Checking..." : "Upload"}
           </Button>
         </div>
+
+        {/* Duplicate Confirmation Dialog */}
+        <DuplicateConfirmDialog
+          isOpen={showDuplicateDialog}
+          onClose={handleCancelDuplicateUpload}
+          onConfirm={handleConfirmDuplicateUpload}
+          duplicateFiles={duplicateFiles}
+        />
       </CardContent>
     </Card>
   );
