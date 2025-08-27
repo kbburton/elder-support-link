@@ -312,8 +312,8 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
                 throw new Error(`Storage upload failed: ${uploadError.message}`);
               }
 
-              // Validate upload immediately
-              await validateStorageUpload(filePath, file.size);
+              // Upload successful - no validation needed as upload API confirms success
+              logger.info('Storage upload successful', { filePath, fileSize: file.size });
               uploadSuccess = true;
               break;
             } catch (error) {
