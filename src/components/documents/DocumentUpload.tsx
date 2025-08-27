@@ -102,96 +102,6 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
     maxSize: FILE_LIMITS.MAX_FILE_SIZE
   });
 
-  // Validate file exists in storage with retry logic
-  const validateStorageUpload = async (filePath: string, expectedSize: number, retryCount = 0): Promise<boolean> => {
-    try {
-      logger.storageValidationStart(filePath, filePath);
-      
-      const { data, error } = await supabase.storage
-        .from('documents')
-        .list('', {
-          limit: 1000,
-          search: filePath.split('/').pop()
-        });
-
-      if (error) {
-        throw new Error(`Storage validation failed: ${error.message}`);
-      }
-
-      const file = data?.find(f => f.name === filePath.split('/').pop());
-      if (!file) {
-        throw new Error('File not found in storage after upload');
-      }
-
-      // Validate file size matches (allow 1KB difference for metadata)
-      if (file.metadata?.size && Math.abs(file.metadata.size - expectedSize) > 1000) {
-        throw new Error(`File size mismatch: expected ${expectedSize}, found ${file.metadata.size}`);
-      }
-
-      logger.storageValidationSuccess(filePath, filePath, file.metadata?.size || expectedSize);
-      return true;
-    } catch (error) {
-      logger.storageValidationError(filePath, filePath, error as Error);
-      
-      // Retry once if first attempt fails
-      if (retryCount < 1) {
-        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
-        return validateStorageUpload(filePath, expectedSize, retryCount + 1);
-      }
-      
-      throw error;
-    }
-  };
-
-  // Rollback function to clean up failed uploads
-  const rollbackStorageUpload = async (filePath: string, attempt: number = 1): Promise<void> => {
-    try {
-      logger.rollbackStart(filePath, filePath, attempt);
-      
-      const { error } = await supabase.storage
-        .from('documents')
-        .remove([filePath]);
-
-      if (error && !error.message.includes('not found')) {
-        throw error;
-      }
-
-      logger.rollbackSuccess(filePath, filePath);
-    } catch (error) {
-      logger.error('Rollback failed', { 
-        operation: 'rollback_error',
-        filePath, 
-        attempt 
-      }, error as Error);
-      // Don't throw - rollback failure shouldn't block error reporting
-    }
-  };
-
-  // Parse careGroupId from existing file_url format
-  const parseFileUrl = (fileUrl: string): { careGroupId?: string; originalFilename?: string; timestamp?: string } => {
-    try {
-      // Expected format: careGroupId_filename_timestamp.ext
-      const parts = fileUrl.split('_');
-      if (parts.length < 3) {
-        return {}; // Invalid format
-      }
-      
-      const careGroupId = parts[0];
-      const lastPart = parts[parts.length - 1]; // timestamp.ext
-      const timestampWithExt = lastPart.split('.')[0]; // remove extension
-      const originalFilename = parts.slice(1, -1).join('_'); // everything between careGroupId and timestamp
-      
-      return {
-        careGroupId,
-        originalFilename,
-        timestamp: timestampWithExt
-      };
-    } catch (error) {
-      logger.warn('Failed to parse file URL', { fileUrl }, error as Error);
-      return {};
-    }
-  };
-
   // Check for duplicate filenames within the care group
   const checkForDuplicates = async (files: File[]): Promise<string[]> => {
     if (!groupId) return [];
@@ -283,7 +193,6 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
           // Try upload with collision handling
           for (let attempt = 1; attempt <= 3; attempt++) {
             try {
-              console.log(`Upload attempt ${attempt} for ${file.name} with path: ${filePath}`);
               // Check if file already exists
               const { data: existingFiles } = await supabase.storage
                 .from('documents')
@@ -303,8 +212,6 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
                 .from('documents')
                 .upload(filePath, file);
 
-              console.log('Upload result:', { uploadData, uploadError, filePath });
-
               if (uploadError) {
                 if (uploadError.message.includes('already exists')) {
                   // File was created between our check and upload, try with new filename
@@ -316,13 +223,11 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
               }
 
               // Upload successful - no validation needed as upload API confirms success
-              console.log('Upload successful, no validation needed:', { filePath, fileSize: file.size });
               logger.info('Storage upload successful', { filePath, fileSize: file.size });
               uploadSuccess = true;
               break;
             } catch (error) {
               lastUploadError = error as Error;
-              console.log(`Upload attempt ${attempt} failed:`, error);
               logger.warn(`Upload attempt ${attempt} failed for ${file.name}`, {
                 operation: 'upload_attempt_failed',
                 filename: file.name,
@@ -331,12 +236,11 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
               }, error as Error);
 
               if (attempt < 3) {
-                // Clean up failed upload before retry
-                await rollbackStorageUpload(filePath, attempt);
-                await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+                // Wait before retry
+                await new Promise(resolve => setTimeout(resolve, 1000));
                 
                 // Generate completely new filename for next attempt
-                const newTimestamp = Date.now() + attempt; // Add attempt to timestamp
+                const newTimestamp = Date.now() + attempt;
                 filePath = `${baseName}_${newTimestamp}_${groupId}.${fileExt}`;
               }
             }
@@ -367,8 +271,7 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
             .single();
 
           if (insertError) {
-            // Rollback storage upload if database insert fails
-            await rollbackStorageUpload(filePath, 1);
+            // Database insert failed - log error but don't rollback file (file remains in storage)
             throw new Error(`Failed to create document record: ${insertError.message}`);
           }
 
