@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from '@/integrations/supabase/client';
 import { Progress } from '@/components/ui/progress';
 import { validateFile, validateBatch, FILE_LIMITS } from '@/utils/file-limits';
+import { logger } from '@/utils/logger';
 
 interface DocumentUploadProps {
   onUploadComplete: () => void;
@@ -97,6 +98,71 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
     maxSize: FILE_LIMITS.MAX_FILE_SIZE
   });
 
+  // Validate file exists in storage with retry logic
+  const validateStorageUpload = async (filePath: string, expectedSize: number, retryCount = 0): Promise<boolean> => {
+    try {
+      logger.storageValidationStart(filePath, filePath);
+      
+      const { data, error } = await supabase.storage
+        .from('documents')
+        .list('', {
+          limit: 1000,
+          search: filePath.split('/').pop()
+        });
+
+      if (error) {
+        throw new Error(`Storage validation failed: ${error.message}`);
+      }
+
+      const file = data?.find(f => f.name === filePath.split('/').pop());
+      if (!file) {
+        throw new Error('File not found in storage after upload');
+      }
+
+      // Validate file size matches (allow 1KB difference for metadata)
+      if (file.metadata?.size && Math.abs(file.metadata.size - expectedSize) > 1000) {
+        throw new Error(`File size mismatch: expected ${expectedSize}, found ${file.metadata.size}`);
+      }
+
+      logger.storageValidationSuccess(filePath, filePath, file.metadata?.size || expectedSize);
+      return true;
+    } catch (error) {
+      logger.storageValidationError(filePath, filePath, error as Error);
+      
+      // Retry once if first attempt fails
+      if (retryCount < 1) {
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+        return validateStorageUpload(filePath, expectedSize, retryCount + 1);
+      }
+      
+      throw error;
+    }
+  };
+
+  // Rollback function to clean up failed uploads
+  const rollbackStorageUpload = async (filePath: string, attempt: number = 1): Promise<void> => {
+    try {
+      logger.rollbackStart(filePath, filePath, attempt);
+      
+      const { error } = await supabase.storage
+        .from('documents')
+        .remove([filePath]);
+
+      if (error && !error.message.includes('not found')) {
+        throw error;
+      }
+
+      logger.rollbackSuccess(filePath, filePath);
+    } catch (error) {
+      logger.error('Rollback failed', { 
+        operation: 'rollback_error',
+        filePath, 
+        attempt 
+      }, error as Error);
+      // Don't throw - rollback failure shouldn't block error reporting
+    }
+  };
+
   const handleUpload = async () => {
     if (selectedFiles.length === 0 || !category || !groupId) {
       toast({
@@ -113,144 +179,204 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        throw new Error('User not authenticated');
+        toast({
+          title: "Authentication Required",
+          description: "Please log in to upload documents.",
+          variant: "destructive",
+        });
+        return;
       }
 
-      const totalFiles = selectedFiles.length;
-      const progressPerFile = 80 / totalFiles; // Reserve 20% for completion
-      let currentProgress = 0;
+      logger.info('Starting batch upload', {
+        operation: 'batch_upload_start',
+        component: 'DocumentUpload',
+        fileCount: selectedFiles.length,
+        groupId: groupId!,
+        userId: user.id,
+      });
 
-      const uploadedDocuments = [];
+      const batchSize = selectedFiles.length;
+      let successCount = 0;
+      let errorCount = 0;
+      const uploadErrors: string[] = [];
 
       for (let i = 0; i < selectedFiles.length; i++) {
         const file = selectedFiles[i];
+        let filePath: string | null = null;
+        let documentId: string | null = null;
         
-        // Server-side validation will be done in the edge function
-        const fileExt = file.name.split('.').pop();
-        const baseName = file.name.replace(/\.[^/.]+$/, "");
-        const timestamp = Date.now();
-        const fileName = `${baseName}_${timestamp}_${i}.${fileExt}`;
-
-        // Upload file to storage with improved error handling
         try {
-          const { data: uploadData, error: uploadError } = await supabase.storage
-            .from('documents')
-            .upload(fileName, file);
+          logger.documentUploadStart(file.name, file.size, groupId!, user.id);
 
-          if (uploadError) {
-            console.error('Storage upload failed:', uploadError);
-            throw new Error(`Storage upload failed for ${file.name}: ${uploadError.message}`);
+          // Upload to Supabase Storage with retry logic
+          const fileExt = file.name.split('.').pop();
+          const baseName = file.name.replace(/\.[^/.]+$/, "");
+          const timestamp = Date.now();
+          const fileName = `${baseName}_${timestamp}_${i}.${fileExt}`;
+          filePath = fileName;
+
+          let uploadSuccess = false;
+          let lastUploadError: Error | null = null;
+
+          // Try upload with one retry
+          for (let attempt = 1; attempt <= 2; attempt++) {
+            try {
+              const { data: uploadData, error: uploadError } = await supabase.storage
+                .from('documents')
+                .upload(filePath, file);
+
+              if (uploadError) {
+                throw new Error(`Storage upload failed: ${uploadError.message}`);
+              }
+
+              // Validate upload immediately
+              await validateStorageUpload(filePath, file.size);
+              uploadSuccess = true;
+              break;
+            } catch (error) {
+              lastUploadError = error as Error;
+              logger.warn(`Upload attempt ${attempt} failed for ${file.name}`, {
+                operation: 'upload_attempt_failed',
+                filename: file.name,
+                attempt,
+              }, error as Error);
+
+              if (attempt === 1) {
+                // Clean up failed upload before retry
+                await rollbackStorageUpload(filePath, attempt);
+                await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+              }
+            }
           }
 
+          if (!uploadSuccess) {
+            throw lastUploadError || new Error('Upload failed after retries');
+          }
 
-          // Create document record
+          // Create document record only after successful storage upload
           const documentTitle = selectedFiles.length === 1 && title ? title : file.name;
           
-          const { data: documentData, error: dbError } = await supabase
+          const { data: documentData, error: insertError } = await supabase
             .from('documents')
             .insert({
               title: documentTitle,
-              category,
-              file_url: uploadData.path,
+              original_filename: file.name,
               file_type: file.type,
               file_size: file.size,
-              notes,
-              uploaded_by_user_id: user.id,
+              file_url: filePath,
+              category: category,
+              notes: notes,
               group_id: groupId,
-              processing_status: 'pending',
-              original_filename: file.name
+              uploaded_by_user_id: user.id,
+              processing_status: 'pending'
             })
             .select()
             .single();
 
-          if (dbError) {
-            console.error('Database insert failed:', dbError);
-            // Delete uploaded file since DB insert failed
-            await supabase.storage
-              .from('documents')
-              .remove([uploadData.path]);
-            throw new Error(`Database error for ${file.name}: ${dbError.message}`);
+          if (insertError) {
+            // Rollback storage upload if database insert fails
+            await rollbackStorageUpload(filePath, 1);
+            throw new Error(`Failed to create document record: ${insertError.message}`);
           }
 
-          uploadedDocuments.push(documentData);
-          currentProgress += progressPerFile;
-          setUploadProgress(Math.round(currentProgress));
+          documentId = documentData.id;
 
-          // Enhance file type with AI
-          try {
-            await supabase.functions.invoke('enhance-document-metadata', {
-              body: { 
-                documentId: documentData.id,
-                filename: file.name,
-                currentFileType: file.type
-              }
-            });
-          } catch (error) {
-            console.warn(`File type enhancement failed for ${file.name}:`, error);
-          }
-
-          // Process document with AI - this includes validation
-          try {
-            const { data: processResult, error: processError } = await supabase.functions.invoke('process-document', {
-              body: { documentId: documentData.id }
-            });
-            
-            if (processError) {
-              console.error(`Document processing failed for ${file.name}:`, processError);
-              
-              // If validation failed, the document was already deleted by the edge function
-              if (processError.message?.includes('validation failed') || processError.message?.includes('blocked')) {
-                throw new Error(`${file.name}: ${processError.message}`);
-              }
-              
-              // For other errors, just mark as failed
-              await supabase
-                .from('documents')
-                .update({ processing_status: 'failed' })
-                .eq('id', documentData.id);
-            }
-          } catch (error) {
-            console.error(`Document processing error for ${file.name}:`, error);
-            
-            // If it's a validation error, re-throw to show user
-            if (error instanceof Error && (error.message.includes('validation failed') || error.message.includes('blocked'))) {
-              throw error;
-            }
-            
-            // For other errors, just mark as failed
+          // Trigger AI processing for supported file types
+          if (file.type.startsWith('image/') || file.type === 'application/pdf' || 
+              file.type === 'text/plain' || file.type.includes('document')) {
             try {
+              await supabase.functions.invoke('process-document', {
+                body: { documentId }
+              });
+              logger.info('AI processing initiated successfully', {
+                operation: 'ai_processing_start',
+                documentId,
+                filename: file.name,
+              });
+            } catch (processingError) {
+              logger.warn('AI processing failed - document uploaded but summary will remain blank', {
+                operation: 'ai_processing_failed',
+                documentId,
+                filename: file.name,
+              }, processingError as Error);
+              
+              // Update document to indicate AI processing failed (leave summary blank)
               await supabase
                 .from('documents')
-                .update({ processing_status: 'failed' })
-                .eq('id', documentData.id);
-            } catch (updateError) {
-              // Document might have been deleted due to validation failure
-              console.warn('Could not update document status:', updateError);
+                .update({ 
+                  processing_status: 'failed',
+                  // summary remains null - don't put error message there
+                })
+                .eq('id', documentId);
             }
           }
 
-        } catch (fileError) {
-          console.error(`File processing failed for ${file.name}:`, fileError);
-          throw fileError; // Re-throw to be handled by outer catch
+          logger.documentUploadSuccess(documentId, file.name, 'pending');
+          successCount++;
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          logger.documentUploadError(file.name, error as Error, {
+            groupId: groupId!,
+            userId: user.id,
+            filePath,
+            documentId,
+          });
+          
+          errorCount++;
+          uploadErrors.push(`${file.name}: ${errorMsg}`);
+        }
+
+        // Update progress
+        setUploadProgress(((i + 1) / batchSize) * 100);
+      }
+
+      // Show results
+      if (successCount > 0) {
+        logger.info('Batch upload completed', {
+          operation: 'batch_upload_complete',
+          successCount,
+          errorCount,
+          totalFiles: batchSize,
+        });
+
+        toast({
+          title: "Upload Complete",
+          description: `Successfully uploaded ${successCount} file${successCount === 1 ? '' : 's'}.${errorCount > 0 ? ` ${errorCount} failed.` : ''}`,
+          variant: successCount === batchSize ? "default" : "destructive",
+        });
+      }
+
+      if (errorCount > 0) {
+        logger.error('Upload batch had errors', {
+          operation: 'batch_upload_errors',
+          errorCount,
+          errors: uploadErrors,
+        });
+        
+        toast({
+          title: "Upload Issues",
+          description: `${errorCount} file${errorCount === 1 ? '' : 's'} failed to upload. Check console for details.`,
+          variant: "destructive",
+        });
+      }
+
+      if (successCount > 0) {
+        onUploadComplete();
+        if (successCount === batchSize) {
+          onClose();
         }
       }
 
-      setUploadProgress(100);
-
-      toast({
-        title: 'Upload successful',
-        description: `${totalFiles} document${totalFiles > 1 ? 's' : ''} uploaded successfully. AI processing and text extraction will complete shortly.`
-      });
-
-      onUploadComplete();
-      onClose();
-
     } catch (error) {
-      console.error('Upload error:', error);
+      logger.error('Upload process failed', {
+        operation: 'upload_process_error',
+        component: 'DocumentUpload',
+      }, error as Error);
+      
       toast({
-        title: 'Upload failed',
-        description: error instanceof Error ? error.message : 'An unexpected error occurred',
-        variant: 'destructive'
+        title: "Upload Failed",
+        description: error instanceof Error ? error.message : "An unexpected error occurred during upload.",
+        variant: "destructive",
       });
     } finally {
       setUploading(false);
