@@ -142,25 +142,6 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
             throw new Error(`Storage upload failed for ${file.name}: ${uploadError.message}`);
           }
 
-          // DEBUG: File successfully uploaded to storage
-          console.log('🎯 DEBUG: File successfully uploaded to storage bucket!');
-          console.log('📁 File path in bucket:', uploadData.path);
-          console.log('📊 File details:', { name: file.name, size: file.size, type: file.type });
-          console.log('🔍 Check the Supabase storage bucket now - the file should be there!');
-          
-          // Pause execution for manual verification
-          const continueProcessing = confirm(
-            `DEBUG: File "${file.name}" uploaded to storage at path: ${uploadData.path}\n\n` +
-            `Please check the Supabase documents storage bucket to verify the file is there.\n\n` +
-            `Click OK to continue with validation and document creation, or Cancel to stop.`
-          );
-          
-          if (!continueProcessing) {
-            console.log('🛑 DEBUG: User cancelled - stopping processing');
-            throw new Error('Upload cancelled by user for debugging');
-          }
-          
-          console.log('✅ DEBUG: Continuing with document validation and creation...');
 
           // Create document record
           const documentTitle = selectedFiles.length === 1 && title ? title : file.name;
