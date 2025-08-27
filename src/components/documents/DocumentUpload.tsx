@@ -283,6 +283,7 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
           // Try upload with collision handling
           for (let attempt = 1; attempt <= 3; attempt++) {
             try {
+              console.log(`Upload attempt ${attempt} for ${file.name} with path: ${filePath}`);
               // Check if file already exists
               const { data: existingFiles } = await supabase.storage
                 .from('documents')
@@ -302,6 +303,8 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
                 .from('documents')
                 .upload(filePath, file);
 
+              console.log('Upload result:', { uploadData, uploadError, filePath });
+
               if (uploadError) {
                 if (uploadError.message.includes('already exists')) {
                   // File was created between our check and upload, try with new filename
@@ -313,11 +316,13 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
               }
 
               // Upload successful - no validation needed as upload API confirms success
+              console.log('Upload successful, no validation needed:', { filePath, fileSize: file.size });
               logger.info('Storage upload successful', { filePath, fileSize: file.size });
               uploadSuccess = true;
               break;
             } catch (error) {
               lastUploadError = error as Error;
+              console.log(`Upload attempt ${attempt} failed:`, error);
               logger.warn(`Upload attempt ${attempt} failed for ${file.name}`, {
                 operation: 'upload_attempt_failed',
                 filename: file.name,
