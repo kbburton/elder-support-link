@@ -493,20 +493,22 @@ function CareGroupFormCard({
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             {/* Profile Picture, Gender, and Relationship Section */}
-            <div className="flex items-end gap-6 mb-6 p-4 bg-muted/20 rounded-lg">
-              <div>
+            <div className="flex gap-6 mb-6 p-4 bg-muted/20 rounded-lg">
+              <div className="flex flex-col">
                 <FormLabel className="text-base font-medium mb-2 block">
                   Profile Picture
                 </FormLabel>
-                <ProfileImageUpload
-                  currentImageUrl={careGroupData?.profile_picture_url}
-                  gender={careGroupData?.gender}
-                  recipientName={careGroupData?.name}
-                  groupId={groupId || ""}
-                  onImageChange={(url) => {
-                    form.setValue("profile_picture_url", url || "");
-                  }}
-                />
+                <div className="h-10 flex items-center justify-start">
+                  <ProfileImageUpload
+                    currentImageUrl={careGroupData?.profile_picture_url}
+                    gender={careGroupData?.gender}
+                    recipientName={careGroupData?.name}
+                    groupId={groupId || ""}
+                    onImageChange={(url) => {
+                      form.setValue("profile_picture_url", url || "");
+                    }}
+                  />
+                </div>
               </div>
 
               <div className="flex-1 max-w-xs">
