@@ -54,6 +54,8 @@ const CareGroupSchema = z.object({
   memory: z.string().optional(),
   hearing: z.string().optional(),
   vision: z.string().optional(),
+  mental_health: z.string().optional(),
+  chronic_conditions: z.string().optional(),
 });
 
 type CareGroupFormValues = z.infer<typeof CareGroupSchema>;
@@ -96,6 +98,8 @@ export function CareGroupFormTabs({ mode, groupId, onSuccess }: CareGroupFormTab
       memory: "",
       hearing: "",
       vision: "",
+      mental_health: "",
+      chronic_conditions: "",
     },
   });
 
@@ -172,6 +176,8 @@ export function CareGroupFormTabs({ mode, groupId, onSuccess }: CareGroupFormTab
         memory: careGroupData.memory ?? "",
         hearing: careGroupData.hearing ?? "",
         vision: careGroupData.vision ?? "",
+        mental_health: careGroupData.mental_health ?? "",
+        chronic_conditions: careGroupData.chronic_conditions ?? "",
       });
     }
   }, [careGroupData, membershipData, form, mode]);
@@ -199,6 +205,8 @@ export function CareGroupFormTabs({ mode, groupId, onSuccess }: CareGroupFormTab
           memory: careGroupValues.memory || null,
           hearing: careGroupValues.hearing || null,
           vision: careGroupValues.vision || null,
+          mental_health: careGroupValues.mental_health || null,
+          chronic_conditions: careGroupValues.chronic_conditions || null,
         };
 
         const { error: groupError } = await supabase
@@ -254,6 +262,8 @@ export function CareGroupFormTabs({ mode, groupId, onSuccess }: CareGroupFormTab
             memory: careGroupValues.memory || null,
             hearing: careGroupValues.hearing || null,
             vision: careGroupValues.vision || null,
+            mental_health: careGroupValues.mental_health || null,
+            chronic_conditions: careGroupValues.chronic_conditions || null,
           })
           .eq("id", newGroupId);
 
@@ -792,6 +802,44 @@ function CareGroupFormCard({
                     <FormControl>
                       <Textarea
                         placeholder="Vision information"
+                        className="resize-none"
+                        rows={3}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="mental_health"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Mental health notes</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Mental health information"
+                        className="resize-none"
+                        rows={3}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="chronic_conditions"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Chronic conditions notes</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Chronic conditions information"
                         className="resize-none"
                         rows={3}
                         {...field}
