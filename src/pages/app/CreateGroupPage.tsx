@@ -20,10 +20,20 @@ const CreateGroupSchema = z.object({
   name: z.string().min(1, "Group name is required"),
   recipient_first_name: z.string().min(1, "First name is required"),
   recipient_last_name: z.string().min(1, "Last name is required"),
-  date_of_birth: z.string().optional(),
+  recipient_address: z.string().min(1, "Address is required"),
+  recipient_city: z.string().min(1, "City is required"),
+  recipient_state: z.string().min(1, "State is required"),
+  recipient_zip: z.string().min(1, "ZIP code is required"),
+  recipient_phone: z.string().min(1, "Phone number is required"),
+  recipient_email: z
+    .string()
+    .email("Invalid email address")
+    .min(1, "Email is required"),
+  date_of_birth: z.string().min(1, "Date of birth is required"),
   living_situation: z.string().optional(),
   profile_description: z.string().optional(),
   special_dates: z.string().optional(),
+  relationship_to_recipient: z.string().min(1, "Relationship is required"),
   modules: z.object({
     calendar: z.boolean().default(true),
     tasks: z.boolean().default(true),
@@ -62,10 +72,17 @@ export default function CreateGroupPage() {
       name: "",
       recipient_first_name: "",
       recipient_last_name: "",
+      recipient_address: "",
+      recipient_city: "",
+      recipient_state: "",
+      recipient_zip: "",
+      recipient_phone: "",
+      recipient_email: "",
       date_of_birth: "",
       living_situation: "",
       profile_description: "",
       special_dates: "",
+      relationship_to_recipient: "",
       modules: {
         calendar: true,
         tasks: true,
@@ -110,8 +127,16 @@ export default function CreateGroupPage() {
       const { data, error } = await supabase.rpc('create_care_group_with_member', {
         p_name: values.name || null,
         p_recipient_first_name: values.recipient_first_name,
-        p_recipient_last_name: values.recipient_last_name,
-        p_date_of_birth: values.date_of_birth || null,
+        p_recipient_address: values.recipient_address,
+        p_recipient_city: values.recipient_city,
+        p_recipient_state: values.recipient_state,
+        p_recipient_zip: values.recipient_zip,
+        p_recipient_phone: values.recipient_phone,
+        p_recipient_email: values.recipient_email,
+        p_date_of_birth: values.date_of_birth,
+        p_relationship_to_recipient: values.relationship_to_recipient,
+        // Optional parameters
+        p_recipient_last_name: values.recipient_last_name || null,
         p_living_situation: values.living_situation || null,
         p_profile_description: values.profile_description || null,
         p_special_dates: values.special_dates ? { dates: values.special_dates } : null,
@@ -240,19 +265,122 @@ export default function CreateGroupPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
-                  name="date_of_birth"
+                  name="recipient_phone"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Date of Birth</FormLabel>
+                      <FormLabel>Phone Number *</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} />
+                        <Input placeholder="(555) 123-4567" {...field} />
                       </FormControl>
-                      <FormDescription>Optional</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
 
+                <FormField
+                  control={form.control}
+                  name="recipient_email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email Address *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="email@example.com" type="email" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="recipient_address"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Address *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="620 East Highland" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <FormField
+                  control={form.control}
+                  name="recipient_city"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>City *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Redlands" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="recipient_state"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>State *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="CA" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="recipient_zip"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>ZIP Code *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="92374" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="date_of_birth"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Date of Birth *</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="relationship_to_recipient"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Your Relationship *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Son, Daughter, Spouse, Friend" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="living_situation"

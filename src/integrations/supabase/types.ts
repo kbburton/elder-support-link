@@ -2075,13 +2075,28 @@ export type Database = {
       }
       create_care_group_with_member: {
         Args: {
-          p_date_of_birth?: string
+          p_chronic_conditions?: string
+          p_date_of_birth: string
+          p_gender?: string
+          p_hearing?: string
           p_living_situation?: string
+          p_memory?: string
+          p_mental_health?: string
+          p_mobility?: string
           p_name: string
+          p_other_important_information?: string
           p_profile_description?: string
+          p_recipient_address: string
+          p_recipient_city: string
+          p_recipient_email: string
           p_recipient_first_name: string
-          p_recipient_last_name: string
+          p_recipient_last_name?: string
+          p_recipient_phone: string
+          p_recipient_state: string
+          p_recipient_zip: string
+          p_relationship_to_recipient: string
           p_special_dates?: Json
+          p_vision?: string
         }
         Returns: {
           error_message: string

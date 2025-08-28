@@ -226,17 +226,33 @@ export function CareGroupFormTabs({ mode, groupId, onSuccess }: CareGroupFormTab
 
         return groupId;
       } else {
-        // Create new care group using the RPC function
+        // Create new care group using the updated RPC function
         const { data: result, error: rpcError } = await supabase.rpc(
           "create_care_group_with_member",
           {
             p_name: careGroupValues.name,
             p_recipient_first_name: careGroupValues.recipient_first_name,
+            p_recipient_address: careGroupValues.recipient_address,
+            p_recipient_city: careGroupValues.recipient_city,
+            p_recipient_state: careGroupValues.recipient_state,
+            p_recipient_zip: careGroupValues.recipient_zip,
+            p_recipient_phone: careGroupValues.recipient_phone,
+            p_recipient_email: careGroupValues.recipient_email,
+            p_date_of_birth: careGroupValues.date_of_birth,
+            p_relationship_to_recipient: relationship_to_recipient,
+            // Optional parameters
             p_recipient_last_name: careGroupValues.recipient_last_name || null,
-            p_date_of_birth: careGroupValues.date_of_birth || null,
             p_living_situation: careGroupValues.living_situation || null,
             p_profile_description: careGroupValues.profile_description || null,
-            p_special_dates: null
+            p_special_dates: null,
+            p_gender: careGroupValues.gender || null,
+            p_other_important_information: careGroupValues.other_important_information || null,
+            p_mobility: careGroupValues.mobility || null,
+            p_memory: careGroupValues.memory || null,
+            p_hearing: careGroupValues.hearing || null,
+            p_vision: careGroupValues.vision || null,
+            p_mental_health: careGroupValues.mental_health || null,
+            p_chronic_conditions: careGroupValues.chronic_conditions || null
           }
         );
 
@@ -245,39 +261,6 @@ export function CareGroupFormTabs({ mode, groupId, onSuccess }: CareGroupFormTab
         }
 
         const newGroupId = result[0].group_id;
-
-        // Update the care group with additional fields
-        const { error: updateError } = await supabase
-          .from("care_groups")
-          .update({
-            recipient_address: careGroupValues.recipient_address,
-            recipient_city: careGroupValues.recipient_city,
-            recipient_state: careGroupValues.recipient_state,
-            recipient_zip: careGroupValues.recipient_zip,
-            recipient_phone: careGroupValues.recipient_phone,
-            recipient_email: careGroupValues.recipient_email,
-            other_important_information: careGroupValues.other_important_information || null,
-            gender: careGroupValues.gender || null,
-            mobility: careGroupValues.mobility || null,
-            memory: careGroupValues.memory || null,
-            hearing: careGroupValues.hearing || null,
-            vision: careGroupValues.vision || null,
-            mental_health: careGroupValues.mental_health || null,
-            chronic_conditions: careGroupValues.chronic_conditions || null,
-          })
-          .eq("id", newGroupId);
-
-        if (updateError) throw updateError;
-
-        // Update user's relationship
-        const { error: memberUpdateError } = await supabase
-          .from("care_group_members")
-          .update({ relationship_to_recipient })
-          .eq("group_id", newGroupId)
-          .eq("user_id", user.id);
-
-        if (memberUpdateError) throw memberUpdateError;
-
         return newGroupId;
       }
     },
