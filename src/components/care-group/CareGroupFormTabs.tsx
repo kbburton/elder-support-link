@@ -493,7 +493,7 @@ function CareGroupFormCard({
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             {/* Profile Picture, Gender, and Relationship Section */}
-            <div className="flex items-start gap-6 mb-6 p-4 bg-muted/20 rounded-lg">
+            <div className="flex items-end gap-6 mb-6 p-4 bg-muted/20 rounded-lg">
               <div>
                 <FormLabel className="text-base font-medium mb-2 block">
                   Profile Picture
@@ -518,7 +518,7 @@ function CareGroupFormCard({
                       <FormLabel>Gender</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
-                          <SelectTrigger>
+                          <SelectTrigger className="h-10">
                             <SelectValue placeholder="Select gender (optional)" />
                           </SelectTrigger>
                         </FormControl>
@@ -543,7 +543,7 @@ function CareGroupFormCard({
                       <FormLabel>Your relationship to care recipient *</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
-                          <SelectTrigger>
+                          <SelectTrigger className="h-10">
                             <SelectValue placeholder="Select relationship" />
                           </SelectTrigger>
                         </FormControl>
@@ -842,7 +842,7 @@ function CareGroupFormCard({
                   <FormItem>
                     <FormLabel>Address *</FormLabel>
                     <FormControl>
-                      <Input placeholder="620 East Highland" {...field} />
+                      <Input placeholder="123 Main Street" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -856,7 +856,7 @@ function CareGroupFormCard({
                   <FormItem>
                     <FormLabel>City *</FormLabel>
                     <FormControl>
-                      <Input placeholder="Redlands" {...field} />
+                      <Input placeholder="City" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -870,7 +870,7 @@ function CareGroupFormCard({
                   <FormItem>
                     <FormLabel>State *</FormLabel>
                     <FormControl>
-                      <Input placeholder="CA" {...field} />
+                      <Input placeholder="State" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -884,7 +884,7 @@ function CareGroupFormCard({
                   <FormItem>
                     <FormLabel>ZIP *</FormLabel>
                     <FormControl>
-                      <Input placeholder="92374" {...field} />
+                      <Input placeholder="12345" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
