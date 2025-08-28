@@ -21,7 +21,9 @@ const Register = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [address1, setAddress1] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [address, setAddress] = useState("");
   const [address2, setAddress2] = useState("");
   const [city, setCity] = useState("");
   const [stateProv, setStateProv] = useState("");
@@ -86,7 +88,7 @@ const Register = () => {
   const handleSignUp = async () => {
     console.log("🔄 Registration started for:", email);
     
-    if (!email || !password || !confirmPassword || !address1 || !city || !stateProv || !zip || !phone) {
+    if (!email || !password || !confirmPassword || !firstName || !address || !city || !stateProv || !zip || !phone) {
       toast({ title: "Missing info", description: "Please complete all required fields." });
       return;
     }
@@ -124,7 +126,9 @@ const Register = () => {
         options: {
           emailRedirectTo: redirectUrl,
           data: {
-            address1,
+            first_name: firstName,
+            last_name: lastName,
+            address,
             address2,
             city,
             state: stateProv,
@@ -212,13 +216,23 @@ const Register = () => {
                 showConfirm={true}
                 required
               />
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <Label htmlFor="firstName">First name *</Label>
+                  <Input id="firstName" placeholder="First name" autoComplete="given-name" required value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+                </div>
+                <div>
+                  <Label htmlFor="lastName">Last name</Label>
+                  <Input id="lastName" placeholder="Last name" autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+                </div>
+              </div>
               <div>
-                <Label htmlFor="address1">Street address *</Label>
-                <Input id="address1" placeholder="Street address" autoComplete="address-line1" required value={address1} onChange={(e) => setAddress1(e.target.value)} />
+                <Label htmlFor="address">Street address *</Label>
+                <Input id="address" placeholder="Street address" autoComplete="address-line1" required value={address} onChange={(e) => setAddress(e.target.value)} />
               </div>
               <div>
                 <Label htmlFor="address2">Street address 2</Label>
-                <Input id="address2" placeholder="Apartment, suite, etc. (optional)" value={address2} onChange={(e) => setAddress2(e.target.value)} />
+                <Input id="address2" placeholder="Apartment, suite, etc. (optional)" autoComplete="address-line2" value={address2} onChange={(e) => setAddress2(e.target.value)} />
               </div>
               <div className="grid gap-4 md:grid-cols-3">
                 <div>

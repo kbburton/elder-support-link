@@ -13,11 +13,13 @@ import { Button } from "@/components/ui/button";
 
 const ProfileSchema = z.object({
   first_name: z.string().min(1, "First name is required"),
-  last_name: z.string().min(1, "Last name is required"),
-  phone: z.string().optional(),
-  address: z.string().optional(),
-  state: z.string().optional(),
-  zip: z.string().optional(),
+  last_name: z.string().optional(),
+  phone: z.string().min(1, "Phone is required"),
+  address: z.string().min(1, "Address is required"),
+  address2: z.string().optional(),
+  city: z.string().min(1, "City is required"),
+  state: z.string().min(1, "State is required"),
+  zip: z.string().min(1, "ZIP code is required"),
 });
 
 type ProfileFormValues = z.infer<typeof ProfileSchema>;
@@ -32,6 +34,8 @@ export default function ProfilePage() {
       last_name: "",
       phone: "",
       address: "",
+      address2: "",
+      city: "",
       state: "",
       zip: "",
     },
@@ -45,11 +49,11 @@ export default function ProfilePage() {
       if (!uid) throw new Error("Not authenticated");
       const { data: profile, error } = await supabase
         .from("profiles")
-        .select("first_name, last_name, phone, address, state, zip")
+        .select("first_name, last_name, phone, address, address2, city, state, zip")
         .eq("user_id", uid)
         .maybeSingle();
       if (error) throw error;
-      return { profile };
+      return { profile, user: auth.user };
     },
   });
 
@@ -60,6 +64,8 @@ export default function ProfilePage() {
         last_name: data.profile.last_name ?? "",
         phone: data.profile.phone ?? "",
         address: data.profile.address ?? "",
+        address2: data.profile.address2 ?? "",
+        city: data.profile.city ?? "",
         state: data.profile.state ?? "",
         zip: data.profile.zip ?? "",
       });
@@ -113,12 +119,23 @@ export default function ProfilePage() {
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <FormLabel>Email</FormLabel>
+                    <Input 
+                      value={data?.user?.email || ""} 
+                      readOnly 
+                      className="bg-muted text-muted-foreground cursor-not-allowed"
+                      placeholder="Email address"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
                     name="first_name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>First name</FormLabel>
+                        <FormLabel>First name *</FormLabel>
                         <FormControl>
                           <Input placeholder="First name" {...field} />
                         </FormControl>
@@ -146,9 +163,54 @@ export default function ProfilePage() {
                     name="phone"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Phone</FormLabel>
+                        <FormLabel>Phone *</FormLabel>
                         <FormControl>
-                          <Input placeholder="(555) 555-5555" {...field} />
+                          <Input placeholder="(555) 555-5555" type="tel" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <div>
+                  <FormField
+                    control={form.control}
+                    name="address"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Street address *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Street address" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <div>
+                  <FormField
+                    control={form.control}
+                    name="address2"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Street address 2</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Apartment, suite, etc. (optional)" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="city"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>City *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="City" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -159,24 +221,9 @@ export default function ProfilePage() {
                     name="state"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>State</FormLabel>
+                        <FormLabel>State *</FormLabel>
                         <FormControl>
                           <Input placeholder="State" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="address"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Address</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Street address" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -187,7 +234,7 @@ export default function ProfilePage() {
                     name="zip"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>ZIP</FormLabel>
+                        <FormLabel>ZIP *</FormLabel>
                         <FormControl>
                           <Input placeholder="ZIP code" {...field} />
                         </FormControl>

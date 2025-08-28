@@ -1578,6 +1578,8 @@ export type Database = {
       profiles: {
         Row: {
           address: string | null
+          address2: string | null
+          city: string | null
           created_at: string
           first_name: string | null
           last_active_group_id: string | null
@@ -1591,6 +1593,8 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          address2?: string | null
+          city?: string | null
           created_at?: string
           first_name?: string | null
           last_active_group_id?: string | null
@@ -1604,6 +1608,8 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          address2?: string | null
+          city?: string | null
           created_at?: string
           first_name?: string | null
           last_active_group_id?: string | null
