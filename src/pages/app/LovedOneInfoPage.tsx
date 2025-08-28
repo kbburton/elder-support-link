@@ -51,6 +51,7 @@ const GroupSchema = z.object({
   other_important_information: z.string().optional(),
   gender: z.string().optional(),
   profile_picture_url: z.string().optional(),
+  relationship_to_recipient: z.string().optional(),
 });
 
 type GroupFormValues = z.infer<typeof GroupSchema>;
@@ -63,7 +64,6 @@ export default function LovedOneInfoPage() {
   // State for controlling the allergies and preferences modals
   const [allergiesOpen, setAllergiesOpen] = useState(false);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
-  const [userRelationship, setUserRelationship] = useState<string>("");
 
   const form = useForm<GroupFormValues>({
     resolver: zodResolver(GroupSchema),
@@ -83,6 +83,7 @@ export default function LovedOneInfoPage() {
       other_important_information: "",
       gender: "",
       profile_picture_url: "",
+      relationship_to_recipient: "",
     },
   });
 
@@ -135,7 +136,7 @@ export default function LovedOneInfoPage() {
   });
 
   useEffect(() => {
-    if (data) {
+    if (data && membershipData) {
       form.reset({
         name: data.name ?? "",
         recipient_first_name: data.recipient_first_name ?? "",
@@ -152,50 +153,62 @@ export default function LovedOneInfoPage() {
         other_important_information: data.other_important_information ?? "",
         gender: data.gender ?? "",
         profile_picture_url: data.profile_picture_url ?? "",
+        relationship_to_recipient: membershipData.relationship_to_recipient ?? "",
       });
     }
-  }, [data, form]);
-
-  useEffect(() => {
-    if (membershipData) {
-      setUserRelationship(membershipData.relationship_to_recipient ?? "");
-    }
-  }, [membershipData]);
+  }, [data, membershipData, form]);
 
   const saveMutation = useMutation({
     mutationFn: async (values: GroupFormValues) => {
       if (!groupId) throw new Error("Missing group id");
 
-      // Clean up the data - convert empty strings to null for optional fields
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      // Clean up the care group data - convert empty strings to null for optional fields
+      const { relationship_to_recipient, ...careGroupValues } = values;
       const cleanedValues = {
-        ...values,
-        date_of_birth: values.date_of_birth || null,
-        recipient_email: values.recipient_email || null,
-        recipient_first_name: values.recipient_first_name || null,
-        recipient_last_name: values.recipient_last_name || null,
-        recipient_address: values.recipient_address || null,
-        recipient_city: values.recipient_city || null,
-        recipient_state: values.recipient_state || null,
-        recipient_zip: values.recipient_zip || null,
-        recipient_phone: values.recipient_phone || null,
-        living_situation: values.living_situation || null,
+        ...careGroupValues,
+        date_of_birth: careGroupValues.date_of_birth || null,
+        recipient_email: careGroupValues.recipient_email || null,
+        recipient_first_name: careGroupValues.recipient_first_name || null,
+        recipient_last_name: careGroupValues.recipient_last_name || null,
+        recipient_address: careGroupValues.recipient_address || null,
+        recipient_city: careGroupValues.recipient_city || null,
+        recipient_state: careGroupValues.recipient_state || null,
+        recipient_zip: careGroupValues.recipient_zip || null,
+        recipient_phone: careGroupValues.recipient_phone || null,
+        living_situation: careGroupValues.living_situation || null,
         other_important_information:
-          values.other_important_information || null,
-        gender: values.gender || null,
-        profile_picture_url: values.profile_picture_url || null,
+          careGroupValues.other_important_information || null,
+        gender: careGroupValues.gender || null,
+        profile_picture_url: careGroupValues.profile_picture_url || null,
       };
 
-      const { error } = await supabase
+      // Update care group
+      const { error: groupError } = await supabase
         .from("care_groups")
         .update(cleanedValues)
         .eq("id", groupId);
-      if (error) throw error;
+      if (groupError) throw groupError;
+
+      // Update user's relationship if it was provided
+      if (relationship_to_recipient) {
+        const { error: memberError } = await supabase
+          .from("care_group_members")
+          .update({ relationship_to_recipient })
+          .eq("group_id", groupId)
+          .eq("user_id", user.id);
+        if (memberError) throw memberError;
+      }
     },
     onSuccess: () => {
       // Invalidate related queries
       queryClient.invalidateQueries({ queryKey: ["care_group", groupId] });
       queryClient.invalidateQueries({ queryKey: ["care_group_header", groupId] });
       queryClient.invalidateQueries({ queryKey: ["care_group_name", groupId] });
+      queryClient.invalidateQueries({ queryKey: ["user_membership", groupId] });
 
       toast({
         title: "Saved",
@@ -212,35 +225,6 @@ export default function LovedOneInfoPage() {
   });
 
   const onSubmit = (values: GroupFormValues) => saveMutation.mutate(values);
-
-  const updateRelationship = async () => {
-    if (!groupId || !userRelationship) return;
-    
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-      
-      const { error } = await supabase
-        .from("care_group_members")
-        .update({ relationship_to_recipient: userRelationship })
-        .eq("group_id", groupId)
-        .eq("user_id", user.id);
-      
-      if (error) throw error;
-      
-      queryClient.invalidateQueries({ queryKey: ["user_membership", groupId] });
-      toast({
-        title: "Updated",
-        description: "Your relationship has been updated.",
-      });
-    } catch (err: any) {
-      toast({
-        title: "Update failed",
-        description: err.message ?? "Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
 
   // Get the first name from the care group name for the page title
   const firstName = data?.name?.split(" ")[0] || "Loved One";
@@ -329,30 +313,33 @@ export default function LovedOneInfoPage() {
                 </div>
 
                 <div className="flex-1 max-w-xs">
-                  <div className="space-y-2">
-                    <FormLabel>Your relationship to care recipient</FormLabel>
-                    <Select value={userRelationship} onValueChange={setUserRelationship}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select relationship" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="spouse">Spouse</SelectItem>
-                        <SelectItem value="child">Child</SelectItem>
-                        <SelectItem value="other_relative">Other relative</SelectItem>
-                        <SelectItem value="friend">Friend</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={updateRelationship}
-                      disabled={!userRelationship || userRelationship === membershipData?.relationship_to_recipient}
-                    >
-                      Update relationship
-                    </Button>
-                  </div>
+                  <FormField
+                    control={form.control}
+                    name="relationship_to_recipient"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Your relationship to care recipient</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select relationship" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="spouse">Spouse</SelectItem>
+                            <SelectItem value="child">Child</SelectItem>
+                            <SelectItem value="other_relative">Other relative</SelectItem>
+                            <SelectItem value="friend">Friend</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
               </div>
 
