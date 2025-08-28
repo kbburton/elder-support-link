@@ -642,7 +642,7 @@ export type Database = {
           group_id: string | null
           id: string
           is_admin: boolean
-          relationship_to_recipient: string | null
+          relationship_to_recipient: string
           role: string
           user_id: string | null
         }
@@ -651,7 +651,7 @@ export type Database = {
           group_id?: string | null
           id?: string
           is_admin?: boolean
-          relationship_to_recipient?: string | null
+          relationship_to_recipient: string
           role?: string
           user_id?: string | null
         }
@@ -660,7 +660,7 @@ export type Database = {
           group_id?: string | null
           id?: string
           is_admin?: boolean
-          relationship_to_recipient?: string | null
+          relationship_to_recipient?: string
           role?: string
           user_id?: string | null
         }
@@ -679,7 +679,7 @@ export type Database = {
           chronic_conditions: string | null
           created_at: string
           created_by_user_id: string
-          date_of_birth: string | null
+          date_of_birth: string
           gender: string | null
           hearing: string | null
           id: string
@@ -691,14 +691,14 @@ export type Database = {
           other_important_information: string | null
           profile_description: string | null
           profile_picture_url: string | null
-          recipient_address: string | null
-          recipient_city: string | null
-          recipient_email: string | null
-          recipient_first_name: string | null
+          recipient_address: string
+          recipient_city: string
+          recipient_email: string
+          recipient_first_name: string
           recipient_last_name: string | null
-          recipient_phone: string | null
-          recipient_state: string | null
-          recipient_zip: string | null
+          recipient_phone: string
+          recipient_state: string
+          recipient_zip: string
           special_dates: Json | null
           vision: string | null
         }
@@ -706,7 +706,7 @@ export type Database = {
           chronic_conditions?: string | null
           created_at?: string
           created_by_user_id: string
-          date_of_birth?: string | null
+          date_of_birth: string
           gender?: string | null
           hearing?: string | null
           id?: string
@@ -718,14 +718,14 @@ export type Database = {
           other_important_information?: string | null
           profile_description?: string | null
           profile_picture_url?: string | null
-          recipient_address?: string | null
-          recipient_city?: string | null
-          recipient_email?: string | null
-          recipient_first_name?: string | null
+          recipient_address: string
+          recipient_city: string
+          recipient_email: string
+          recipient_first_name: string
           recipient_last_name?: string | null
-          recipient_phone?: string | null
-          recipient_state?: string | null
-          recipient_zip?: string | null
+          recipient_phone: string
+          recipient_state: string
+          recipient_zip: string
           special_dates?: Json | null
           vision?: string | null
         }
@@ -733,7 +733,7 @@ export type Database = {
           chronic_conditions?: string | null
           created_at?: string
           created_by_user_id?: string
-          date_of_birth?: string | null
+          date_of_birth?: string
           gender?: string | null
           hearing?: string | null
           id?: string
@@ -745,14 +745,14 @@ export type Database = {
           other_important_information?: string | null
           profile_description?: string | null
           profile_picture_url?: string | null
-          recipient_address?: string | null
-          recipient_city?: string | null
-          recipient_email?: string | null
-          recipient_first_name?: string | null
+          recipient_address?: string
+          recipient_city?: string
+          recipient_email?: string
+          recipient_first_name?: string
           recipient_last_name?: string | null
-          recipient_phone?: string | null
-          recipient_state?: string | null
-          recipient_zip?: string | null
+          recipient_phone?: string
+          recipient_state?: string
+          recipient_zip?: string
           special_dates?: Json | null
           vision?: string | null
         }

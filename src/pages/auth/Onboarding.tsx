@@ -96,6 +96,8 @@ const Onboarding = () => {
   // Create group form state
   const [formData, setFormData] = useState({
     name: "",
+    recipientFirstName: "",
+    recipientEmail: "",
     recipientAddress: "",
     recipientCity: "",
     recipientState: "",
@@ -121,8 +123,23 @@ const Onboarding = () => {
   };
 
   const handleCreateGroup = async () => {
-    if (!formData.name.trim() || !relationship) {
-      toast({ title: "Missing information", description: !formData.name.trim() ? "Please enter a name for the care recipient." : "Please select your relationship to the care recipient." });
+    // Validate required fields
+    const requiredFields = [
+      { value: formData.name.trim(), label: "Care group name" },
+      { value: formData.recipientFirstName.trim(), label: "First name" },
+      { value: formData.recipientPhone.trim(), label: "Phone number" },
+      { value: formData.recipientEmail.trim(), label: "Email" },
+      { value: formData.dateOfBirth.trim(), label: "Date of birth" },
+      { value: formData.recipientAddress.trim(), label: "Address" },
+      { value: formData.recipientCity.trim(), label: "City" },
+      { value: formData.recipientState.trim(), label: "State" },
+      { value: formData.recipientZip.trim(), label: "ZIP code" },
+      { value: relationship, label: "Your relationship to care recipient" }
+    ];
+
+    const missingField = requiredFields.find(field => !field.value);
+    if (missingField) {
+      toast({ title: "Missing information", description: `Please enter ${missingField.label}.` });
       return;
     }
 
@@ -143,12 +160,14 @@ const { data: { user }, error: userError } = await supabase.auth.getUser();
         .insert({
           created_by_user_id: user.id,
           name: formData.name,
-          recipient_address: formData.recipientAddress || null,
-          recipient_city: formData.recipientCity || null,
-          recipient_state: formData.recipientState || null,
-          recipient_zip: formData.recipientZip || null,
-          recipient_phone: formData.recipientPhone || null,
-          date_of_birth: formData.dateOfBirth || null,
+          recipient_first_name: formData.recipientFirstName,
+          recipient_email: formData.recipientEmail,
+          recipient_address: formData.recipientAddress,
+          recipient_city: formData.recipientCity,
+          recipient_state: formData.recipientState,
+          recipient_zip: formData.recipientZip,
+          recipient_phone: formData.recipientPhone,
+          date_of_birth: formData.dateOfBirth,
           special_dates: formData.specialDates
             ? (() => { try { return JSON.parse(formData.specialDates); } catch { return { note: formData.specialDates }; } })()
             : null,
@@ -307,18 +326,30 @@ const { data: { user }, error: userError } = await supabase.auth.getUser();
           <CardContent className="space-y-4">
             <div className="grid gap-4">
               <div>
-                <Label htmlFor="name">Care recipient name *</Label>
+                <Label htmlFor="name">Care group name *</Label>
                 <Input
                   id="name"
                   value={formData.name}
                   onChange={(e) => handleInputChange("name", e.target.value)}
-                  placeholder="Enter the name of the person receiving care"
+                  placeholder="Enter the care group name"
+                  required
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="firstName">First name *</Label>
+                <Input
+                  id="firstName"
+                  value={formData.recipientFirstName}
+                  onChange={(e) => handleInputChange("recipientFirstName", e.target.value)}
+                  placeholder="Care recipient's first name"
+                  required
                 />
               </div>
               
               <div>
                 <Label htmlFor="relationship">Your relationship to care recipient *</Label>
-                <Select value={relationship} onValueChange={setRelationship}>
+                <Select value={relationship} onValueChange={setRelationship} required>
                   <SelectTrigger aria-label="Relationship">
                     <SelectValue placeholder="Select relationship" />
                   </SelectTrigger>
@@ -332,65 +363,82 @@ const { data: { user }, error: userError } = await supabase.auth.getUser();
                 </Select>
               </div>
               
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-3">
                 <div>
-                  <Label htmlFor="address">Address</Label>
-                  <Input
-                    id="address"
-                    value={formData.recipientAddress}
-                    onChange={(e) => handleInputChange("recipientAddress", e.target.value)}
-                    placeholder="Home address"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="phone">Phone</Label>
+                  <Label htmlFor="phone">Phone *</Label>
                   <Input
                     id="phone"
                     value={formData.recipientPhone}
                     onChange={(e) => handleInputChange("recipientPhone", e.target.value)}
                     placeholder="Phone number"
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-3">
-                <div>
-                  <Label htmlFor="city">City</Label>
-                  <Input
-                    id="city"
-                    value={formData.recipientCity}
-                    onChange={(e) => handleInputChange("recipientCity", e.target.value)}
-                    placeholder="City"
+                    required
                   />
                 </div>
                 <div>
-                  <Label htmlFor="state">State</Label>
+                  <Label htmlFor="email">Email *</Label>
                   <Input
-                    id="state"
-                    value={formData.recipientState}
-                    onChange={(e) => handleInputChange("recipientState", e.target.value)}
-                    placeholder="State"
+                    id="email"
+                    type="email"
+                    value={formData.recipientEmail}
+                    onChange={(e) => handleInputChange("recipientEmail", e.target.value)}
+                    placeholder="Email address"
+                    required
                   />
                 </div>
                 <div>
-                  <Label htmlFor="zip">ZIP code</Label>
+                  <Label htmlFor="dob">Date of birth *</Label>
                   <Input
-                    id="zip"
-                    value={formData.recipientZip}
-                    onChange={(e) => handleInputChange("recipientZip", e.target.value)}
-                    placeholder="ZIP code"
+                    id="dob"
+                    type="date"
+                    value={formData.dateOfBirth}
+                    onChange={(e) => handleInputChange("dateOfBirth", e.target.value)}
+                    required
                   />
                 </div>
               </div>
 
               <div>
-                <Label htmlFor="dob">Date of birth</Label>
+                <Label htmlFor="address">Address *</Label>
                 <Input
-                  id="dob"
-                  type="date"
-                  value={formData.dateOfBirth}
-                  onChange={(e) => handleInputChange("dateOfBirth", e.target.value)}
+                  id="address"
+                  value={formData.recipientAddress}
+                  onChange={(e) => handleInputChange("recipientAddress", e.target.value)}
+                  placeholder="Home address"
+                  required
                 />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <div>
+                  <Label htmlFor="city">City *</Label>
+                  <Input
+                    id="city"
+                    value={formData.recipientCity}
+                    onChange={(e) => handleInputChange("recipientCity", e.target.value)}
+                    placeholder="City"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="state">State *</Label>
+                  <Input
+                    id="state"
+                    value={formData.recipientState}
+                    onChange={(e) => handleInputChange("recipientState", e.target.value)}
+                    placeholder="State"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="zip">ZIP code *</Label>
+                  <Input
+                    id="zip"
+                    value={formData.recipientZip}
+                    onChange={(e) => handleInputChange("recipientZip", e.target.value)}
+                    placeholder="ZIP code"
+                    required
+                  />
+                </div>
               </div>
 
               <div>

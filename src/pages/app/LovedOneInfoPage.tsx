@@ -63,6 +63,7 @@ export default function LovedOneInfoPage() {
   // State for controlling the allergies and preferences modals
   const [allergiesOpen, setAllergiesOpen] = useState(false);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
+  const [userRelationship, setUserRelationship] = useState<string>("");
 
   const form = useForm<GroupFormValues>({
     resolver: zodResolver(GroupSchema),
@@ -96,6 +97,25 @@ export default function LovedOneInfoPage() {
         .maybeSingle();
       if (error) throw error;
       return data as GroupFormValues;
+    },
+  });
+
+  // Fetch current user's relationship to this care group
+  const { data: membershipData } = useQuery({
+    queryKey: ["user_membership", groupId],
+    enabled: !!groupId,
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      
+      const { data, error } = await supabase
+        .from("care_group_members")
+        .select("relationship_to_recipient")
+        .eq("group_id", groupId)
+        .eq("user_id", user.id)
+        .single();
+      if (error) throw error;
+      return data;
     },
   });
 
@@ -135,6 +155,12 @@ export default function LovedOneInfoPage() {
       });
     }
   }, [data, form]);
+
+  useEffect(() => {
+    if (membershipData) {
+      setUserRelationship(membershipData.relationship_to_recipient ?? "");
+    }
+  }, [membershipData]);
 
   const saveMutation = useMutation({
     mutationFn: async (values: GroupFormValues) => {
@@ -187,6 +213,35 @@ export default function LovedOneInfoPage() {
 
   const onSubmit = (values: GroupFormValues) => saveMutation.mutate(values);
 
+  const updateRelationship = async () => {
+    if (!groupId || !userRelationship) return;
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      
+      const { error } = await supabase
+        .from("care_group_members")
+        .update({ relationship_to_recipient: userRelationship })
+        .eq("group_id", groupId)
+        .eq("user_id", user.id);
+      
+      if (error) throw error;
+      
+      queryClient.invalidateQueries({ queryKey: ["user_membership", groupId] });
+      toast({
+        title: "Updated",
+        description: "Your relationship has been updated.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Update failed",
+        description: err.message ?? "Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Get the first name from the care group name for the page title
   const firstName = data?.name?.split(" ")[0] || "Loved One";
 
@@ -226,7 +281,7 @@ export default function LovedOneInfoPage() {
               onSubmit={form.handleSubmit(onSubmit)}
               className="space-y-6"
             >
-              {/* Profile Picture and Gender Section */}
+              {/* Profile Picture, Gender, and Relationship Section */}
               <div className="flex items-start gap-6 mb-6 p-4 bg-muted/20 rounded-lg">
                 <div>
                   <FormLabel className="text-base font-medium mb-2 block">
@@ -271,6 +326,33 @@ export default function LovedOneInfoPage() {
                       </FormItem>
                     )}
                   />
+                </div>
+
+                <div className="flex-1 max-w-xs">
+                  <div className="space-y-2">
+                    <FormLabel>Your relationship to care recipient</FormLabel>
+                    <Select value={userRelationship} onValueChange={setUserRelationship}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select relationship" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="spouse">Spouse</SelectItem>
+                        <SelectItem value="child">Child</SelectItem>
+                        <SelectItem value="other_relative">Other relative</SelectItem>
+                        <SelectItem value="friend">Friend</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={updateRelationship}
+                      disabled={!userRelationship || userRelationship === membershipData?.relationship_to_recipient}
+                    >
+                      Update relationship
+                    </Button>
+                  </div>
                 </div>
               </div>
 
