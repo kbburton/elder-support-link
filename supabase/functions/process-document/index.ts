@@ -292,7 +292,11 @@ async function processDOCX(fileBuffer: ArrayBuffer): Promise<string> {
       'appears to be corrupted',
       'binary data',
       'file structure data',
-      'encoded XML components'
+      'encoded XML components',
+      'compressed or encoded format',
+      'could not be processed',
+      'cannot extract text from this file',
+      'sorry, i can\'t extract text'
     ];
     
     const lowerText = extractedText.toLowerCase();
@@ -427,7 +431,11 @@ async function generateSummary(text: string): Promise<string> {
     'cannot read',
     'unable to extract',
     'processing failed',
-    'could not be extracted'
+    'could not be extracted',
+    'compressed or encoded format',
+    'could not be processed',
+    'cannot extract text from this file',
+    'sorry, i can\'t extract text'
   ];
   
   const lowerText = text.toLowerCase();
