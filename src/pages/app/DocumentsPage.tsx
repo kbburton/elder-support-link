@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ const formatFileSize = (bytes?: number) => {
 
 export default function DocumentsPage() {
   const { groupId } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [showUpload, setShowUpload] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<any>(null);
   const [showDocumentModal, setShowDocumentModal] = useState(false);
@@ -159,6 +160,18 @@ export default function DocumentsPage() {
     setSelectedDocument(document);
     setShowDocumentModal(true);
   };
+
+  // Handle URL parameters for auto-opening modals
+  useEffect(() => {
+    const openDocument = searchParams.get('openDocument');
+    if (openDocument && !showDocumentModal && documents.length > 0) {
+      const document = documents.find(doc => doc.id === openDocument);
+      if (document) {
+        setSelectedDocument(document);
+        setShowDocumentModal(true);
+      }
+    }
+  }, [searchParams, showDocumentModal, documents]);
 
   const handleDeleteDocument = (documentId: string) => {
     if (blockOperation()) return;
@@ -434,6 +447,8 @@ export default function DocumentsPage() {
           onClose={() => {
             setShowDocumentModal(false);
             setSelectedDocument(null);
+            // Clear URL parameters when closing modal
+            setSearchParams(new URLSearchParams());
           }}
           groupId={groupId}
         />

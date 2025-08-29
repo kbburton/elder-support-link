@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import ContactChips from "@/components/contacts/ContactChips";
 import { useDemo } from "@/hooks/useDemo";
 import { useDemoAppointments, useDemoTasks, useDemoContacts, useDemoDocuments, useDemoActivities } from "@/hooks/useDemoData";
+import { logger } from "@/utils/logger";
 
 interface SearchResult {
   entity_type: string;
@@ -119,7 +120,7 @@ const SearchPage = () => {
             entity_id: contact.id,
             title: name || 'Contact',
             snippet_html: `${contact.contact_type} • ${contact.phone_primary || 'No phone'}`,
-            url_path: `/app/${groupId}/contacts/${contact.id}`,
+            url_path: `/app/${groupId}/contacts`,
             rank: searchText.indexOf(searchTerm) === 0 ? 1 : 0.8
           });
         }
@@ -169,12 +170,16 @@ const SearchPage = () => {
     debounce(async (query: string) => {
       if (!query.trim() || !groupId) return;
       
+      const startTime = Date.now();
+      logger.searchQueryStarted(query, groupId);
+      
       setLoading(true);
       try {
         if (isDemo) {
           // Use demo search
           const demoResults = searchDemoData(query);
           setResults(demoResults);
+          logger.searchQueryCompleted(query, demoResults.length, Date.now() - startTime, groupId);
         } else {
           // Use database search - ensure groupId is valid UUID
           if (!groupId || typeof groupId !== 'string' || groupId.length !== 36) {
@@ -190,9 +195,12 @@ const SearchPage = () => {
             throw new Error(error.message);
           }
 
-          setResults(data || []);
+          const results = data || [];
+          setResults(results);
+          logger.searchQueryCompleted(query, results.length, Date.now() - startTime, groupId);
         }
       } catch (error) {
+        logger.searchError(query, error as Error, groupId);
         console.error("Search error:", error);
         toast({
           title: "Search Error",
@@ -233,6 +241,9 @@ const SearchPage = () => {
       ? activeFilters.filter(f => f !== entityType)
       : [...activeFilters, entityType];
     
+    const isActive = newFilters.includes(entityType);
+    logger.searchFilterToggled(entityType, isActive, groupId || '');
+    
     setActiveFilters(newFilters);
     updateURL(searchValue, newFilters);
   };
@@ -267,7 +278,7 @@ const SearchPage = () => {
     } else if (e.key === "Enter") {
       e.preventDefault();
       if (focusedIndex >= 0 && focusedIndex < flatResults.length) {
-        navigate(flatResults[focusedIndex].url_path);
+        handleResultClick(flatResults[focusedIndex]);
       } else if (searchValue.trim()) {
         debouncedSearch(searchValue);
       }
@@ -275,8 +286,35 @@ const SearchPage = () => {
   };
 
   // Handle result click
-  const handleResultClick = (urlPath: string) => {
-    navigate(urlPath);
+  const handleResultClick = (result: SearchResult) => {
+    logger.searchResultClicked(result.entity_type, result.entity_id, searchValue, result.rank, groupId || '');
+    
+    // Create URL with appropriate query parameter to auto-open modal
+    let url = '';
+    const baseUrl = `/app/${groupId}`;
+    
+    switch (result.entity_type) {
+      case 'task':
+        url = `${baseUrl}/tasks?openTask=${result.entity_id}`;
+        break;
+      case 'document':
+        url = `${baseUrl}/documents?openDocument=${result.entity_id}`;
+        break;
+      case 'activity':
+        url = `${baseUrl}/activity?openActivity=${result.entity_id}`;
+        break;
+      case 'contact':
+        url = `${baseUrl}/contacts?openContact=${result.entity_id}`;
+        break;
+      case 'appointment':
+        // For appointments, just go to calendar page for now
+        url = `${baseUrl}/calendar`;
+        break;
+      default:
+        url = result.url_path;
+    }
+    
+    navigate(url);
   };
 
   // Load initial search if query in URL
@@ -394,7 +432,7 @@ const SearchPage = () => {
                         className={`cursor-pointer transition-colors hover:bg-muted/50 ${
                           isFocused ? "ring-2 ring-primary bg-muted/50" : ""
                         }`}
-                        onClick={() => handleResultClick(result.url_path)}
+                        onClick={() => handleResultClick(result)}
                       >
                         <CardContent className="py-3">
                           <div className="flex items-start justify-between">

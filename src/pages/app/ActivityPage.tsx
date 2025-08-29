@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import { ENTITY } from "@/constants/entities";
 
 export default function ActivityPage() {
   const { groupId } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { blockOperation } = useDemoOperations();
@@ -143,6 +144,18 @@ export default function ActivityPage() {
     setSelectedActivity(activity);
     setShowEditModal(true);
   };
+
+  // Handle URL parameters for auto-opening modals
+  useEffect(() => {
+    const openActivity = searchParams.get('openActivity');
+    if (openActivity && !showEditModal && activities.length > 0) {
+      const activity = activities.find(act => act.id === openActivity);
+      if (activity) {
+        setSelectedActivity(activity);
+        setShowEditModal(true);
+      }
+    }
+  }, [searchParams, showEditModal, activities]);
 
   const handleCreateNew = () => {
     setShowCreateModal(true);
@@ -285,6 +298,8 @@ export default function ActivityPage() {
             onClose={() => {
               setShowEditModal(false);
               setSelectedActivity(null);
+              // Clear URL parameters when closing modal
+              setSearchParams(new URLSearchParams());
             }}
             groupId={groupId!}
           />

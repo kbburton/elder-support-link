@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useParams, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus } from "lucide-react";
@@ -9,6 +9,7 @@ import SEO from "@/components/layout/SEO";
 
 export default function TasksPage() {
   const { groupId } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<any>(null);
 
@@ -24,7 +25,20 @@ export default function TasksPage() {
   const handleCloseModal = () => {
     setIsCreateModalOpen(false);
     setSelectedTask(null);
+    // Clear URL parameters when closing modal
+    setSearchParams(new URLSearchParams());
   };
+
+  // Handle URL parameters for auto-opening modals
+  useEffect(() => {
+    const openTask = searchParams.get('openTask');
+    if (openTask && !isCreateModalOpen) {
+      // Find the task by ID and open it for editing
+      // We'll need to fetch the task or have it passed from search
+      setSelectedTask({ id: openTask });
+      setIsCreateModalOpen(true);
+    }
+  }, [searchParams, isCreateModalOpen]);
 
   return (
     <div className="container mx-auto p-4 space-y-6">

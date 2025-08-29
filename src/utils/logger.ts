@@ -171,6 +171,60 @@ class Logger {
       storagePath,
     });
   }
+
+  // Search operation logging methods
+  searchQueryStarted(query: string, groupId: string, userId?: string) {
+    this.info('Search query initiated', {
+      operation: 'search_query_started',
+      component: 'SearchPage',
+      query: query.length > 100 ? query.substring(0, 100) + '...' : query,
+      queryLength: query.length,
+      groupId,
+      userId,
+    });
+  }
+
+  searchQueryCompleted(query: string, resultCount: number, executionTime: number, groupId: string) {
+    this.info('Search query completed', {
+      operation: 'search_query_completed',
+      component: 'SearchPage',
+      query: query.length > 100 ? query.substring(0, 100) + '...' : query,
+      resultCount,
+      executionTime,
+      groupId,
+    });
+  }
+
+  searchResultClicked(entityType: string, entityId: string, query: string, resultRank: number, groupId: string) {
+    this.info('Search result clicked', {
+      operation: 'search_result_clicked',
+      component: 'SearchPage',
+      entityType,
+      entityId,
+      query: query.length > 100 ? query.substring(0, 100) + '...' : query,
+      resultRank,
+      groupId,
+    });
+  }
+
+  searchFilterToggled(filterType: string, isActive: boolean, groupId: string) {
+    this.info('Search filter toggled', {
+      operation: 'search_filter_toggled',
+      component: 'SearchPage',
+      filterType,
+      isActive,
+      groupId,
+    });
+  }
+
+  searchError(query: string, error: Error, groupId: string) {
+    this.error('Search query failed', {
+      operation: 'search_error',
+      component: 'SearchPage',
+      query: query.length > 100 ? query.substring(0, 100) + '...' : query,
+      groupId,
+    }, error);
+  }
 }
 
 export const logger = new Logger();

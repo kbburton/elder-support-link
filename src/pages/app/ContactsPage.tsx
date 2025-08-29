@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import { useDemoContacts } from "@/hooks/useDemoData";
 export default function ContactsPage() {
   const { groupId } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [showContactModal, setShowContactModal] = useState(false);
   const [selectedContact, setSelectedContact] = useState<any>(null);
   const [selectedContactForAssociations, setSelectedContactForAssociations] = useState<any>(null);
@@ -120,6 +121,18 @@ export default function ContactsPage() {
     setSelectedContact(contact);
     setShowContactModal(true);
   };
+
+  // Handle URL parameters for auto-opening modals
+  useEffect(() => {
+    const openContact = searchParams.get('openContact');
+    if (openContact && !showContactModal && contacts.length > 0) {
+      const contact = contacts.find(c => c.id === openContact);
+      if (contact) {
+        setSelectedContact(contact);
+        setShowContactModal(true);
+      }
+    }
+  }, [searchParams, showContactModal, contacts]);
 
   const handleDeleteContact = (contactId: string) => {
     if (blockOperation()) return;
@@ -292,6 +305,8 @@ export default function ContactsPage() {
           onClose={() => {
             setShowContactModal(false);
             setSelectedContact(null);
+            // Clear URL parameters when closing modal
+            setSearchParams(new URLSearchParams());
           }}
           groupId={groupId || ''}
         />
