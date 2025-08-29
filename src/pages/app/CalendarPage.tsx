@@ -71,10 +71,53 @@ const CalendarPage = () => {
         </TabsList>
         <TabsContent value="month">
           <SharedCalendar 
-            view={activeView}
+            view="month"
             selectedDate={selectedDate}
             onSelectedDateChange={setSelectedDate}
             groupId={groupId!}
+            onEventSelect={(event) => {
+              if (event.type === 'appointment') {
+                setSelectedAppointment(event.raw);
+                setShowAppointmentModal(true);
+              } else {
+                setSelectedTask(event.raw);
+                setShowTaskModal(true);
+              }
+            }}
+          />
+        </TabsContent>
+        <TabsContent value="week">
+          <SharedCalendar 
+            view="week"
+            selectedDate={selectedDate}
+            onSelectedDateChange={setSelectedDate}
+            groupId={groupId!}
+            onEventSelect={(event) => {
+              if (event.type === 'appointment') {
+                setSelectedAppointment(event.raw);
+                setShowAppointmentModal(true);
+              } else {
+                setSelectedTask(event.raw);
+                setShowTaskModal(true);
+              }
+            }}
+          />
+        </TabsContent>
+        <TabsContent value="day">
+          <SharedCalendar 
+            view="day"
+            selectedDate={selectedDate}
+            onSelectedDateChange={setSelectedDate}
+            groupId={groupId!}
+            onEventSelect={(event) => {
+              if (event.type === 'appointment') {
+                setSelectedAppointment(event.raw);
+                setShowAppointmentModal(true);
+              } else {
+                setSelectedTask(event.raw);
+                setShowTaskModal(true);
+              }
+            }}
           />
         </TabsContent>
         <TabsContent value="list">
