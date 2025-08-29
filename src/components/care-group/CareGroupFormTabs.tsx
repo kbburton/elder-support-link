@@ -498,7 +498,7 @@ function CareGroupFormCard({
                 <FormLabel className="text-base font-medium mb-6 block -mt-2">
                   Profile Picture
                 </FormLabel>
-                <div className="flex items-center justify-start h-10">
+                <div className="flex items-end justify-start">
                   <ProfileImageUpload
                     currentImageUrl={careGroupData?.profile_picture_url}
                     gender={careGroupData?.gender}
