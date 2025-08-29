@@ -71,11 +71,11 @@ export function FeedbackTable({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState({
-    status: "",
-    type: "",
-    severity: "",
-    assignee: "",
-    group: "",
+    status: "all",
+    type: "all",
+    severity: "all",
+    assignee: "all",
+    group: "all",
   });
 
   const { data: feedbackItems = [], isLoading } = useQuery({
@@ -102,11 +102,11 @@ export function FeedbackTable({
       }
 
       // Apply filters
-      if (filters.status) query = query.eq("status", filters.status as any);
-      if (filters.type) query = query.eq("type", filters.type as any);
-      if (filters.severity) query = query.eq("severity", filters.severity as any);
-      if (filters.assignee) query = query.eq("assigned_to_user_id", filters.assignee);
-      if (filters.group) query = query.eq("care_group_id", filters.group);
+      if (filters.status && filters.status !== "all") query = query.eq("status", filters.status as any);
+      if (filters.type && filters.type !== "all") query = query.eq("type", filters.type as any);
+      if (filters.severity && filters.severity !== "all") query = query.eq("severity", filters.severity as any);
+      if (filters.assignee && filters.assignee !== "all") query = query.eq("assigned_to_user_id", filters.assignee);
+      if (filters.group && filters.group !== "all") query = query.eq("care_group_id", filters.group);
 
       query = query.order("created_at", { ascending: false });
 
@@ -205,7 +205,7 @@ export function FeedbackTable({
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Status</SelectItem>
+              <SelectItem value="all">All Status</SelectItem>
               <SelectItem value="open">Open</SelectItem>
               <SelectItem value="in_progress">In Progress</SelectItem>
               <SelectItem value="resolved">Resolved</SelectItem>
@@ -220,7 +220,7 @@ export function FeedbackTable({
               <SelectValue placeholder="Type" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Types</SelectItem>
+              <SelectItem value="all">All Types</SelectItem>
               <SelectItem value="defect">Defect</SelectItem>
               <SelectItem value="feature">Feature</SelectItem>
             </SelectContent>
@@ -231,7 +231,7 @@ export function FeedbackTable({
               <SelectValue placeholder="Severity" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Severities</SelectItem>
+              <SelectItem value="all">All Severities</SelectItem>
               <SelectItem value="low">Low</SelectItem>
               <SelectItem value="medium">Medium</SelectItem>
               <SelectItem value="high">High</SelectItem>
