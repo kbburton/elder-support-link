@@ -1781,6 +1781,45 @@ export type Database = {
         }
         Relationships: []
       }
+      system_logs: {
+        Row: {
+          component: string | null
+          context: Json | null
+          created_at: string
+          error_details: string | null
+          group_id: string | null
+          id: string
+          level: string
+          message: string
+          operation: string | null
+          user_id: string | null
+        }
+        Insert: {
+          component?: string | null
+          context?: Json | null
+          created_at?: string
+          error_details?: string | null
+          group_id?: string | null
+          id?: string
+          level: string
+          message: string
+          operation?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          component?: string | null
+          context?: Json | null
+          created_at?: string
+          error_details?: string | null
+          group_id?: string | null
+          id?: string
+          level?: string
+          message?: string
+          operation?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       task_activities: {
         Row: {
           activity_log_id: string

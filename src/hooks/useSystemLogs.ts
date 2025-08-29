@@ -15,14 +15,11 @@ export const useSystemLogs = () => {
   return useQuery({
     queryKey: ["system_logs"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("system_logs")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(100);
+      // Use RPC function to get system logs since table may not be in generated types yet
+      const { data, error } = await supabase.rpc('get_system_logs');
 
       if (error) throw error;
-      return data as SystemLog[];
+      return (data || []) as SystemLog[];
     },
     refetchInterval: 30000, // Refresh every 30 seconds
   });
