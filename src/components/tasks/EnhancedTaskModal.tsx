@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -93,6 +93,22 @@ export function EnhancedTaskModal({ task, isOpen, onClose, groupId }: EnhancedTa
   const queryClient = useQueryClient();
   const demo = useDemo();
   const { data: groupMembers = [], isLoading: membersLoading, error: membersError } = useGroupMembers(groupId);
+
+  // Fetch full task data if we only have an ID
+  const { data: fullTask } = useQuery({
+    queryKey: ["task", task?.id],
+    queryFn: async () => {
+      if (!task?.id) return null;
+      const { data, error } = await supabase
+        .from("tasks")
+        .select("*")
+        .eq("id", task.id)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!task?.id && !task?.title, // Only fetch if we have ID but missing title
+  });
   
   // Debug logging - remove after testing
   console.log('GroupMembers Debug:', { groupId, groupMembers, membersLoading, membersError });
@@ -112,19 +128,20 @@ export function EnhancedTaskModal({ task, isOpen, onClose, groupId }: EnhancedTa
 
   // Reset form when task changes
   useEffect(() => {
-    if (task) {
+    const taskData = fullTask || task;
+    if (taskData) {
       setFormData({
-        title: task.title || "",
-        description: task.description || "",
-        status: task.status || "Open",
-        priority: task.priority || "Medium",
-        category: task.category || "",
+        title: taskData.title || "",
+        description: taskData.description || "",
+        status: taskData.status || "Open",
+        priority: taskData.priority || "Medium",
+        category: taskData.category || "",
       });
-      setDueDate(task.due_date ? new Date(task.due_date) : undefined);
-      setCompletedAt(task.completed_at ? new Date(task.completed_at) : undefined);
-      setCompletedBy(task.completed_by_user_id || "");
-      setPrimaryOwner(task.primary_owner_id || "");
-      setSecondaryOwner(task.secondary_owner_id || "");
+      setDueDate(taskData.due_date ? new Date(taskData.due_date) : undefined);
+      setCompletedAt(taskData.completed_at ? new Date(taskData.completed_at) : undefined);
+      setCompletedBy(taskData.completed_by_user_id || "");
+      setPrimaryOwner(taskData.primary_owner_id || "");
+      setSecondaryOwner(taskData.secondary_owner_id || "");
     } else {
       setFormData({
         title: "",
@@ -139,7 +156,7 @@ export function EnhancedTaskModal({ task, isOpen, onClose, groupId }: EnhancedTa
       setPrimaryOwner("");
       setSecondaryOwner("");
     }
-  }, [task]);
+  }, [task, fullTask]);
 
   // Handle status changes - auto-populate or clear completion fields
   const handleStatusChange = async (newStatus: string) => {

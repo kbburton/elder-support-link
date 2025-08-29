@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -95,10 +95,27 @@ export function EnhancedAppointmentModal({
   const queryClient = useQueryClient();
   const { blockOperation } = useDemoOperations();
 
+  // Fetch full appointment data if we only have an ID
+  const { data: fullAppointment } = useQuery({
+    queryKey: ["appointment", appointment?.id],
+    queryFn: async () => {
+      if (!appointment?.id) return null;
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("*")
+        .eq("id", appointment.id)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!appointment?.id && !appointment?.description, // Only fetch if we have ID but missing description
+  });
+
   useEffect(() => {
-    if (appointment) {
+    const appointmentData = fullAppointment || appointment;
+    if (appointmentData) {
       // Validate date_time before creating Date object
-      const dateTimeValue = appointment.date_time;
+      const dateTimeValue = appointmentData.date_time;
       let appointmentDate = new Date();
       let timeValue = "09:00";
       
@@ -112,16 +129,16 @@ export function EnhancedAppointmentModal({
       }
       
       setFormData({
-        description: appointment.description || "",
-        street_address: appointment.street_address || "",
-        street_address_2: appointment.street_address_2 || "",
-        city: appointment.city || "",
-        state: appointment.state || "",
-        zip_code: appointment.zip_code || "",
-        transportation_information: appointment.transportation_information || "",
-        category: appointment.category || "",
-        duration_minutes: appointment.duration_minutes || 60,
-        outcome_notes: appointment.outcome_notes || "",
+        description: appointmentData.description || "",
+        street_address: appointmentData.street_address || "",
+        street_address_2: appointmentData.street_address_2 || "",
+        city: appointmentData.city || "",
+        state: appointmentData.state || "",
+        zip_code: appointmentData.zip_code || "",
+        transportation_information: appointmentData.transportation_information || "",
+        category: appointmentData.category || "",
+        duration_minutes: appointmentData.duration_minutes || 60,
+        outcome_notes: appointmentData.outcome_notes || "",
       });
       setDateTime(appointmentDate);
       setTimeValue(timeValue);
@@ -141,7 +158,7 @@ export function EnhancedAppointmentModal({
       setDateTime(new Date());
       setTimeValue("09:00");
     }
-  }, [appointment]);
+  }, [appointment, fullAppointment]);
 
   const createAppointment = useMutation({
     mutationFn: async (data: any) => {
