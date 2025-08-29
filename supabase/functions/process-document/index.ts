@@ -263,7 +263,7 @@ async function processDOCX(fileBuffer: ArrayBuffer): Promise<string> {
           },
           {
             role: 'user',
-            content: `Please extract all readable text from this DOCX document. Return only the document content that a human would read, formatted as plain text:\n\nFile data: ${base64File.substring(0, 20000)}`
+            content: `Please extract all readable text from this DOCX document. Return only the document content that a human would read, formatted as plain text:\n\nFile data: ${base64File}`
           }
         ],
         max_completion_tokens: 4000
