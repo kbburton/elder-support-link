@@ -108,8 +108,13 @@ serve(async (req) => {
         // For older Excel files, try text extraction or OCR
         extractedText = await processXLSX(fileBuffer);
       } else if (fileType.includes('image') || fileType.includes('png') || fileType.includes('jpg') || fileType.includes('jpeg') || fileType.includes('webp') || mimeType.startsWith('image/')) {
-        // For image files, use OpenAI vision for OCR
-        const base64File = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)));
+        // For image files, use OpenAI vision for OCR - using chunked approach for large files
+        const bytes = new Uint8Array(fileBuffer);
+        let binaryString = '';
+        for (let i = 0; i < bytes.length; i++) {
+          binaryString += String.fromCharCode(bytes[i]);
+        }
+        const base64File = btoa(binaryString);
         extractedText = await extractTextWithOpenAI(base64File, 'image');
       } else if (fileType.includes('text') || mimeType.includes('text/plain')) {
         // For text files, decode directly
@@ -196,14 +201,24 @@ async function processPDF(fileBuffer: ArrayBuffer): Promise<string> {
     // If we get very little text (< 1000 chars), assume it's scanned and use OCR
     if (pdfText.length < 1000) {
       console.log('PDF has little embedded text, using OCR');
-      const base64File = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)));
+      const bytes = new Uint8Array(fileBuffer);
+      let binaryString = '';
+      for (let i = 0; i < bytes.length; i++) {
+        binaryString += String.fromCharCode(bytes[i]);
+      }
+      const base64File = btoa(binaryString);
       return await extractTextWithOpenAI(base64File, 'pdf');
     }
     
     return pdfText;
   } catch (error) {
     console.log('Failed to extract embedded text, falling back to OCR:', error);
-    const base64File = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)));
+    const bytes = new Uint8Array(fileBuffer);
+    let binaryString = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binaryString += String.fromCharCode(bytes[i]);
+    }
+    const base64File = btoa(binaryString);
     return await extractTextWithOpenAI(base64File, 'pdf');
   }
 }
@@ -245,8 +260,13 @@ async function processDOCX(fileBuffer: ArrayBuffer): Promise<string> {
       throw new Error('OpenAI API key not configured for DOCX processing');
     }
 
-    // Convert to base64 for AI processing
-    const base64File = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)));
+    // Convert to base64 for AI processing - using chunked approach for large files
+    const bytes = new Uint8Array(fileBuffer);
+    let binaryString = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binaryString += String.fromCharCode(bytes[i]);
+    }
+    const base64File = btoa(binaryString);
     
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
