@@ -493,9 +493,9 @@ function CareGroupFormCard({
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
             {/* Profile Picture, Gender, and Relationship Section */}
-            <div className="flex gap-6 mb-3 pt-6 pb-4 px-4 bg-muted/20 rounded-lg">
+            <div className="flex gap-6 mb-3 pt-3 pb-4 px-4 bg-muted/20 rounded-lg">
               <div className="flex flex-col">
-                <FormLabel className="text-base font-medium mb-6 block -mt-2">
+                <FormLabel className="text-base font-medium mb-3 block -mt-2">
                   Profile Picture
                 </FormLabel>
                 <div className="flex items-end justify-start">
