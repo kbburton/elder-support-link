@@ -59,9 +59,22 @@ const CalendarPage = () => {
   }
 
   return (
-    <div className="container mx-auto p-4">
+    <div className="container mx-auto p-4 space-y-6">
       <SEO title="Calendar - Care Coordination" description="View and manage care group calendar events" />
-      {/* Calendar controls and tabs UI... */}
+      
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Calendar</h1>
+          <p className="text-muted-foreground">
+            View and manage appointments and tasks for your care group
+          </p>
+        </div>
+        <Button onClick={() => setShowAppointmentModal(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Add Appointment
+        </Button>
+      </div>
+
       <Tabs defaultValue="month" value={activeView} onValueChange={(val) => setActiveView(val as "month" | "week" | "day" | "list")}>
         <TabsList>
           <TabsTrigger value="month">Month</TabsTrigger>
