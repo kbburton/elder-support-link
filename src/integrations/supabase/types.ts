@@ -246,6 +246,36 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_prompts: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          prompt_text: string
+          target_field: string
+          target_table: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          id?: string
+          prompt_text: string
+          target_field?: string
+          target_table?: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          prompt_text?: string
+          target_field?: string
+          target_table?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       allergies: {
         Row: {
           allergen: string
@@ -1171,6 +1201,7 @@ export type Database = {
           deleted_at: string | null
           deleted_by_email: string | null
           deleted_by_user_id: string | null
+          file_metadata: Json | null
           file_size: number | null
           file_type: string | null
           file_url: string | null
@@ -1193,6 +1224,7 @@ export type Database = {
           deleted_at?: string | null
           deleted_by_email?: string | null
           deleted_by_user_id?: string | null
+          file_metadata?: Json | null
           file_size?: number | null
           file_type?: string | null
           file_url?: string | null
@@ -1215,6 +1247,7 @@ export type Database = {
           deleted_at?: string | null
           deleted_by_email?: string | null
           deleted_by_user_id?: string | null
+          file_metadata?: Json | null
           file_size?: number | null
           file_type?: string | null
           file_url?: string | null
