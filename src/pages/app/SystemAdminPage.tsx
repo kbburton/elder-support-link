@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Loader2, UserPlus, Shield, Trash2, Users, History, BarChart3, UserCheck } from "lucide-react";
+import { Loader2, UserPlus, Shield, Trash2, Users, History, BarChart3, UserCheck, Search, Database } from "lucide-react";
 import { format } from "date-fns";
 import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
 import SystemUserManagement from "@/components/admin/SystemUserManagement";
@@ -102,6 +102,7 @@ const SystemAdminPage = () => {
   const [demoSessions, setDemoSessions] = useState<DemoSession[]>([]);
   const [demoAnalytics, setDemoAnalytics] = useState<DemoAnalytics[]>([]);
   const [showSystemAdminsOnly, setShowSystemAdminsOnly] = useState(false);
+  const [rebuildingIndex, setRebuildingIndex] = useState(false);
 
   useEffect(() => {
     if (!adminLoading) {
@@ -439,6 +440,31 @@ const SystemAdminPage = () => {
     }
   };
 
+  const handleRebuildSearchIndex = async () => {
+    setRebuildingIndex(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('admin-rebuild-search');
+      
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      toast({
+        title: "Search Index Rebuilt",
+        description: `Successfully rebuilt search index with ${data.total_entries} entries`,
+      });
+    } catch (error) {
+      console.error('Error rebuilding search index:', error);
+      toast({
+        title: "Error",
+        description: "Failed to rebuild search index. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setRebuildingIndex(false);
+    }
+  };
+
   if (adminLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -459,7 +485,7 @@ const SystemAdminPage = () => {
       </div>
 
       <Tabs defaultValue="admin-management" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="admin-management" className="flex items-center gap-2">
             <UserPlus className="h-4 w-4" />
             Admin Management
@@ -471,6 +497,10 @@ const SystemAdminPage = () => {
           <TabsTrigger value="role-history" className="flex items-center gap-2">
             <History className="h-4 w-4" />
             Role History
+          </TabsTrigger>
+          <TabsTrigger value="search-management" className="flex items-center gap-2">
+            <Search className="h-4 w-4" />
+            Search
           </TabsTrigger>
           <TabsTrigger value="analytics" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
@@ -665,6 +695,47 @@ const SystemAdminPage = () => {
                   ))}
                 </TableBody>
               </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="search-management" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Database className="h-5 w-5" />
+                Search Index Management
+              </CardTitle>
+              <CardDescription>
+                Rebuild the full-text search index for all entities across all groups to ensure the most recent content is searchable.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-4 border rounded-lg bg-muted/50">
+                <h4 className="font-medium mb-2">What does this do?</h4>
+                <ul className="text-sm text-muted-foreground space-y-1">
+                  <li>• Rebuilds the search index for all tasks, appointments, contacts, and documents</li>
+                  <li>• Ensures newly added or modified content appears in search results</li>
+                  <li>• May take several minutes for large datasets</li>
+                  <li>• Safe to run during normal operation</li>
+                </ul>
+              </div>
+              <Button 
+                onClick={handleRebuildSearchIndex}
+                disabled={rebuildingIndex}
+                className="w-full"
+                size="lg"
+              >
+                <Database className="mr-2 h-4 w-4" />
+                {rebuildingIndex ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Rebuilding Search Index...
+                  </>
+                ) : (
+                  "Rebuild Search Index"
+                )}
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
