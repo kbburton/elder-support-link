@@ -307,8 +307,7 @@ const SearchPage = () => {
         url = `${baseUrl}/contacts?openContact=${result.entity_id}`;
         break;
       case 'appointment':
-        // For appointments, just go to calendar page for now
-        url = `${baseUrl}/calendar`;
+        url = `${baseUrl}/calendar?view=list&openAppointment=${result.entity_id}`;
         break;
       default:
         url = result.url_path;

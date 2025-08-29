@@ -16,20 +16,37 @@ import { useDemoOperations } from "@/hooks/useDemoOperations";
 
 const CalendarPage = () => {
   const { groupId } = useParams<{ groupId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [activeView, setActiveView] = useState<"month" | "week" | "day" | "list">("month");
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
   const [selectedTask, setSelectedTask] = useState<any>(null);
-  const [groupName, setGroupName] = useState("");  // groupName state can be removed if not used elsewhere
+  const [groupName, setGroupName] = useState("");
   // ... etc.
 
-  // Fetch group name if needed for calendar (not strictly necessary now, could remove)
+  // Handle URL parameters for auto-opening appointment modal and list view
   useEffect(() => {
-    if (!groupId || groupId.startsWith(":")) return;
-    // (fetch logic can be kept or removed, since welcome modal is gone, groupName might not be needed)
-  }, [groupId]);
+    const view = searchParams.get('view');
+    const openAppointment = searchParams.get('openAppointment');
+    
+    if (view && ['month', 'week', 'day', 'list'].includes(view)) {
+      setActiveView(view as "month" | "week" | "day" | "list");
+    }
+    
+    if (openAppointment && !showAppointmentModal) {
+      setSelectedAppointment({ id: openAppointment });
+      setShowAppointmentModal(true);
+    }
+  }, [searchParams, showAppointmentModal]);
+
+  const handleCloseAppointmentModal = () => {
+    setShowAppointmentModal(false);
+    setSelectedAppointment(null);
+    // Clear URL parameters when closing modal
+    setSearchParams(new URLSearchParams());
+  };
 
   // REMOVED welcome modal usage:
   // const { showWelcome, closeWelcome } = useGroupWelcome(groupId || "", groupName);
@@ -71,7 +88,7 @@ const CalendarPage = () => {
       {/* Modals for appointment and task (remain unchanged) */}
       <EnhancedAppointmentModal
         isOpen={showAppointmentModal}
-        onClose={() => { setShowAppointmentModal(false); setSelectedAppointment(null); }}
+        onClose={handleCloseAppointmentModal}
         appointment={selectedAppointment}
         groupId={groupId}
       />

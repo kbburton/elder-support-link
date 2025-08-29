@@ -33,8 +33,7 @@ export default function TasksPage() {
   useEffect(() => {
     const openTask = searchParams.get('openTask');
     if (openTask && !isCreateModalOpen) {
-      // Find the task by ID and open it for editing
-      // We'll need to fetch the task or have it passed from search
+      // Set the task with just the ID - EnhancedTaskModal will fetch full data
       setSelectedTask({ id: openTask });
       setIsCreateModalOpen(true);
     }
