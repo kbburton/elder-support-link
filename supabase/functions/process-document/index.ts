@@ -235,37 +235,18 @@ function extractEmbeddedTextFromPDF(fileBuffer: ArrayBuffer): string {
 }
 
 async function processDOCX(fileBuffer: ArrayBuffer): Promise<string> {
-  // Proper DOCX processing - extract XML content and use text-based AI processing
   try {
-    // First attempt: Extract XML content from DOCX ZIP structure
-    const uint8Array = new Uint8Array(fileBuffer);
-    const textContent = new TextDecoder().decode(uint8Array);
+    console.log('Processing DOCX file...');
     
-    // Look for document.xml content within the ZIP structure
-    let extractedText = '';
-    
-    // Extract text from XML tags commonly found in DOCX files
-    const xmlMatches = textContent.match(/<w:t[^>]*>([^<]*)<\/w:t>/g) || [];
-    for (const match of xmlMatches) {
-      const text = match.replace(/<w:t[^>]*>/, '').replace(/<\/w:t>/, '');
-      if (text.length > 0) {
-        extractedText += text + ' ';
-      }
-    }
-    
-    // If we got reasonable text content, return it
-    if (extractedText.trim().length > 100) {
-      return extractedText.trim();
-    }
-    
-    // Fallback: Use OpenAI text processing (not vision API)
+    // DOCX files are ZIP archives - we need proper ZIP extraction
+    // First, try to extract text using OpenAI's document understanding (not vision)
     const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
     if (!openAIApiKey) {
-      throw new Error('Cannot extract text from DOCX: OpenAI API key not configured and manual extraction failed');
+      throw new Error('OpenAI API key not configured for DOCX processing');
     }
 
-    // Convert binary data to text representation for AI processing
-    const base64File = btoa(String.fromCharCode(...new Uint8Array(fileBuffer.slice(0, 50000)))); // Limit size
+    // Convert to base64 for AI processing
+    const base64File = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)));
     
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -278,31 +259,52 @@ async function processDOCX(fileBuffer: ArrayBuffer): Promise<string> {
         messages: [
           {
             role: 'system',
-            content: 'You are a document text extraction assistant. Extract readable text from DOCX file content.'
+            content: 'You are a document text extraction specialist. You will receive a Microsoft Word document (.docx) file. Extract all the readable text content from this document, preserving the meaning but removing formatting. Return only the actual document text content - no metadata, headers, footers, or technical information about the file structure.'
           },
           {
             role: 'user',
-            content: `Extract all readable text from this DOCX document content. Return only the actual document text, no formatting or metadata. Here's the document content as base64: ${base64File.substring(0, 4000)}`
+            content: `Please extract all readable text from this DOCX document. Return only the document content that a human would read, formatted as plain text:\n\nFile data: ${base64File.substring(0, 20000)}`
           }
         ],
-        max_tokens: 4000
+        max_completion_tokens: 4000
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error('OpenAI API error for DOCX:', errorText);
-      throw new Error(`Failed to process DOCX with AI: ${response.statusText}`);
+      throw new Error(`Failed to process DOCX document: ${response.statusText}`);
     }
 
     const data = await response.json();
-    const aiExtractedText = data.choices[0]?.message?.content || '';
+    const extractedText = data.choices[0]?.message?.content || '';
     
-    if (aiExtractedText.trim().length === 0) {
-      throw new Error('No readable text could be extracted from DOCX file');
+    // Check if the AI actually extracted meaningful content
+    if (!extractedText || extractedText.trim().length === 0) {
+      throw new Error('No readable text could be extracted from the DOCX document');
     }
     
-    return aiExtractedText.trim();
+    // Check for common error patterns from the AI
+    const errorPatterns = [
+      'no visible text',
+      'cannot read',
+      'unable to extract',
+      'appears to be corrupted',
+      'binary data',
+      'file structure data',
+      'encoded XML components'
+    ];
+    
+    const lowerText = extractedText.toLowerCase();
+    const hasErrorPattern = errorPatterns.some(pattern => lowerText.includes(pattern));
+    
+    if (hasErrorPattern) {
+      throw new Error('DOCX document appears to be corrupted or unreadable');
+    }
+    
+    console.log(`Successfully extracted ${extractedText.length} characters from DOCX`);
+    return extractedText.trim();
+    
   } catch (error) {
     console.error('Error processing DOCX:', error);
     throw new Error(`DOCX processing failed: ${error.message}`);
@@ -416,7 +418,23 @@ async function extractTextWithOpenAI(base64File: string, fileType: string): Prom
 
 async function generateSummary(text: string): Promise<string> {
   if (!text || text.trim().length === 0) {
-    return 'No content available to summarize.';
+    throw new Error('No content available to summarize');
+  }
+  
+  // Check for error messages that shouldn't be summarized
+  const errorPatterns = [
+    'no visible text',
+    'cannot read',
+    'unable to extract',
+    'processing failed',
+    'could not be extracted'
+  ];
+  
+  const lowerText = text.toLowerCase();
+  const hasErrorPattern = errorPatterns.some(pattern => lowerText.includes(pattern));
+  
+  if (hasErrorPattern) {
+    throw new Error('Document content appears to contain error messages rather than actual document text');
   }
 
   const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
@@ -448,12 +466,17 @@ async function generateSummary(text: string): Promise<string> {
   });
 
   if (!response.ok) {
-    console.error('Failed to generate summary:', await response.text());
-    return 'Summary could not be generated due to API error.';
+    const errorText = await response.text();
+    console.error('Failed to generate summary:', errorText);
+    throw new Error(`Summary generation failed: ${response.statusText}`);
   }
 
   const data = await response.json();
-  return data.choices[0]?.message?.content || 'Summary could not be generated.';
+  const summary = data.choices[0]?.message?.content;
+  if (!summary) {
+    throw new Error('No summary content returned from AI');
+  }
+  return summary;
 }
 
 // Sanitize text to prevent Unicode escape sequence errors in PostgreSQL
