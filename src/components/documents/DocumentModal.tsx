@@ -33,6 +33,7 @@ import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
 import { useDemo } from "@/hooks/useDemo";
 import { softDeleteEntity } from "@/lib/delete/rpc";
+import { DocumentSummaryRegenerationModal } from "@/components/documents/DocumentSummaryRegenerationModal";
 import { UnifiedAssociationManager } from "@/components/shared/UnifiedAssociationManager";
 import { ENTITY } from "@/constants/entities";
 import { useToast } from "@/hooks/use-toast";
@@ -75,6 +76,7 @@ export function DocumentModal({ document, isOpen, onClose, groupId }: DocumentMo
   });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [showRegenerateModal, setShowRegenerateModal] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -353,7 +355,7 @@ export function DocumentModal({ document, isOpen, onClose, groupId }: DocumentMo
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={regenerateSummary}
+                    onClick={() => setShowRegenerateModal(true)}
                     disabled={isRegenerating}
                   >
                     <RefreshCw className={`h-4 w-4 mr-1 ${isRegenerating ? 'animate-spin' : ''}`} />
@@ -498,6 +500,17 @@ export function DocumentModal({ document, isOpen, onClose, groupId }: DocumentMo
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Summary Regeneration Modal */}
+        <DocumentSummaryRegenerationModal
+          isOpen={showRegenerateModal}
+          onClose={() => setShowRegenerateModal(false)}
+          document={document}
+          onSummaryUpdated={(newSummary) => {
+            setFormData(prev => ({ ...prev, summary: newSummary }));
+            queryClient.invalidateQueries({ queryKey: ["documents"] });
+          }}
+        />
       </DialogContent>
     </Dialog>
   );

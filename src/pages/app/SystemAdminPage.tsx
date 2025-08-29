@@ -15,6 +15,7 @@ import { Loader2, UserPlus, Shield, Trash2, Users, History, BarChart3, UserCheck
 import { format } from "date-fns";
 import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
 import SystemUserManagement from "@/components/admin/SystemUserManagement";
+import SystemLogsView from "@/components/admin/SystemLogsView";
 
 interface SystemAdmin {
   user_id: string;
@@ -485,7 +486,7 @@ const SystemAdminPage = () => {
       </div>
 
       <Tabs defaultValue="admin-management" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="admin-management" className="flex items-center gap-2">
             <UserPlus className="h-4 w-4" />
             Admin Management
@@ -501,6 +502,10 @@ const SystemAdminPage = () => {
           <TabsTrigger value="search-management" className="flex items-center gap-2">
             <Search className="h-4 w-4" />
             Search
+          </TabsTrigger>
+          <TabsTrigger value="logs" className="flex items-center gap-2">
+            <Database className="h-4 w-4" />
+            Logs
           </TabsTrigger>
           <TabsTrigger value="analytics" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
@@ -738,6 +743,10 @@ const SystemAdminPage = () => {
               </Button>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="logs" className="space-y-6">
+          <SystemLogsView />
         </TabsContent>
 
         <TabsContent value="analytics" className="space-y-6">

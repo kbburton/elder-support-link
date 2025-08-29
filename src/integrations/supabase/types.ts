@@ -2260,6 +2260,18 @@ export type Database = {
           updated_at: string
         }[]
       }
+      get_system_logs: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          component: string
+          created_at: string
+          id: string
+          level: string
+          message: string
+          metadata: Json
+          operation: string
+        }[]
+      }
       gtrgm_compress: {
         Args: { "": unknown }
         Returns: unknown
