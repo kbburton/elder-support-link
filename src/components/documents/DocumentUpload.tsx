@@ -440,9 +440,9 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
       setUploadProgress(0);
       setPendingUpload(false);
       
-      // Hide processing modal after a delay if there are no more processing files
+      // Hide processing modal after a delay if there are no more processing files AND no errors requiring user attention
       setTimeout(() => {
-        if (processingStats.processing === 0) {
+        if (processingStats.processing === 0 && processingStats.failed === 0 && !showProcessingErrorModal) {
           setShowProcessingModal(false);
           setProcessingStats({ processing: 0, completed: 0, failed: 0, currentFile: '' });
         }
