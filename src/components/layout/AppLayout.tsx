@@ -26,12 +26,13 @@ const AppLayout = () => {
       // If we have a real authenticated session, we should NOT be in demo mode
       if (session?.user) {
         console.log('Real authenticated user detected:', session.user.email);
-        // Don't show demo redirect for real users
+        // For real users, ensure no demo redirects happen
+        setShowDemoRedirect(false);
         return;
       }
       
-      // Handle demo mode only if no real session exists
-      if (isDemo) {
+      // Handle demo mode only if no real session exists AND isDemo is true
+      if (!session && isDemo) {
         // If user is trying to access a different group ID in demo mode, redirect to demo group
         if (groupId !== demoGroupId) {
           setShowDemoRedirect(true);
@@ -42,7 +43,7 @@ const AppLayout = () => {
       }
 
       // Regular authentication checks for non-demo mode
-      if (!session) {
+      if (!session && !isDemo) {
         console.log('No session found, redirecting to login');
         toast({ title: "Session required", description: "Please log in again." });
         navigate("/login", { replace: true });
