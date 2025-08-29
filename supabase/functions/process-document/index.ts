@@ -253,86 +253,29 @@ async function processDOCX(fileBuffer: ArrayBuffer): Promise<string> {
   try {
     console.log('Processing DOCX file...');
     
-    // DOCX files are ZIP archives - we need proper ZIP extraction
-    // First, try to extract text using OpenAI's document understanding (not vision)
-    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-    if (!openAIApiKey) {
-      throw new Error('OpenAI API key not configured for DOCX processing');
-    }
-
-    // Convert to base64 for AI processing - using chunked approach for large files
-    const bytes = new Uint8Array(fileBuffer);
-    let binaryString = '';
-    for (let i = 0; i < bytes.length; i++) {
-      binaryString += String.fromCharCode(bytes[i]);
-    }
-    const base64File = btoa(binaryString);
+    // Convert to base64 using chunked encoding for large files
+    const base64File = encodeBase64Chunked(fileBuffer);
     
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4.1-2025-04-14',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a document text extraction specialist. You will receive a Microsoft Word document (.docx) file. Extract all the readable text content from this document, preserving the meaning but removing formatting. Return only the actual document text content - no metadata, headers, footers, or technical information about the file structure.'
-          },
-          {
-            role: 'user',
-            content: `Please extract all readable text from this DOCX document. Return only the document content that a human would read, formatted as plain text:\n\nFile data: ${base64File}`
-          }
-        ],
-        max_completion_tokens: 4000
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('OpenAI API error for DOCX:', errorText);
-      throw new Error(`Failed to process DOCX document: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const extractedText = data.choices[0]?.message?.content || '';
-    
-    // Check if the AI actually extracted meaningful content
-    if (!extractedText || extractedText.trim().length === 0) {
-      throw new Error('No readable text could be extracted from the DOCX document');
-    }
-    
-    // Check for common error patterns from the AI
-    const errorPatterns = [
-      'no visible text',
-      'cannot read',
-      'unable to extract',
-      'appears to be corrupted',
-      'binary data',
-      'file structure data',
-      'encoded XML components',
-      'compressed or encoded format',
-      'could not be processed',
-      'cannot extract text from this file',
-      'sorry, i can\'t extract text'
-    ];
-    
-    const lowerText = extractedText.toLowerCase();
-    const hasErrorPattern = errorPatterns.some(pattern => lowerText.includes(pattern));
-    
-    if (hasErrorPattern) {
-      throw new Error('DOCX document appears to be corrupted or unreadable');
-    }
-    
-    console.log(`Successfully extracted ${extractedText.length} characters from DOCX`);
-    return extractedText.trim();
-    
+    // Use the vision API to process DOCX files as documents
+    return await extractTextWithOpenAI(base64File, 'docx');
   } catch (error) {
     console.error('Error processing DOCX:', error);
     throw new Error(`DOCX processing failed: ${error.message}`);
   }
+}
+
+// Helper function for chunked base64 encoding to handle large files
+function encodeBase64Chunked(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000; // 32KB chunks to avoid call stack limits
+  let result = '';
+  
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.slice(i, i + chunkSize);
+    result += btoa(String.fromCharCode.apply(null, Array.from(chunk)));
+  }
+  
+  return result;
 }
 
 async function processPPTX(fileBuffer: ArrayBuffer): Promise<string> {
@@ -401,9 +344,16 @@ async function extractTextWithOpenAI(base64File: string, fileType: string): Prom
     throw new Error('OpenAI API key not configured');
   }
 
-  const prompt = fileType === 'pdf' 
-    ? 'Please extract all text content from this PDF document. Return only the text content without any formatting or explanations. If this is a scanned document, perform OCR to extract all visible text.'
-    : 'Please extract all text content from this image using OCR. Return only the text content without any formatting or explanations. Include all visible text, even if it appears to be handwritten.';
+  let prompt = 'Please extract all text content from this image using OCR. Return only the text content without any formatting or explanations. Include all visible text, even if it appears to be handwritten.';
+  let mimeType = 'image/jpeg';
+  
+  if (fileType === 'pdf') {
+    prompt = 'Please extract all text content from this PDF document. Return only the text content without any formatting or explanations. If this is a scanned document, perform OCR to extract all visible text.';
+    mimeType = 'application/pdf';
+  } else if (fileType === 'docx') {
+    prompt = 'Please extract all readable text content from this Microsoft Word document (.docx). Return only the actual document text that a human would read, preserving the meaning but removing formatting. Do not include any metadata, headers, footers, or technical information about the file structure.';
+    mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  }
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -411,24 +361,24 @@ async function extractTextWithOpenAI(base64File: string, fileType: string): Prom
       'Authorization': `Bearer ${openAIApiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      model: 'gpt-4.1-2025-04-14',
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: prompt },
-            {
-              type: 'image_url',
-              image_url: {
-                url: `data:${fileType === 'pdf' ? 'application/pdf' : 'image/jpeg'};base64,${base64File}`
+      body: JSON.stringify({
+        model: 'gpt-4.1-2025-04-14',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:${mimeType};base64,${base64File}`
+                }
               }
-            }
-          ]
-        }
-      ],
-      max_tokens: 4000
-    }),
+            ]
+          }
+        ],
+        max_completion_tokens: 4000
+      }),
   });
 
   if (!response.ok) {
@@ -476,21 +426,20 @@ async function generateSummary(text: string): Promise<string> {
       'Authorization': `Bearer ${openAIApiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      model: 'gpt-4.1-mini-2025-04-14',
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a helpful assistant that creates concise summaries of documents. Focus on key points, important dates, medications, actions needed, and critical information. Keep summaries under 300 words and make them useful for caregivers and healthcare professionals.'
-        },
-        {
-          role: 'user',
-          content: `Please provide a concise summary of the following document content, highlighting the most important information:\n\n${text.substring(0, 10000)}`
-        }
-      ],
-      max_tokens: 400,
-      temperature: 0.3
-    }),
+      body: JSON.stringify({
+        model: 'gpt-4.1-mini-2025-04-14',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a helpful assistant that creates concise summaries of documents. Focus on key points, important dates, medications, actions needed, and critical information. Keep summaries under 300 words and make them useful for caregivers and healthcare professionals.'
+          },
+          {
+            role: 'user',
+            content: `Please provide a concise summary of the following document content, highlighting the most important information:\n\n${text.substring(0, 10000)}`
+          }
+        ],
+        max_completion_tokens: 400
+      }),
   });
 
   if (!response.ok) {
