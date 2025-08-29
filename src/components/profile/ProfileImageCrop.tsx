@@ -1,5 +1,7 @@
 import { useRef, useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
+import { RotateCcw } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 interface ProfileImageCropProps {
@@ -15,6 +17,8 @@ export const ProfileImageCrop = ({ imageFile, isOpen, onClose, onCropComplete }:
   const [isDragging, setIsDragging] = useState(false);
   const [cropArea, setCropArea] = useState({ x: 0, y: 0, size: 200 });
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
 
   console.log('ProfileImageCrop: Component render', { 
     hasImageFile: !!imageFile, 
@@ -63,7 +67,7 @@ export const ProfileImageCrop = ({ imageFile, isOpen, onClose, onCropComplete }:
         
         setImageLoaded(true);
         
-        // Center the crop area
+        // Center the crop area and reset zoom
         const canvas = canvasRef.current;
         if (canvas) {
           const containerWidth = 400;
@@ -85,6 +89,10 @@ export const ProfileImageCrop = ({ imageFile, isOpen, onClose, onCropComplete }:
             y: (displayHeight - cropSize) / 2,
             size: cropSize
           });
+          
+          // Reset zoom and center image
+          setZoomLevel(1);
+          setImageOffset({ x: 0, y: 0 });
         }
       };
       
@@ -125,22 +133,30 @@ export const ProfileImageCrop = ({ imageFile, isOpen, onClose, onCropComplete }:
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Calculate display size
+    // Calculate base display size
     const containerWidth = 400;
     const containerHeight = 300;
     const imgAspect = img.naturalWidth / img.naturalHeight;
     
-    let displayWidth, displayHeight;
+    let baseDisplayWidth, baseDisplayHeight;
     if (imgAspect > containerWidth / containerHeight) {
-      displayWidth = containerWidth;
-      displayHeight = containerWidth / imgAspect;
+      baseDisplayWidth = containerWidth;
+      baseDisplayHeight = containerWidth / imgAspect;
     } else {
-      displayHeight = containerHeight;
-      displayWidth = containerHeight * imgAspect;
+      baseDisplayHeight = containerHeight;
+      baseDisplayWidth = containerHeight * imgAspect;
     }
 
-    // Draw image
-    ctx.drawImage(img, 0, 0, displayWidth, displayHeight);
+    // Apply zoom to display size
+    const displayWidth = baseDisplayWidth * zoomLevel;
+    const displayHeight = baseDisplayHeight * zoomLevel;
+    
+    // Calculate position with zoom offset (center the zoom)
+    const x = (containerWidth - displayWidth) / 2 + imageOffset.x;
+    const y = (containerHeight - displayHeight) / 2 + imageOffset.y;
+
+    // Draw image with zoom
+    ctx.drawImage(img, x, y, displayWidth, displayHeight);
     
     // Draw overlay
     ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
@@ -155,7 +171,7 @@ export const ProfileImageCrop = ({ imageFile, isOpen, onClose, onCropComplete }:
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2;
     ctx.strokeRect(cropArea.x, cropArea.y, cropArea.size, cropArea.size);
-  }, [cropArea, imageLoaded]);
+  }, [cropArea, imageLoaded, zoomLevel, imageOffset]);
 
   useEffect(() => {
     drawCanvas();
@@ -231,25 +247,33 @@ export const ProfileImageCrop = ({ imageFile, isOpen, onClose, onCropComplete }:
     cropCanvas.width = 300;
     cropCanvas.height = 300;
 
-    // Calculate the source coordinates on the original image
+    // Calculate the source coordinates on the original image with zoom
     const containerWidth = 400;
     const containerHeight = 300;
     const imgAspect = img.naturalWidth / img.naturalHeight;
     
-    let displayWidth, displayHeight;
+    let baseDisplayWidth, baseDisplayHeight;
     if (imgAspect > containerWidth / containerHeight) {
-      displayWidth = containerWidth;
-      displayHeight = containerWidth / imgAspect;
+      baseDisplayWidth = containerWidth;
+      baseDisplayHeight = containerWidth / imgAspect;
     } else {
-      displayHeight = containerHeight;
-      displayWidth = containerHeight * imgAspect;
+      baseDisplayHeight = containerHeight;
+      baseDisplayWidth = containerHeight * imgAspect;
     }
 
+    // Apply zoom to display size
+    const displayWidth = baseDisplayWidth * zoomLevel;
+    const displayHeight = baseDisplayHeight * zoomLevel;
+    
+    // Calculate position with zoom offset
+    const imageX = (containerWidth - displayWidth) / 2 + imageOffset.x;
+    const imageY = (containerHeight - displayHeight) / 2 + imageOffset.y;
+    
     const scaleX = img.naturalWidth / displayWidth;
     const scaleY = img.naturalHeight / displayHeight;
     
-    const sourceX = cropArea.x * scaleX;
-    const sourceY = cropArea.y * scaleY;
+    const sourceX = (cropArea.x - imageX) * scaleX;
+    const sourceY = (cropArea.y - imageY) * scaleY;
     const sourceSize = cropArea.size * scaleX;
 
     // Draw the cropped area
@@ -283,6 +307,36 @@ export const ProfileImageCrop = ({ imageFile, isOpen, onClose, onCropComplete }:
         </DialogHeader>
         
         <div className="space-y-4">
+          {/* Zoom Controls */}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 flex-1">
+              <span className="text-sm font-medium">Zoom:</span>
+              <Slider
+                value={[zoomLevel]}
+                onValueChange={(value) => setZoomLevel(value[0])}
+                min={0.5}
+                max={3}
+                step={0.1}
+                className="flex-1"
+              />
+              <span className="text-sm text-muted-foreground w-12">
+                {Math.round(zoomLevel * 100)}%
+              </span>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setZoomLevel(1);
+                setImageOffset({ x: 0, y: 0 });
+              }}
+            >
+              <RotateCcw className="h-4 w-4 mr-1" />
+              Reset
+            </Button>
+          </div>
+          
           <div className="relative">
             <canvas
               ref={canvasRef}
@@ -321,20 +375,28 @@ export const ProfileImageCrop = ({ imageFile, isOpen, onClose, onCropComplete }:
                         const containerHeight = 300;
                         const imgAspect = img.naturalWidth / img.naturalHeight;
                         
-                        let displayWidth, displayHeight;
+                        let baseDisplayWidth, baseDisplayHeight;
                         if (imgAspect > containerWidth / containerHeight) {
-                          displayWidth = containerWidth;
-                          displayHeight = containerWidth / imgAspect;
+                          baseDisplayWidth = containerWidth;
+                          baseDisplayHeight = containerWidth / imgAspect;
                         } else {
-                          displayHeight = containerHeight;
-                          displayWidth = containerHeight * imgAspect;
+                          baseDisplayHeight = containerHeight;
+                          baseDisplayWidth = containerHeight * imgAspect;
                         }
 
+                        // Apply zoom to display size
+                        const displayWidth = baseDisplayWidth * zoomLevel;
+                        const displayHeight = baseDisplayHeight * zoomLevel;
+                        
+                        // Calculate position with zoom offset
+                        const imageX = (containerWidth - displayWidth) / 2 + imageOffset.x;
+                        const imageY = (containerHeight - displayHeight) / 2 + imageOffset.y;
+                        
                         const scaleX = img.naturalWidth / displayWidth;
                         const scaleY = img.naturalHeight / displayHeight;
                         
-                        const sourceX = cropArea.x * scaleX;
-                        const sourceY = cropArea.y * scaleY;
+                        const sourceX = (cropArea.x - imageX) * scaleX;
+                        const sourceY = (cropArea.y - imageY) * scaleY;
                         const sourceSize = cropArea.size * scaleX;
 
                         ctx.drawImage(
