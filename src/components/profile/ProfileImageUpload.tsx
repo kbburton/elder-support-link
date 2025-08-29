@@ -251,7 +251,7 @@ export const ProfileImageUpload = ({
     <>
       <div className="flex flex-col items-center gap-3">
         <Avatar className={sizeClasses[size]}>
-          {currentImageUrl ? (
+          {currentImageUrl && currentImageUrl.trim() ? (
             <AvatarImage src={currentImageUrl} alt={recipientName || "Profile"} />
           ) : null}
           <AvatarFallback>
