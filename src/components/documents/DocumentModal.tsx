@@ -34,6 +34,7 @@ import { format } from "date-fns";
 import { useDemo } from "@/hooks/useDemo";
 import { softDeleteEntity } from "@/lib/delete/rpc";
 import { DocumentSummaryRegenerationModal } from "@/components/documents/DocumentSummaryRegenerationModal";
+import { DocumentProcessingErrorModal } from "@/components/documents/DocumentProcessingErrorModal";
 import { UnifiedAssociationManager } from "@/components/shared/UnifiedAssociationManager";
 import { ENTITY } from "@/constants/entities";
 import { useToast } from "@/hooks/use-toast";

@@ -133,12 +133,16 @@ serve(async (req) => {
         }
       }
 
+      // Sanitize text to prevent Unicode escape sequence errors
+      const sanitizedText = sanitizeTextForDatabase(extractedText);
+      const sanitizedSummary = sanitizeTextForDatabase(summary);
+
       // Update document with extracted text and summary
       const { error: updateError } = await supabaseClient
         .from('documents')
         .update({
-          full_text: extractedText,
-          summary: summary,
+          full_text: sanitizedText,
+          summary: sanitizedSummary,
           processing_status: 'completed'
         })
         .eq('id', documentId);
@@ -162,12 +166,12 @@ serve(async (req) => {
     } catch (processingError) {
       console.error('Processing error:', processingError);
       
-      // Update status to failed
+      // Update status to failed - don't put error in summary field
       await supabaseClient
         .from('documents')
         .update({ 
-          processing_status: 'failed',
-          summary: `Processing failed: ${processingError.message}`
+          processing_status: 'failed'
+          // Leave summary and full_text as null - don't store error messages there
         })
         .eq('id', documentId);
 
@@ -230,30 +234,53 @@ function extractEmbeddedTextFromPDF(fileBuffer: ArrayBuffer): string {
 }
 
 async function processDOCX(fileBuffer: ArrayBuffer): Promise<string> {
-  // Simple DOCX processing - extract from document.xml
+  // Proper DOCX processing - DOCX files are ZIP archives containing XML
   try {
-    const uint8Array = new Uint8Array(fileBuffer);
-    const text = new TextDecoder().decode(uint8Array);
+    // For now, use OpenAI to extract text from DOCX files
+    // This is more reliable than trying to parse the ZIP/XML structure manually
+    const base64File = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)));
     
-    // Look for document.xml content and extract text
-    let extractedText = '';
-    
-    // Simple regex to find text content in XML
-    const textMatches = text.match(/<w:t[^>]*>([^<]+)<\/w:t>/g) || [];
-    for (const match of textMatches) {
-      const content = match.replace(/<w:t[^>]*>/, '').replace(/<\/w:t>/, '');
-      extractedText += content + ' ';
+    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+    if (!openAIApiKey) {
+      return 'OpenAI API key not configured for DOCX processing.';
     }
-    
-    // Fallback: look for any readable text
-    if (extractedText.length < 50) {
-      const readable = text.replace(/[^\x20-\x7E\n\r\t]/g, ' ')
-                         .replace(/\s+/g, ' ')
-                         .trim();
-      if (readable.length > extractedText.length) {
-        extractedText = readable;
-      }
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAIApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4.1-2025-04-14',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { 
+                type: 'text', 
+                text: 'Please extract all text content from this DOCX document. Return only the text content without any formatting, headers, footers, or explanations. Just the readable text from the document.' 
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,${base64File}`
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 4000
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('OpenAI API error for DOCX:', await response.text());
+      return 'Failed to extract text from DOCX file using AI processing.';
     }
+
+    const data = await response.json();
+    const extractedText = data.choices[0]?.message?.content || '';
     
     return extractedText.trim() || 'No readable text found in DOCX file.';
   } catch (error) {
@@ -407,4 +434,22 @@ async function generateSummary(text: string): Promise<string> {
 
   const data = await response.json();
   return data.choices[0]?.message?.content || 'Summary could not be generated.';
+}
+
+// Sanitize text to prevent Unicode escape sequence errors in PostgreSQL
+function sanitizeTextForDatabase(text: string): string {
+  if (!text || typeof text !== 'string') {
+    return '';
+  }
+  
+  return text
+    // Remove null bytes which can cause PostgreSQL issues
+    .replace(/\0/g, '')
+    // Replace problematic Unicode escape sequences
+    .replace(/\\u[0-9a-fA-F]{4}/g, '')
+    // Replace other control characters that might cause issues
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ')
+    // Normalize whitespace
+    .replace(/\s+/g, ' ')
+    .trim();
 }

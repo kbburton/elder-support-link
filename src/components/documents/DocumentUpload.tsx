@@ -14,6 +14,7 @@ import { Progress } from '@/components/ui/progress';
 import { validateFile, validateBatch, FILE_LIMITS } from '@/utils/file-limits';
 import { logger } from '@/utils/logger';
 import { DuplicateConfirmDialog } from './DuplicateConfirmDialog';
+import { DocumentProcessingModal } from './DocumentProcessingModal';
 
 interface DocumentUploadProps {
   onUploadComplete: () => void;
@@ -45,6 +46,13 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
   const [duplicateFiles, setDuplicateFiles] = useState<string[]>([]);
   const [pendingUpload, setPendingUpload] = useState(false);
+  const [showProcessingModal, setShowProcessingModal] = useState(false);
+  const [processingStats, setProcessingStats] = useState({
+    processing: 0,
+    completed: 0,
+    failed: 0,
+    currentFile: ''
+  });
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const validFiles: File[] = [];
@@ -278,30 +286,66 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
           documentId = documentData.id;
 
           // Trigger AI processing for supported file types
-          if (file.type.startsWith('image/') || file.type === 'application/pdf' || 
-              file.type === 'text/plain' || file.type.includes('document')) {
+          const supportedForProcessing = file.type.startsWith('image/') || 
+            file.type === 'application/pdf' || 
+            file.type === 'text/plain' || 
+            file.type.includes('document') ||
+            file.type.includes('wordprocessingml') ||
+            file.type.includes('presentationml') ||
+            file.type.includes('spreadsheetml');
+
+          if (supportedForProcessing) {
+            // Show processing modal if not already shown
+            if (!showProcessingModal) {
+              setShowProcessingModal(true);
+            }
+
+            // Update processing stats
+            setProcessingStats(prev => ({
+              ...prev,
+              processing: prev.processing + 1,
+              currentFile: file.name
+            }));
+
             try {
               await supabase.functions.invoke('process-document', {
                 body: { documentId }
               });
+              
+              // Update processing stats - completed
+              setProcessingStats(prev => ({
+                ...prev,
+                processing: Math.max(0, prev.processing - 1),
+                completed: prev.completed + 1,
+                currentFile: prev.processing <= 1 ? '' : prev.currentFile
+              }));
+
               logger.info('AI processing initiated successfully', {
                 operation: 'ai_processing_start',
                 documentId,
                 filename: file.name,
               });
             } catch (processingError) {
-              logger.warn('AI processing failed - document uploaded but summary will remain blank', {
+              // Update processing stats - failed
+              setProcessingStats(prev => ({
+                ...prev,
+                processing: Math.max(0, prev.processing - 1),
+                failed: prev.failed + 1,
+                currentFile: prev.processing <= 1 ? '' : prev.currentFile
+              }));
+
+              logger.warn('AI processing failed - document uploaded but will need manual processing', {
                 operation: 'ai_processing_failed',
                 documentId,
                 filename: file.name,
               }, processingError as Error);
               
-              // Update document to indicate AI processing failed (leave summary blank)
+              // Update document to indicate AI processing failed
               await supabase
                 .from('documents')
                 .update({ 
-                  processing_status: 'failed',
-                  // summary remains null - don't put error message there
+                  processing_status: 'failed'
+                  // Don't put error messages in summary field
                 })
                 .eq('id', documentId);
             }
@@ -359,7 +403,12 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
       if (successCount > 0) {
         onUploadComplete();
         if (successCount === batchSize) {
-          onClose();
+          // Hide processing modal after a delay to show completion
+          setTimeout(() => {
+            setShowProcessingModal(false);
+            setProcessingStats({ processing: 0, completed: 0, failed: 0, currentFile: '' });
+            onClose();
+          }, 2000);
         }
       }
 
@@ -378,6 +427,14 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
       setUploading(false);
       setUploadProgress(0);
       setPendingUpload(false);
+      
+      // Hide processing modal after a delay if there are no more processing files
+      setTimeout(() => {
+        if (processingStats.processing === 0) {
+          setShowProcessingModal(false);
+          setProcessingStats({ processing: 0, completed: 0, failed: 0, currentFile: '' });
+        }
+      }, 3000);
     }
   };
 
@@ -557,6 +614,15 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
           onClose={handleCancelDuplicateUpload}
           onConfirm={handleConfirmDuplicateUpload}
           duplicateFiles={duplicateFiles}
+        />
+
+        {/* Document Processing Modal */}
+        <DocumentProcessingModal
+          isOpen={showProcessingModal}
+          processingCount={processingStats.processing}
+          completedCount={processingStats.completed}
+          failedCount={processingStats.failed}
+          currentFileName={processingStats.currentFile}
         />
       </CardContent>
     </Card>
