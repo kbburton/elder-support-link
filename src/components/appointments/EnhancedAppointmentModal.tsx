@@ -97,7 +97,20 @@ export function EnhancedAppointmentModal({
 
   useEffect(() => {
     if (appointment) {
-      const appointmentDate = new Date(appointment.date_time);
+      // Validate date_time before creating Date object
+      const dateTimeValue = appointment.date_time;
+      let appointmentDate = new Date();
+      let timeValue = "09:00";
+      
+      if (dateTimeValue) {
+        const parsedDate = new Date(dateTimeValue);
+        // Check if the parsed date is valid
+        if (!isNaN(parsedDate.getTime())) {
+          appointmentDate = parsedDate;
+          timeValue = format(appointmentDate, "HH:mm");
+        }
+      }
+      
       setFormData({
         description: appointment.description || "",
         street_address: appointment.street_address || "",
@@ -111,7 +124,7 @@ export function EnhancedAppointmentModal({
         outcome_notes: appointment.outcome_notes || "",
       });
       setDateTime(appointmentDate);
-      setTimeValue(format(appointmentDate, "HH:mm"));
+      setTimeValue(timeValue);
     } else {
       setFormData({
         description: "",
@@ -322,7 +335,10 @@ export function EnhancedAppointmentModal({
                         )}
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {dateTime ? format(dateTime, "PPP") : <span>Pick a date</span>}
+                        {dateTime && !isNaN(dateTime.getTime()) ? 
+                          format(dateTime, "PPP") : 
+                          <span>Pick a date</span>
+                        }
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0">
