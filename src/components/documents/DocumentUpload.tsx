@@ -15,6 +15,7 @@ import { validateFile, validateBatch, FILE_LIMITS } from '@/utils/file-limits';
 import { logger } from '@/utils/logger';
 import { DuplicateConfirmDialog } from './DuplicateConfirmDialog';
 import { DocumentProcessingModal } from './DocumentProcessingModal';
+import { DocumentProcessingErrorModal } from './DocumentProcessingErrorModal';
 
 interface DocumentUploadProps {
   onUploadComplete: () => void;
@@ -47,6 +48,12 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
   const [duplicateFiles, setDuplicateFiles] = useState<string[]>([]);
   const [pendingUpload, setPendingUpload] = useState(false);
   const [showProcessingModal, setShowProcessingModal] = useState(false);
+  const [showProcessingErrorModal, setShowProcessingErrorModal] = useState(false);
+  const [processingErrorDetails, setProcessingErrorDetails] = useState<{
+    fileName: string;
+    documentId: string;
+    errorMessage: string;
+  } | null>(null);
   const [processingStats, setProcessingStats] = useState({
     processing: 0,
     completed: 0,
@@ -308,9 +315,13 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
             }));
 
             try {
-              await supabase.functions.invoke('process-document', {
+              const { data, error } = await supabase.functions.invoke('process-document', {
                 body: { documentId }
               });
+              
+              if (error) {
+                throw new Error(error.message || 'Processing failed');
+              }
               
               // Update processing stats - completed
               setProcessingStats(prev => ({
@@ -320,8 +331,8 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
                 currentFile: prev.processing <= 1 ? '' : prev.currentFile
               }));
 
-              logger.info('AI processing initiated successfully', {
-                operation: 'ai_processing_start',
+              logger.info('AI processing completed successfully', {
+                operation: 'ai_processing_success',
                 documentId,
                 filename: file.name,
               });
@@ -334,20 +345,21 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
                 currentFile: prev.processing <= 1 ? '' : prev.currentFile
               }));
 
-              logger.warn('AI processing failed - document uploaded but will need manual processing', {
+              logger.warn('AI processing failed - showing error modal', {
                 operation: 'ai_processing_failed',
                 documentId,
                 filename: file.name,
               }, processingError as Error);
               
-              // Update document to indicate AI processing failed
-              await supabase
-                .from('documents')
-                .update({ 
-                  processing_status: 'failed'
-                  // Don't put error messages in summary field
-                })
-                .eq('id', documentId);
+              // Show error modal to user
+              setProcessingErrorDetails({
+                fileName: file.name,
+                documentId,
+                errorMessage: processingError instanceof Error ? processingError.message : 'Unknown processing error'
+              });
+              setShowProcessingErrorModal(true);
+              
+              // Document remains in failed state until user decides
             }
           }
 
@@ -623,6 +635,39 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
           completedCount={processingStats.completed}
           failedCount={processingStats.failed}
           currentFileName={processingStats.currentFile}
+        />
+
+        {/* Document Processing Error Modal */}
+        <DocumentProcessingErrorModal
+          isOpen={showProcessingErrorModal}
+          onClose={() => setShowProcessingErrorModal(false)}
+          onContinue={async () => {
+            if (processingErrorDetails) {
+              // Update document to completed state without summary
+              await supabase
+                .from('documents')
+                .update({ processing_status: 'completed' })
+                .eq('id', processingErrorDetails.documentId);
+              
+              setShowProcessingErrorModal(false);
+              setProcessingErrorDetails(null);
+              
+              // Update processing stats to show as completed instead of failed
+              setProcessingStats(prev => ({
+                ...prev,
+                failed: Math.max(0, prev.failed - 1),
+                completed: prev.completed + 1
+              }));
+              
+              toast({
+                title: "Document saved",
+                description: "Document uploaded successfully without AI-generated summary.",
+                variant: "default",
+              });
+            }
+          }}
+          fileName={processingErrorDetails?.fileName || ''}
+          errorMessage={processingErrorDetails?.errorMessage || ''}
         />
       </CardContent>
     </Card>
