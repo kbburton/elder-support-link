@@ -131,10 +131,10 @@ serve(async (req) => {
       // Generate summary if needed
       let summary = document.summary;
       if (!summary || summary.trim() === '') {
-        if (extractedText.length > 0) {
+        if (extractedText.length > 0 && !extractedText.includes('No readable text found')) {
           summary = await generateSummary(extractedText);
         } else {
-          // Don't set summary if no text - let it remain null/empty
+          // No text extracted or error message - this should trigger error modal
           throw new Error('No text content could be extracted from the document for summarization');
         }
       }
@@ -253,30 +253,12 @@ async function processDOCX(fileBuffer: ArrayBuffer): Promise<string> {
   try {
     console.log('Processing DOCX file...');
     
-    // Extract text directly from DOCX structure
-    const text = new TextDecoder().decode(fileBuffer);
-    let extractedText = '';
-    
-    // Look for document text content in the XML structure
-    const textMatches = text.match(/<w:t[^>]*>([^<]+)<\/w:t>/g) || [];
-    for (const match of textMatches) {
-      const content = match.replace(/<w:t[^>]*>/, '').replace(/<\/w:t>/, '');
-      if (content.length > 1 && /[a-zA-Z]/.test(content)) {
-        extractedText += content + ' ';
-      }
-    }
-    
-    // Also look for paragraph text
-    const paraMatches = text.match(/<w:p[^>]*>.*?<\/w:p>/gs) || [];
-    for (const match of paraMatches) {
-      const textContent = match.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-      if (textContent.length > 2) {
-        extractedText += textContent + ' ';
-      }
-    }
-    
-    const result = extractedText.trim();
-    return result || 'No readable text found in DOCX file.';
+    // DOCX files are compressed ZIP archives containing XML. Simple text decoding won't work.
+    // Fall back to OpenAI vision API for text extraction
+    console.log('Using OpenAI vision API for DOCX text extraction');
+    const bytes = new Uint8Array(fileBuffer);
+    const base64File = encodeBase64Chunked(fileBuffer);
+    return await extractTextWithOpenAI(base64File, 'docx');
   } catch (error) {
     console.error('Error processing DOCX:', error);
     throw new Error(`DOCX processing failed: ${error.message}`);

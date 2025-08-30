@@ -323,6 +323,14 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
                 throw new Error(error.message || 'Processing failed');
               }
               
+              // Check if the response contains an error message in the summary (this should trigger error modal)
+              if (data?.summary?.includes('no readable text') || 
+                  data?.summary?.includes('could not be extracted') || 
+                  data?.summary?.includes('processing failed') ||
+                  data?.summary?.includes('No text content could be extracted')) {
+                throw new Error(data.summary || 'Text extraction failed');
+              }
+              
               // Update processing stats - completed
               setProcessingStats(prev => ({
                 ...prev,
