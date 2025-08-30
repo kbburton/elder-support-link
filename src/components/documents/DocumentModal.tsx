@@ -33,7 +33,7 @@ import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
 import { useDemo } from "@/hooks/useDemo";
 import { softDeleteEntity } from "@/lib/delete/rpc";
-import { DocumentSummaryRegenerationModal } from "@/components/documents/DocumentSummaryRegenerationModal";
+import DocumentSummaryRegenerationModal from "@/components/documents/DocumentSummaryRegenerationModal";
 import { DocumentProcessingErrorModal } from "@/components/documents/DocumentProcessingErrorModal";
 import { UnifiedAssociationManager } from "@/components/shared/UnifiedAssociationManager";
 import { ENTITY } from "@/constants/entities";
@@ -506,8 +506,9 @@ export function DocumentModal({ document, isOpen, onClose, groupId }: DocumentMo
         <DocumentSummaryRegenerationModal
           isOpen={showRegenerateModal}
           onClose={() => setShowRegenerateModal(false)}
-          document={document}
-          onSummaryUpdated={(newSummary) => {
+          documentId={document.id}
+          category={document.category}
+          onComplete={(newSummary) => {
             setFormData(prev => ({ ...prev, summary: newSummary }));
             queryClient.invalidateQueries({ queryKey: ["documents"] });
           }}
