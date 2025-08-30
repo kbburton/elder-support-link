@@ -38,7 +38,7 @@ export function DocumentSummaryRegenerationModal({
   isOpen,
   onClose,
   document,
-  onSummaryUpdated
+  onSummaryUpdated,
 }: DocumentSummaryRegenerationModalProps) {
   const [selectedCategory, setSelectedCategory] = useState(document?.category || "");
   const [customPrompt, setCustomPrompt] = useState("");
@@ -56,34 +56,38 @@ export function DocumentSummaryRegenerationModal({
 
   const handleRegenerate = async () => {
     if (!document) return;
-
     setRegenerating(true);
+
     try {
-      const { data, error } = await supabase.functions.invoke('regenerate-summary', {
-        body: { 
+      const { data, error } = await supabase.functions.invoke("process-document", {
+        body: {
           documentId: document.id,
+          mode: "regenerate",
           category: selectedCategory || document.category,
-          customPrompt: customPrompt.trim() || undefined
-        }
+          customPrompt: customPrompt.trim() || undefined,
+        },
       });
 
       if (error) throw error;
 
-      if (data?.summary) {
-        onSummaryUpdated(data.summary);
+      const newSummary: string | undefined =
+        data?.document?.summary ?? data?.summary ?? undefined;
+
+      if (newSummary) {
+        onSummaryUpdated(newSummary);
         toast({
-          title: "Summary Regenerated",
-          description: "The AI summary has been updated successfully.",
+          title: "Summary regenerated",
+          description: "The AI summary has been updated.",
         });
         onClose();
       } else {
-        throw new Error("No summary returned from regeneration");
+        throw new Error("No summary returned from function.");
       }
-    } catch (error) {
-      console.error('Error regenerating summary:', error);
+    } catch (err) {
+      console.error("Error regenerating summary:", err);
       toast({
-        title: "Regeneration Failed",
-        description: error instanceof Error ? error.message : "Failed to regenerate summary",
+        title: "Regeneration failed",
+        description: err instanceof Error ? err.message : "Unknown error",
         variant: "destructive",
       });
     } finally {
@@ -96,12 +100,11 @@ export function DocumentSummaryRegenerationModal({
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            Regenerate AI Summary
+            <Sparkles className="h-5 w-5" />
+            Regenerate document summary
           </DialogTitle>
           <DialogDescription>
-            Generate a new AI summary for "{document?.title || document?.original_filename || 'this document'}" 
-            using category-specific prompts or a custom prompt.
+            Use a category-specific prompt or your own custom instructions.
           </DialogDescription>
         </DialogHeader>
 
@@ -109,8 +112,8 @@ export function DocumentSummaryRegenerationModal({
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription>
-              The AI will analyze the document's content and generate a new summary based on the selected category 
-              or your custom instructions. This will replace the current summary.
+              The AI analyzes the document content and generates a new summary based on the chosen
+              category or your custom prompt. This replaces the current summary.
             </AlertDescription>
           </Alert>
 
@@ -130,22 +133,21 @@ export function DocumentSummaryRegenerationModal({
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground mt-1">
-                Each category uses specialized prompts for better results.
+                Each category uses specialized prompts from your database if available.
               </p>
             </div>
 
             <div>
-              <Label htmlFor="custom-prompt">Custom Instructions (Optional)</Label>
+              <Label htmlFor="customPrompt">Custom Instructions (optional)</Label>
               <Textarea
-                id="custom-prompt"
+                id="customPrompt"
                 value={customPrompt}
                 onChange={(e) => setCustomPrompt(e.target.value)}
-                placeholder="Add specific instructions for the AI summary (e.g., 'Focus on key dates and financial amounts', 'Summarize treatment recommendations', etc.)"
+                placeholder="Example: Focus on action items and follow-up steps relevant to caregivers."
                 rows={4}
-                className="resize-none"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                If provided, these instructions will be added to the category-specific prompt.
+                If filled, this overrides the category prompt for this one summary.
               </p>
             </div>
           </div>
@@ -155,12 +157,9 @@ export function DocumentSummaryRegenerationModal({
           <Button variant="outline" onClick={onClose} disabled={regenerating}>
             Cancel
           </Button>
-          <Button 
-            onClick={handleRegenerate} 
-            disabled={regenerating || !selectedCategory}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${regenerating ? 'animate-spin' : ''}`} />
-            {regenerating ? 'Regenerating...' : 'Regenerate Summary'}
+          <Button onClick={handleRegenerate} disabled={regenerating || !selectedCategory}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${regenerating ? "animate-spin" : ""}`} />
+            {regenerating ? "Regenerating..." : "Regenerate Summary"}
           </Button>
         </DialogFooter>
       </DialogContent>
