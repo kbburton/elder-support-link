@@ -191,44 +191,68 @@ serve(async (req) => {
       invitationData = updatedInvitation;
       isResend = true;
     } else {
-      // Check if email is already invited or is a member
+      // Check for any existing invitation (regardless of status)
       const { data: existingInvitation } = await supabaseClient
         .from('care_group_invitations')
         .select('*')
         .eq('group_id', actualGroupId)
         .eq('invited_email', email)
-        .eq('status', 'pending')
         .single();
 
       if (existingInvitation) {
-        return new Response(JSON.stringify({ error: "The invitation was already sent and is pending." }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        if (existingInvitation.status === 'pending') {
+          return new Response(JSON.stringify({ error: "The invitation was already sent and is pending." }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        } else {
+          // Update existing invitation (used, expired, or failed) to pending with new expiration
+          const { data: updatedInvitation, error: updateError } = await supabaseClient
+            .from('care_group_invitations')
+            .update({ 
+              expires_at: new Date(Date.now() + 28 * 24 * 60 * 60 * 1000).toISOString(),
+              status: 'pending',
+              invited_by_user_id: user.id,
+              message: `${senderName} has invited you to join the ${groupName} care group.`
+            })
+            .eq('id', existingInvitation.id)
+            .select()
+            .single();
+
+          if (updateError) {
+            console.error("Update existing invitation error:", updateError);
+            return new Response(JSON.stringify({ error: "Failed to update invitation" }), {
+              status: 500,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+
+          invitationData = updatedInvitation;
+        }
+      } else {
+        // Create new invitation
+        const { data: newInvitation, error: insertError } = await supabaseClient
+          .from('care_group_invitations')
+          .insert({
+            group_id: actualGroupId,
+            invited_email: email,
+            invited_by_user_id: user.id,
+            message: `${senderName} has invited you to join the ${groupName} care group.`,
+            status: 'pending'
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error("Insert error:", insertError);
+          return new Response(JSON.stringify({ error: "Failed to create invitation" }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        invitationData = newInvitation;
       }
-
-      // Create new invitation
-      const { data: newInvitation, error: insertError } = await supabaseClient
-        .from('care_group_invitations')
-        .insert({
-          group_id: actualGroupId,
-          invited_email: email,
-          invited_by_user_id: user.id,
-          message: `${senderName} has invited you to join the ${groupName} care group.`,
-          status: 'pending'
-        })
-        .select()
-        .single();
-
-      if (insertError) {
-        console.error("Insert error:", insertError);
-        return new Response(JSON.stringify({ error: "Failed to create invitation" }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      invitationData = newInvitation;
     }
 
     // Create invitation link - use the project's frontend URL
