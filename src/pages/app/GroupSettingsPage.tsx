@@ -67,38 +67,29 @@ export default function GroupSettingsPage() {
 
   const fetchGroupMembers = async () => {
     try {
-      const { data: members, error: membersError } = await supabase
-        .from('care_group_members')
-        .select('user_id, is_admin')
-        .eq('group_id', groupId);
-
-      if (membersError) throw membersError;
-
-      if (!members || members.length === 0) {
+      // Use the RPC function to get group members with proper joins
+      const { data: memberData, error } = await supabase
+        .rpc('get_group_members', { p_group_id: groupId });
+      
+      if (error) throw error;
+      
+      if (!memberData || memberData.length === 0) {
         setGroupMembers([]);
         return;
       }
 
-      const userIds = members.map(m => m.user_id);
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('user_id, first_name, last_name')
-        .in('user_id', userIds);
-
-      if (profilesError) throw profilesError;
-
-      const memberData = members.map(member => {
-        const profile = profiles?.find(p => p.user_id === member.user_id);
-        return {
-          user_id: member.user_id,
-          is_admin: member.is_admin,
-          profiles: profile
-        };
-      });
-
-      setGroupMembers(memberData || []);
+      const formattedData = memberData.map((member: any) => ({
+        user_id: member.user_id,
+        is_admin: member.is_admin,
+        first_name: member.first_name || 'Unknown',
+        last_name: member.last_name || 'User', 
+        email: member.email || 'No email'
+      }));
+      
+      setGroupMembers(formattedData);
     } catch (error) {
       console.error('Error fetching group members:', error);
+      setGroupMembers([]);
     }
   };
 
