@@ -17,149 +17,168 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { RefreshCw, Sparkles, Info } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
-interface DocumentSummaryRegenerationModalProps {
+/**
+ * DocumentSummaryRegenerationModal
+ * --------------------------------
+ * This version is resilient to different Edge Function response shapes.
+ * It will first try `regenerate-summary`. If that function is missing or
+ * returns a non-2xx response, it falls back to `process-document`.
+ *
+ * Expected shapes (all supported):
+ *  A) { summary: "..." }
+ *  B) { success: true, document: { summary: "..." } }
+ *  C) { document: { summary: "..." } }
+ *  D) { result: { summary: "..." } }
+ */
+type RegenerateTarget = "regenerate-summary" | "process-document";
+
+interface Props {
   isOpen: boolean;
   onClose: () => void;
-  document: {
-    id: string;
-    title?: string;
-    category?: string;
-    original_filename?: string;
-  } | null;
-  onSummaryUpdated: (newSummary: string) => void;
+  documentId: string;
+  category?: string | null;
+  onComplete?: (newSummary: string) => void;
 }
 
-export function DocumentSummaryRegenerationModal({
+function extractSummaryFromEdgeResponse(data: any): string | null {
+  if (!data) return null;
+  if (typeof data.summary === "string" && data.summary.trim()) return data.summary.trim();
+  if (typeof data.document?.summary === "string" && data.document.summary.trim()) {
+    return data.document.summary.trim();
+  }
+  if (typeof data.result?.summary === "string" && data.result.summary.trim()) {
+    return data.result.summary.trim();
+  }
+  if (typeof data.data?.summary === "string" && data.data.summary.trim()) {
+    return data.data.summary.trim();
+  }
+  return null;
+}
+
+export default function DocumentSummaryRegenerationModal({
   isOpen,
   onClose,
-  document,
-  onSummaryUpdated,
-}: DocumentSummaryRegenerationModalProps) {
-  const [selectedCategory, setSelectedCategory] = useState(document?.category || "");
-  const [customPrompt, setCustomPrompt] = useState("");
-  const [regenerating, setRegenerating] = useState(false);
+  documentId,
+  category,
+  onComplete,
+}: Props) {
   const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [promptOverride, setPromptOverride] = useState("");
+  const [temperature, setTemperature] = useState<string>("0.3");
 
-  const categories = [
-    { value: "Medical", label: "Medical" },
-    { value: "Legal", label: "Legal" },
-    { value: "Financial", label: "Financial" },
-    { value: "Insurance", label: "Insurance" },
-    { value: "Personal", label: "Personal" },
-    { value: "Other", label: "Other" },
-  ];
+  const callEdge = async (fn: RegenerateTarget) => {
+    return supabase.functions.invoke(fn, {
+      body: {
+        documentId,
+        // Optional advanced knobs the edge fn may ignore if not supported
+        promptOverride: promptOverride?.trim() || undefined,
+        temperature: Number(temperature),
+        category: category ?? undefined,
+      },
+    });
+  };
 
   const handleRegenerate = async () => {
-    if (!document) return;
-    setRegenerating(true);
-
+    setIsSubmitting(true);
     try {
-      const { data, error } = await supabase.functions.invoke("process-document", {
-        body: {
-          documentId: document.id,
-          mode: "regenerate",
-          category: selectedCategory || document.category,
-          customPrompt: customPrompt.trim() || undefined,
-        },
-      });
-
-      if (error) throw error;
-
-      const newSummary: string | undefined =
-        data?.document?.summary ?? data?.summary ?? undefined;
-
-      if (newSummary) {
-        onSummaryUpdated(newSummary);
-        toast({
-          title: "Summary regenerated",
-          description: "The AI summary has been updated.",
-        });
-        onClose();
-      } else {
-        throw new Error("No summary returned from function.");
+      // Try the "new" function first
+      let { data, error } = await callEdge("regenerate-summary");
+      if (error) {
+        // If it's a 404 / function-not-found, fall back to process-document
+        const isNotFound =
+          (error as any)?.message?.includes("404") ||
+          (error as any)?.message?.toLowerCase?.().includes("not found") ||
+          (error as any)?.name === "FunctionsHttpError";
+        if (isNotFound) {
+          ({ data, error } = await callEdge("process-document"));
+        }
       }
-    } catch (err) {
-      console.error("Error regenerating summary:", err);
+
+      if (error) {
+        toast({
+          title: "Regeneration failed",
+          description: (error as any)?.message || "Edge Function returned an error.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const summary = extractSummaryFromEdgeResponse(data);
+      if (!summary) {
+        // Show debug in console to help us diagnose payload shape if needed
+        // eslint-disable-next-line no-console
+        console.warn("[DocumentSummaryRegenerationModal] Unexpected Edge response shape:", data);
+        toast({
+          title: "Regeneration failed",
+          description: "No summary returned from function.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({ title: "Summary updated", description: "AI summary was regenerated." });
+      onComplete?.(summary);
+      onClose();
+    } catch (err: any) {
       toast({
         title: "Regeneration failed",
-        description: err instanceof Error ? err.message : "Unknown error",
+        description: err?.message || "Unexpected error.",
         variant: "destructive",
       });
     } finally {
-      setRegenerating(false);
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5" />
-            Regenerate document summary
-          </DialogTitle>
+          <DialogTitle>Regenerate Summary with AI</DialogTitle>
           <DialogDescription>
-            Use a category-specific prompt or your own custom instructions.
+            This will re-run the AI summary for the selected document using the category-specific prompt.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertDescription>
-              The AI analyzes the document content and generates a new summary based on the chosen
-              category or your custom prompt. This replaces the current summary.
-            </AlertDescription>
-          </Alert>
+        <div className="space-y-4">
+          <div className="grid gap-2">
+            <Label htmlFor="prompt">Optional prompt override</Label>
+            <Textarea
+              id="prompt"
+              placeholder="Leave blank to use the saved prompt for this category."
+              value={promptOverride}
+              onChange={(e) => setPromptOverride(e.target.value)}
+              rows={4}
+            />
+          </div>
 
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="category">Document Category</Label>
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a category for optimized prompts" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((category) => (
-                    <SelectItem key={category.value} value={category.value}>
-                      {category.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                Each category uses specialized prompts from your database if available.
-              </p>
-            </div>
-
-            <div>
-              <Label htmlFor="customPrompt">Custom Instructions (optional)</Label>
-              <Textarea
-                id="customPrompt"
-                value={customPrompt}
-                onChange={(e) => setCustomPrompt(e.target.value)}
-                placeholder="Example: Focus on action items and follow-up steps relevant to caregivers."
-                rows={4}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                If filled, this overrides the category prompt for this one summary.
-              </p>
-            </div>
+          <div className="grid gap-2">
+            <Label>Temperature</Label>
+            <Select value={temperature} onValueChange={setTemperature}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="0.3" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0.0">0.0</SelectItem>
+                <SelectItem value="0.2">0.2</SelectItem>
+                <SelectItem value="0.3">0.3</SelectItem>
+                <SelectItem value="0.5">0.5</SelectItem>
+                <SelectItem value="0.7">0.7</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={regenerating}>
+        <DialogFooter className="mt-4">
+          <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button onClick={handleRegenerate} disabled={regenerating || !selectedCategory}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${regenerating ? "animate-spin" : ""}`} />
-            {regenerating ? "Regenerating..." : "Regenerate Summary"}
+          <Button onClick={handleRegenerate} disabled={isSubmitting}>
+            {isSubmitting ? "Regenerating…" : "Regenerate Summary"}
           </Button>
         </DialogFooter>
       </DialogContent>
