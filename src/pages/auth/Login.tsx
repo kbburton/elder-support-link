@@ -7,6 +7,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { loadPendingInvite, clearPendingInvite, savePendingInvite } from "@/lib/invitations";
+import { RelationshipSelectionModal } from "@/components/invitations/RelationshipSelectionModal";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -15,6 +16,9 @@ const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showRelationshipModal, setShowRelationshipModal] = useState(false);
+  const [pendingInvitation, setPendingInvitation] = useState<any>(null);
+  const [relationshipLoading, setRelationshipLoading] = useState(false);
 
   useEffect(() => {
     const emailParam = searchParams.get("email");
@@ -47,24 +51,12 @@ const Login = () => {
       return false;
     }
 
-    // 2) Accept invitation
-    const { data: groupId, error: acceptErr } = await supabase.rpc('accept_invitation', {
-      invitation_id: inv.id
-    });
-    if (acceptErr) {
-      toast({ title: 'Could not join group', description: acceptErr.message, variant: 'destructive' });
-      return false;
-    }
+    // 2) Show relationship selection modal
+    setPendingInvitation(inv);
+    setShowRelationshipModal(true);
+    return true; // Processed, but modal will handle completion
 
-    // 3) Clear token; set last active group; navigate to the group
-    localStorage.removeItem('invitationToken');
-    await supabase.from('profiles')
-      .update({ last_active_group_id: groupId })
-      .eq('user_id', userId);
-
-    toast({ title: 'Welcome!', description: 'You\'ve joined the care group.' });
-    navigate(`/app/${groupId}`, { replace: true });
-    return true;
+    // This will be handled by the relationship modal now
   }
 
   const handleSignIn = async () => {
@@ -211,6 +203,46 @@ const Login = () => {
     }
   };
 
+  const handleRelationshipSelect = async (relationship: string) => {
+    if (!pendingInvitation) return;
+    
+    setRelationshipLoading(true);
+    try {
+      // Accept invitation with relationship
+      const { data: groupId, error: acceptErr } = await supabase.rpc('accept_invitation', {
+        invitation_id: pendingInvitation.id,
+        p_relationship_to_recipient: relationship
+      });
+      
+      if (acceptErr) {
+        toast({ title: 'Could not join group', description: acceptErr.message, variant: 'destructive' });
+        return;
+      }
+
+      // Clear token and set last active group
+      localStorage.removeItem('invitationToken');
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from('profiles')
+          .update({ last_active_group_id: groupId })
+          .eq('user_id', user.id);
+      }
+
+      toast({ title: 'Welcome!', description: 'You\'ve joined the care group.' });
+      navigate(`/app/${groupId}`, { replace: true });
+      setShowRelationshipModal(false);
+    } catch (error) {
+      console.error("Error accepting invitation:", error);
+      toast({
+        title: "Error",
+        description: "Failed to join care group.",
+        variant: "destructive",
+      });
+    } finally {
+      setRelationshipLoading(false);
+    }
+  };
+
   const handleResendConfirmation = async () => {
     if (!email) {
       toast({ title: "Email required", description: "Enter your email to resend confirmation." });
@@ -259,6 +291,17 @@ const Login = () => {
           </div>
         </CardContent>
       </Card>
+      
+      <RelationshipSelectionModal
+        isOpen={showRelationshipModal}
+        onClose={() => {
+          setShowRelationshipModal(false);
+          setPendingInvitation(null);
+        }}
+        onSelect={handleRelationshipSelect}
+        groupName={pendingInvitation?.group_name}
+        loading={relationshipLoading}
+      />
     </div>
   );
 };

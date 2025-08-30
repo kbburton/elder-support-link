@@ -2118,6 +2118,7 @@ export type Database = {
       accept_invitation: {
         Args:
           | { invitation_id: string }
+          | { invitation_id: string; p_relationship_to_recipient?: string }
           | { invitation_id: string; user_id: string }
         Returns: undefined
       }
