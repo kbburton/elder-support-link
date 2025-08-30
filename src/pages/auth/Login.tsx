@@ -51,12 +51,44 @@ const Login = () => {
       return false;
     }
 
-    // 2) Show relationship selection modal
+    // Check if we have a pre-selected relationship from registration
+    const storedRelationship = localStorage.getItem('invitationRelationship');
+    
+    if (storedRelationship) {
+      // Use stored relationship directly
+      try {
+        console.log("Using stored relationship:", storedRelationship);
+        const { data: groupId, error: acceptErr } = await supabase.rpc('accept_invitation', {
+          invitation_id: (inv as any).id,
+          p_relationship_to_recipient: storedRelationship
+        });
+        
+        if (acceptErr) {
+          toast({ title: 'Could not join group', description: acceptErr.message, variant: 'destructive' });
+          return false;
+        }
+
+        // Clear stored data and set last active group
+        localStorage.removeItem('invitationToken');
+        localStorage.removeItem('invitationRelationship');
+        
+        await supabase.from('profiles')
+          .update({ last_active_group_id: groupId })
+          .eq('user_id', userId);
+
+        toast({ title: 'Welcome!', description: 'You\'ve joined the care group.' });
+        navigate(`/app/${groupId}`, { replace: true });
+        return true;
+      } catch (error) {
+        console.error("Error accepting invitation with stored relationship:", error);
+        // Fall back to modal if direct acceptance fails
+      }
+    }
+
+    // 2) Show relationship selection modal (fallback or no stored relationship)
     setPendingInvitation(inv);
     setShowRelationshipModal(true);
     return true; // Processed, but modal will handle completion
-
-    // This will be handled by the relationship modal now
   }
 
   const handleSignIn = async () => {

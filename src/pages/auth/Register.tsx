@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import SEO from "@/components/layout/SEO";
 import { PasswordInput } from "@/components/auth/PasswordInput";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -29,10 +30,24 @@ const Register = () => {
   const [stateProv, setStateProv] = useState("");
   const [zip, setZip] = useState("");
   const [phone, setPhone] = useState("");
+  const [relationship, setRelationship] = useState("family_member");
   const [loading, setLoading] = useState(false);
   const [invitationData, setInvitationData] = useState<any>(null);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+
+  const RELATIONSHIP_OPTIONS = [
+    { value: 'child', label: 'Child' },
+    { value: 'spouse', label: 'Spouse/Partner' },
+    { value: 'parent', label: 'Parent' },
+    { value: 'sibling', label: 'Sibling' },
+    { value: 'other_relative', label: 'Other Relative' },
+    { value: 'friend', label: 'Friend' },
+    { value: 'caregiver', label: 'Caregiver' },
+    { value: 'healthcare_provider', label: 'Healthcare Provider' },
+    { value: 'family_member', label: 'Family Member' },
+    { value: 'other', label: 'Other' },
+  ];
 
   // Check for prefilled email from URL params and invitation data on load
   useEffect(() => {
@@ -154,10 +169,14 @@ const Register = () => {
           invitationId: invitationData.id,
           groupId: invitationData.group_id,
           groupName: invitationData.group_name,
-          invitedEmail: invitationData.invited_email
+          invitedEmail: invitationData.invited_email,
+          relationship: relationship
         });
         
-        console.log("💾 Invitation data preserved for post-login processing");
+        // Store relationship for post-login processing
+        localStorage.setItem('invitationRelationship', relationship);
+        
+        console.log("💾 Invitation data and relationship preserved for post-login processing");
       } else {
         console.log("ℹ️  No invitation data found, skipping group assignment");
         console.log("Debug info:", {
@@ -252,6 +271,23 @@ const Register = () => {
                 <Label htmlFor="phone">Phone number *</Label>
                 <Input id="phone" placeholder="Phone number" type="tel" autoComplete="tel" required value={phone} onChange={(e) => setPhone(e.target.value)} />
               </div>
+              {invitationData && (
+                <div>
+                  <Label htmlFor="relationship">Your relationship to the care recipient *</Label>
+                  <Select value={relationship} onValueChange={setRelationship}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select your relationship" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {RELATIONSHIP_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <Button className="w-full" onClick={handleSignUp} disabled={loading}>
                 {loading ? "Creating account..." : "Sign up"}
               </Button>
