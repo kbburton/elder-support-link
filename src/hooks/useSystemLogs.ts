@@ -16,10 +16,12 @@ export const useSystemLogs = () => {
     queryKey: ["system_logs"],
     queryFn: async () => {
       try {
-        // Use RPC function to get system logs
-        const { data, error } = await supabase.rpc('get_system_logs') as any;
+        // Query system logs directly from analytics
+        const { data, error } = await supabase.functions.invoke('admin-user-management', {
+          body: { action: 'get_system_logs' }
+        });
         if (error) throw error;
-        return (data || []) as SystemLog[];
+        return (data?.systemLogs || []) as SystemLog[];
       } catch (error) {
         console.error('Error fetching system logs:', error);
         return [] as SystemLog[];
