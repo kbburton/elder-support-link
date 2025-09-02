@@ -2,6 +2,60 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.54.0';
 
+// Phone number normalization functions
+function normalizePhoneToE164(phoneNumber: string): string | null {
+  if (!phoneNumber || typeof phoneNumber !== 'string') {
+    return null;
+  }
+
+  const cleaned = phoneNumber.replace(/\D/g, '');
+  
+  if (!cleaned) {
+    return null;
+  }
+
+  try {
+    if (cleaned.length === 10) {
+      return `+1${cleaned}`;
+    }
+    
+    if (cleaned.length === 11 && cleaned.startsWith('1')) {
+      return `+${cleaned}`;
+    }
+    
+    return phoneNumber.startsWith('+') ? phoneNumber : `+${cleaned}`;
+  } catch (error) {
+    return null;
+  }
+}
+
+function getPhoneSearchVariants(phoneNumber: string): string[] {
+  const cleaned = phoneNumber.replace(/\D/g, '');
+  const variants = [];
+  
+  // Add the original cleaned version
+  variants.push(cleaned);
+  
+  // Add E.164 format
+  const e164 = normalizePhoneToE164(phoneNumber);
+  if (e164) {
+    variants.push(e164);
+    variants.push(e164.substring(1)); // without the +
+  }
+  
+  // Add 10-digit format (remove leading 1 if present)
+  if (cleaned.length === 11 && cleaned.startsWith('1')) {
+    variants.push(cleaned.substring(1));
+  }
+  
+  // Add with country code
+  if (cleaned.length === 10) {
+    variants.push(`1${cleaned}`);
+  }
+  
+  return [...new Set(variants)]; // Remove duplicates
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -44,10 +98,10 @@ serve(async (req) => {
 
     console.log('Parsed Twilio data:', twilioData);
 
-    // Format phone number (remove +1 if present for US numbers)
-    const cleanPhone = twilioData.From.replace(/^\+1/, '').replace(/\D/g, '');
+    // Get all possible phone number formats for lookup
+    const phoneVariants = getPhoneSearchVariants(twilioData.From);
     
-    console.log('Looking up phone:', cleanPhone);
+    console.log('Looking up phone variants:', phoneVariants);
 
     // Check caller type and find appropriate PIN location
     let careGroup = null;
@@ -60,7 +114,7 @@ serve(async (req) => {
     const { data: recipientData, error: recipientError } = await supabase
       .from('care_groups')
       .select('id, name, voice_pin, phone_auth_attempts, phone_lockout_until, recipient_phone')
-      .eq('recipient_phone', cleanPhone);
+      .in('recipient_phone', phoneVariants);
 
     console.log('Recipient lookup result:', { recipientData, error: recipientError });
 
@@ -76,32 +130,45 @@ serve(async (req) => {
       const { data: memberData, error: memberError } = await supabase
         .from('profiles')
         .select(`
+          user_id,
           phone,
           voice_pin,
           phone_auth_attempts,
-          phone_lockout_until,
-          care_group_members!inner(
-            is_admin,
-            care_groups!inner(
-              id, name
-            )
-          )
+          phone_lockout_until
         `)
-        .eq('phone', cleanPhone);
+        .in('phone', phoneVariants);
 
       console.log('Member lookup result:', { memberData, error: memberError });
 
       if (!memberError && memberData && memberData.length > 0) {
-        // Caller is a care group member - use their profile PIN
-        userProfile = memberData[0];
-        voicePin = userProfile.voice_pin;
-        phoneAuthAttempts = userProfile.phone_auth_attempts || 0;
-        phoneLockoutUntil = userProfile.phone_lockout_until;
+        // If multiple profiles match, prioritize one with voice_pin set
+        const profileWithPin = memberData.find(profile => profile.voice_pin) || memberData[0];
         
-        // Find their preferred care group (admin group if available)
-        const adminGroup = memberData[0].care_group_members.find(m => m.is_admin);
-        careGroup = adminGroup?.care_groups || memberData[0].care_group_members[0].care_groups;
-        console.log('Found caller as care group member');
+        // Get care group memberships for this user
+        const { data: membershipData, error: membershipError } = await supabase
+          .from('care_group_members')
+          .select(`
+            is_admin,
+            care_groups!inner(
+              id, name
+            )
+          `)
+          .eq('user_id', profileWithPin.user_id);
+
+        console.log('Membership lookup result:', { membershipData, error: membershipError });
+
+        if (!membershipError && membershipData && membershipData.length > 0) {
+          // Caller is a care group member - use their profile PIN
+          userProfile = profileWithPin;
+          voicePin = profileWithPin.voice_pin;
+          phoneAuthAttempts = profileWithPin.phone_auth_attempts || 0;
+          phoneLockoutUntil = profileWithPin.phone_lockout_until;
+          
+          // Find their preferred care group (admin group if available)
+          const adminGroup = membershipData.find(m => m.is_admin);
+          careGroup = adminGroup?.care_groups || membershipData[0].care_groups;
+          console.log('Found caller as care group member with PIN');
+        }
       }
     }
 
