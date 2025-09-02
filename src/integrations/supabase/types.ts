@@ -719,6 +719,8 @@ export type Database = {
           mobility: string | null
           name: string
           other_important_information: string | null
+          phone_auth_attempts: number | null
+          phone_lockout_until: string | null
           profile_description: string | null
           profile_picture_url: string | null
           recipient_address: string
@@ -731,6 +733,7 @@ export type Database = {
           recipient_zip: string
           special_dates: Json | null
           vision: string | null
+          voice_pin: string | null
         }
         Insert: {
           chronic_conditions?: string | null
@@ -746,6 +749,8 @@ export type Database = {
           mobility?: string | null
           name: string
           other_important_information?: string | null
+          phone_auth_attempts?: number | null
+          phone_lockout_until?: string | null
           profile_description?: string | null
           profile_picture_url?: string | null
           recipient_address: string
@@ -758,6 +763,7 @@ export type Database = {
           recipient_zip: string
           special_dates?: Json | null
           vision?: string | null
+          voice_pin?: string | null
         }
         Update: {
           chronic_conditions?: string | null
@@ -773,6 +779,8 @@ export type Database = {
           mobility?: string | null
           name?: string
           other_important_information?: string | null
+          phone_auth_attempts?: number | null
+          phone_lockout_until?: string | null
           profile_description?: string | null
           profile_picture_url?: string | null
           recipient_address?: string
@@ -785,6 +793,7 @@ export type Database = {
           recipient_zip?: string
           special_dates?: Json | null
           vision?: string | null
+          voice_pin?: string | null
         }
         Relationships: []
       }

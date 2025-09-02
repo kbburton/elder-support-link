@@ -1,31 +1,47 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/components/ui/use-toast";
-import SEO from "@/components/layout/SEO";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import * as bcrypt from "bcryptjs";
+import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form } from "@/components/ui/form";
+import SEO from "@/components/layout/SEO";
 
 const ProfileSchema = z.object({
   first_name: z.string().min(1, "First name is required"),
-  last_name: z.string().optional(),
-  phone: z.string().min(1, "Phone is required"),
-  address: z.string().min(1, "Address is required"),
-  address2: z.string().optional(),
-  city: z.string().min(1, "City is required"),
-  state: z.string().min(1, "State is required"),
-  zip: z.string().min(1, "ZIP code is required"),
+  last_name: z.string().min(1, "Last name is required"),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  zip: z.string().optional(),
+  voice_pin: z.string().regex(/^\d{4}$/, "PIN must be exactly 4 digits").optional().or(z.literal("")),
+});
+
+const PinSchema = z.object({
+  current_pin: z.string().min(1, "Current PIN is required"),
+  new_pin: z.string().regex(/^\d{4}$/, "PIN must be exactly 4 digits"),
+  confirm_pin: z.string().regex(/^\d{4}$/, "PIN must be exactly 4 digits"),
+}).refine((data) => data.new_pin === data.confirm_pin, {
+  message: "PINs do not match",
+  path: ["confirm_pin"],
 });
 
 type ProfileFormValues = z.infer<typeof ProfileSchema>;
+type PinFormValues = z.infer<typeof PinSchema>;
 
-export default function ProfilePage() {
-  const { toast } = useToast();
+const ProfilePage = () => {
+  const [careGroups, setCareGroups] = useState<any[]>([]);
+  const [selectedCareGroup, setSelectedCareGroup] = useState<string>("");
+  const [showPinForm, setShowPinForm] = useState(false);
+  const [hasPinSet, setHasPinSet] = useState(false);
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(ProfileSchema),
@@ -34,225 +50,441 @@ export default function ProfilePage() {
       last_name: "",
       phone: "",
       address: "",
-      address2: "",
       city: "",
       state: "",
       zip: "",
+      voice_pin: "",
     },
   });
 
-  const { data, isLoading } = useQuery({
-    queryKey: ["profile"],
+  const pinForm = useForm<PinFormValues>({
+    resolver: zodResolver(PinSchema),
+    defaultValues: {
+      current_pin: "",
+      new_pin: "",
+      confirm_pin: "",
+    },
+  });
+
+  // Fetch user profile data and care groups
+  const { data: profile, isLoading } = useQuery({
+    queryKey: ['profile'],
     queryFn: async () => {
-      const { data: auth } = await supabase.auth.getUser();
-      const uid = auth.user?.id;
-      if (!uid) throw new Error("Not authenticated");
-      const { data: profile, error } = await supabase
-        .from("profiles")
-        .select("first_name, last_name, phone, address, address2, city, state, zip")
-        .eq("user_id", uid)
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No user found');
+      
+      const { data: profiles, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', user.id)
         .maybeSingle();
+
       if (error) throw error;
-      return { profile, user: auth.user };
+
+      // Fetch care groups where user is admin
+      const { data: careGroupsData, error: careGroupsError } = await supabase
+        .from('care_group_members')
+        .select(`
+          care_groups (
+            id, name, voice_pin, recipient_phone
+          )
+        `)
+        .eq('user_id', user.id)
+        .eq('is_admin', true);
+
+      if (careGroupsError) throw careGroupsError;
+      
+      return { user, profile: profiles, careGroups: careGroupsData || [] };
     },
   });
 
+  // Reset form when profile data is loaded
   useEffect(() => {
-    if (data?.profile) {
+    if (profile?.profile) {
       form.reset({
-        first_name: data.profile.first_name ?? "",
-        last_name: data.profile.last_name ?? "",
-        phone: data.profile.phone ?? "",
-        address: data.profile.address ?? "",
-        address2: data.profile.address2 ?? "",
-        city: data.profile.city ?? "",
-        state: data.profile.state ?? "",
-        zip: data.profile.zip ?? "",
+        first_name: profile.profile.first_name || "",
+        last_name: profile.profile.last_name || "",
+        phone: profile.profile.phone || "",
+        address: profile.profile.address || "",
+        city: profile.profile.city || "",
+        state: profile.profile.state || "",
+        zip: profile.profile.zip || "",
+        voice_pin: "",
       });
     }
-  }, [data, form]);
+    if (profile?.careGroups) {
+      setCareGroups(profile.careGroups.map(cg => cg.care_groups).filter(Boolean));
+      if (profile.careGroups.length > 0 && !selectedCareGroup) {
+        const firstGroup = profile.careGroups[0].care_groups;
+        if (firstGroup) {
+          setSelectedCareGroup(firstGroup.id);
+          setHasPinSet(!!firstGroup.voice_pin);
+        }
+      }
+    }
+  }, [profile, form, selectedCareGroup]);
 
+  // Handle profile save
   const saveMutation = useMutation({
     mutationFn: async (values: ProfileFormValues) => {
-      const { data: auth } = await supabase.auth.getUser();
-      const uid = auth.user?.id;
-      if (!uid) throw new Error("Not authenticated");
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No user found');
+
       const { error } = await supabase
-        .from("profiles")
-        .upsert(
-          {
-            user_id: uid,
-            ...values,
-          },
-          { onConflict: "user_id" }
-        );
+        .from('profiles')
+        .upsert({
+          user_id: user.id,
+          first_name: values.first_name,
+          last_name: values.last_name,
+          phone: values.phone || null,
+          address: values.address || null,
+          city: values.city || null,
+          state: values.state || null,
+          zip: values.zip || null,
+          email: profile?.user?.email,
+        });
+
+      if (error) throw error;
+
+      // Handle voice PIN for new setup
+      if (values.voice_pin && selectedCareGroup) {
+        const hashedPin = await bcrypt.hash(values.voice_pin, 10);
+        const { error: pinError } = await supabase
+          .from('care_groups')
+          .update({ voice_pin: hashedPin })
+          .eq('id', selectedCareGroup);
+
+        if (pinError) throw pinError;
+        setHasPinSet(true);
+      }
+    },
+    onSuccess: () => {
+      toast.success("Profile updated successfully!");
+      form.setValue('voice_pin', '');
+    },
+    onError: (error) => {
+      toast.error("Failed to update profile: " + error.message);
+    },
+  });
+
+  // Handle PIN change
+  const pinMutation = useMutation({
+    mutationFn: async (values: PinFormValues) => {
+      if (!selectedCareGroup) throw new Error('No care group selected');
+      
+      const currentGroup = careGroups.find(cg => cg.id === selectedCareGroup);
+      if (!currentGroup?.voice_pin) throw new Error('No current PIN set');
+
+      // Verify current PIN
+      const isValid = await bcrypt.compare(values.current_pin, currentGroup.voice_pin);
+      if (!isValid) throw new Error('Current PIN is incorrect');
+
+      // Hash and save new PIN
+      const hashedPin = await bcrypt.hash(values.new_pin, 10);
+      const { error } = await supabase
+        .from('care_groups')
+        .update({ voice_pin: hashedPin })
+        .eq('id', selectedCareGroup);
+
       if (error) throw error;
     },
     onSuccess: () => {
-      toast({ title: "Profile saved", description: "Your profile has been updated." });
+      toast.success("Voice PIN updated successfully!");
+      pinForm.reset();
+      setShowPinForm(false);
     },
-    onError: (err: any) => {
-      toast({ title: "Save failed", description: err.message ?? "Please try again.", variant: "destructive" });
+    onError: (error) => {
+      toast.error("Failed to update PIN: " + error.message);
     },
   });
 
-  const onSubmit = (values: ProfileFormValues) => saveMutation.mutate(values);
+  const onSubmit = (values: ProfileFormValues) => {
+    saveMutation.mutate(values);
+  };
+
+  const onPinSubmit = (values: PinFormValues) => {
+    pinMutation.mutate(values);
+  };
+
+  const handleCareGroupChange = (careGroupId: string) => {
+    setSelectedCareGroup(careGroupId);
+    const group = careGroups.find(cg => cg.id === careGroupId);
+    setHasPinSet(!!group?.voice_pin);
+  };
+
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <main>
       <SEO
         title="Profile - Update your information"
-        description="Manage your profile information including first and last name."
-        canonicalPath={typeof window !== "undefined" ? window.location.pathname : "/app/profile"}
+        description="Manage your profile information and voice authentication settings."
+        canonicalPath="/app/profile"
       />
       <header className="mb-6">
         <h1 className="text-2xl font-semibold">Profile</h1>
         <p className="text-muted-foreground">Keep your information up to date for your care group.</p>
       </header>
 
-      <section>
-        <Card>
-          <CardHeader>
-            <CardTitle>Personal details</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <FormLabel>Email</FormLabel>
-                    <Input 
-                      value={data?.user?.email || ""} 
-                      readOnly 
-                      className="bg-muted text-muted-foreground cursor-not-allowed"
-                      placeholder="Email address"
-                    />
-                  </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Profile Information</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <div>
+                <label className="text-sm font-medium">Email</label>
+                <Input 
+                  value={profile?.user?.email || ""} 
+                  readOnly 
+                  className="bg-muted text-muted-foreground cursor-not-allowed"
+                  placeholder="Email address"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="first_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>First Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="First name" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="last_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Last Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Last name" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone</FormLabel>
+                    <FormControl>
+                      <Input placeholder="(555) 555-5555" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="address"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Address</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Street address" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <FormField
+                  control={form.control}
+                  name="city"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>City</FormLabel>
+                      <FormControl>
+                        <Input placeholder="City" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="state"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>State</FormLabel>
+                      <FormControl>
+                        <Input placeholder="State" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="zip"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>ZIP Code</FormLabel>
+                      <FormControl>
+                        <Input placeholder="ZIP code" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Voice PIN Section */}
+              {careGroups.length > 0 && (
+                <div className="space-y-4 border-t pt-6">
+                  <h3 className="text-lg font-semibold text-foreground">Voice Authentication</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Set up a 4-digit PIN for voice access to your care group information.
+                  </p>
+                  
+                  <FormField
+                    control={form.control}
+                    name="voice_pin"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Care Group</FormLabel>
+                        <Select onValueChange={handleCareGroupChange} value={selectedCareGroup}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select care group" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {careGroups.map((group) => (
+                              <SelectItem key={group.id} value={group.id}>
+                                {group.name} ({group.recipient_phone})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormItem>
+                    )}
+                  />
+
+                  {selectedCareGroup && (
+                    <>
+                      {!hasPinSet && (
+                        <FormField
+                          control={form.control}
+                          name="voice_pin"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Set Voice PIN</FormLabel>
+                              <FormControl>
+                                <Input 
+                                  {...field} 
+                                  type="password" 
+                                  placeholder="Enter 4-digit PIN"
+                                  maxLength={4}
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                Create a 4-digit PIN for voice authentication
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+                      
+                      {hasPinSet && (
+                        <div className="space-y-2">
+                          <p className="text-sm text-green-600">✓ Voice PIN is set</p>
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => setShowPinForm(!showPinForm)}
+                          >
+                            Change PIN
+                          </Button>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="first_name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>First name *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="First name" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="last_name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Last name</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Last name" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="phone"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Phone *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="(555) 555-5555" type="tel" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <div>
-                  <FormField
-                    control={form.control}
-                    name="address"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Street address *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Street address" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <div>
-                  <FormField
-                    control={form.control}
-                    name="address2"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Street address 2</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Apartment, suite, etc. (optional)" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="city"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>City *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="City" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="state"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>State *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="State" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="zip"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>ZIP *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="ZIP code" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <CardFooter className="px-0">
-                  <Button type="submit" disabled={isLoading || saveMutation.isPending}>
-                    {saveMutation.isPending ? "Saving..." : "Save changes"}
+              )}
+
+              <Button type="submit" disabled={isLoading || saveMutation.isPending}>
+                {saveMutation.isPending ? "Saving..." : "Save changes"}
+              </Button>
+            </form>
+          </Form>
+
+          {/* PIN Change Form */}
+          {showPinForm && hasPinSet && (
+            <Form {...pinForm}>
+              <form onSubmit={pinForm.handleSubmit(onPinSubmit)} className="space-y-4">
+                <FormField
+                  control={pinForm.control}
+                  name="current_pin"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Current PIN</FormLabel>
+                      <FormControl>
+                        <Input {...field} type="password" placeholder="Enter current PIN" maxLength={4} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={pinForm.control}
+                  name="new_pin"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>New PIN</FormLabel>
+                      <FormControl>
+                        <Input {...field} type="password" placeholder="Enter new 4-digit PIN" maxLength={4} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={pinForm.control}
+                  name="confirm_pin"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Confirm New PIN</FormLabel>
+                      <FormControl>
+                        <Input {...field} type="password" placeholder="Confirm new PIN" maxLength={4} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <div className="flex space-x-2">
+                  <Button type="submit" disabled={pinMutation.isPending}>
+                    {pinMutation.isPending ? "Updating..." : "Update PIN"}
                   </Button>
-                </CardFooter>
+                  <Button type="button" variant="outline" onClick={() => setShowPinForm(false)}>
+                    Cancel
+                  </Button>
+                </div>
               </form>
             </Form>
-          </CardContent>
-        </Card>
-      </section>
+          )}
+        </CardContent>
+      </Card>
     </main>
   );
-}
+};
+
+export default ProfilePage;

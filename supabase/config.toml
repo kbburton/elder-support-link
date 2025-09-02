@@ -38,3 +38,12 @@ verify_jwt = true
 
 [functions.validate-document]
 verify_jwt = true
+
+[functions.twilio-voice-webhook]
+verify_jwt = false
+
+[functions.twilio-voice-pin-verify]
+verify_jwt = false
+
+[functions.twilio-voice-chat]
+verify_jwt = false
