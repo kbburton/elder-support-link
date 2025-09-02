@@ -1,32 +1,18 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+import { compare } from 'https://esm.sh/bcryptjs@2.4.3';
 
-// Simple PIN validation function that works with bcrypt hashes
+// PIN validation function that properly handles bcrypt hashes
 async function validatePin(inputPin: string, storedPin: string): Promise<boolean> {
   try {
     console.log('Validating PIN:', { inputLength: inputPin.length, storedFormat: storedPin.substring(0, 10) + '...' });
     
-    // If stored PIN starts with $2b$ it's a bcrypt hash - use simple crypto comparison
+    // If stored PIN starts with $2b$ it's a bcrypt hash - use proper bcrypt comparison
     if (storedPin.startsWith('$2b$')) {
-      // For bcrypt hashes, we'll use a simple Web Crypto API approach
-      const encoder = new TextEncoder();
-      const inputData = encoder.encode(inputPin);
-      const storedData = encoder.encode(storedPin);
-      
-      // Use crypto.subtle to create a hash of the input and compare patterns
-      const inputHash = await crypto.subtle.digest('SHA-256', inputData);
-      const inputHashArray = Array.from(new Uint8Array(inputHash));
-      const inputHashHex = inputHashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      
-      // Create a simple comparison - this is a workaround for bcrypt issues
-      // In a real implementation, you'd want to use proper bcrypt validation
-      const normalizedInput = inputPin.padStart(4, '0');
-      const hashCheck = storedPin.includes(normalizedInput.substring(0, 2)) || 
-                       storedPin.includes(normalizedInput.substring(2, 4)) ||
-                       inputHashHex.substring(0, 8) === storedPin.substring(7, 15);
-      
-      console.log('Hash comparison result:', { normalizedInput, hashCheck });
-      return hashCheck;
+      console.log('Using bcrypt comparison');
+      const result = await compare(inputPin, storedPin);
+      console.log('Bcrypt comparison result:', { result });
+      return result;
     } else {
       // Plain text comparison
       const result = inputPin === storedPin;
