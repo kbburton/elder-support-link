@@ -136,7 +136,7 @@ export function safeValidateFormData<T>(
     if (error instanceof z.ZodError) {
       return {
         success: false,
-        errors: error.errors.map(e => `${e.path.join('.')}: ${e.message}`)
+        errors: error.issues.map(e => `${e.path.join('.')}: ${e.message}`)
       };
     }
     return { success: false, errors: ['Validation failed'] };

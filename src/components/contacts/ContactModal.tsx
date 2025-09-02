@@ -42,9 +42,7 @@ const contactSchema = z.object({
   last_name: z.string().optional(),
   organization_name: z.string().optional(),
   company: z.string().optional(),
-  contact_type: z.enum(["medical", "legal", "family", "friend", "other"], {
-    required_error: "Contact type is required"
-  }),
+  contact_type: z.enum(["medical", "legal", "family", "friend", "other"]),
   gender: z.enum(["female", "male", "x_or_other", "prefer_not_to_say"]).optional().nullable(),
   phone_primary: z.string().min(1, "Primary phone is required"),
   phone_secondary: z.string().optional(),
