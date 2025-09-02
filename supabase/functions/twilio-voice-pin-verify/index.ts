@@ -77,13 +77,13 @@ serve(async (req) => {
 
     if (!careGroup) {
       console.log('Care group not found during PIN verification');
-      return new Response(`
-        <?xml version="1.0" encoding="UTF-8"?>
-        <Response>
-          <Say>Authentication error. Please try calling again.</Say>
-          <Hangup/>
-        </Response>
-      `, {
+      const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say>Authentication error. Please try calling again.</Say>
+  <Hangup/>
+</Response>`;
+      
+      return new Response(twimlResponse, {
         headers: { ...corsHeaders, 'Content-Type': 'text/xml' },
       });
     }
@@ -105,17 +105,17 @@ serve(async (req) => {
       console.log('PIN verified successfully, starting voice chat');
 
       // Start WebSocket connection to OpenAI Realtime API
-      const chatUrl = `https://yfwgegapmggwywrnzqvg.functions.supabase.co/twilio-voice-chat?careGroupId=${careGroup.id}&callSid=${callSid}`;
+      const chatUrl = `https://yfwgegegapmggwywrnzqvg.functions.supabase.co/twilio-voice-chat?careGroupId=${careGroup.id}&callSid=${callSid}`;
       
-      return new Response(`
-        <?xml version="1.0" encoding="UTF-8"?>
-        <Response>
-          <Say>PIN verified! Welcome to your care assistant. I can help you with information about appointments, tasks, documents, and contacts. How can I assist you today?</Say>
-          <Connect>
-            <Stream url="${chatUrl}" />
-          </Connect>
-        </Response>
-      `, {
+      const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say>PIN verified! Welcome to your care assistant. I can help you with information about appointments, tasks, documents, and contacts. How can I assist you today?</Say>
+  <Connect>
+    <Stream url="${chatUrl}" />
+  </Connect>
+</Response>`;
+
+      return new Response(twimlResponse, {
         headers: { ...corsHeaders, 'Content-Type': 'text/xml' },
       });
     } else {
@@ -140,27 +140,27 @@ serve(async (req) => {
       
       if (lockoutUntil) {
         console.log('Phone locked out after 4 failed attempts');
-        return new Response(`
-          <?xml version="1.0" encoding="UTF-8"?>
-          <Response>
-            <Say>Incorrect PIN. This phone number is now locked for 24 hours due to multiple failed attempts. Please contact support if you need assistance.</Say>
-            <Hangup/>
-          </Response>
-        `, {
+        const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say>Incorrect PIN. This phone number is now locked for 24 hours due to multiple failed attempts. Please contact support if you need assistance.</Say>
+  <Hangup/>
+</Response>`;
+        
+        return new Response(twimlResponse, {
           headers: { ...corsHeaders, 'Content-Type': 'text/xml' },
         });
       } else {
         console.log(`Incorrect PIN, ${remainingAttempts} attempts remaining`);
-        return new Response(`
-          <?xml version="1.0" encoding="UTF-8"?>
-          <Response>
-            <Say>Incorrect PIN. You have ${remainingAttempts} attempt${remainingAttempts !== 1 ? 's' : ''} remaining. Please enter your four-digit PIN followed by the pound key.</Say>
-            <Gather action="https://yfwgegapmggwywrnzqvg.functions.supabase.co/twilio-voice-pin-verify" method="POST" numDigits="4" finishOnKey="#" timeout="10">
-            </Gather>
-            <Say>I didn't receive your PIN. Goodbye.</Say>
-            <Hangup/>
-          </Response>
-        `, {
+        const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say>Incorrect PIN. You have ${remainingAttempts} attempt${remainingAttempts !== 1 ? 's' : ''} remaining. Please enter your four-digit PIN followed by the pound key.</Say>
+  <Gather action="https://yfwgegapmggwywrnzqvg.functions.supabase.co/twilio-voice-pin-verify" method="POST" numDigits="4" finishOnKey="#" timeout="10">
+  </Gather>
+  <Say>I didn't receive your PIN. Goodbye.</Say>
+  <Hangup/>
+</Response>`;
+        
+        return new Response(twimlResponse, {
           headers: { ...corsHeaders, 'Content-Type': 'text/xml' },
         });
       }
@@ -168,13 +168,13 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in PIN verification:', error);
-    return new Response(`
-      <?xml version="1.0" encoding="UTF-8"?>
-      <Response>
-        <Say>I'm sorry, there was an authentication error. Please try again later.</Say>
-        <Hangup/>
-      </Response>
-    `, {
+    const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say>I'm sorry, there was an authentication error. Please try again later.</Say>
+  <Hangup/>
+</Response>`;
+    
+    return new Response(twimlResponse, {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'text/xml' },
     });
