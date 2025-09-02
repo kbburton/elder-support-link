@@ -173,7 +173,8 @@ serve(async (req) => {
         const selectionUrl = `${baseUrl}/enhanced-twilio-group-selection?user_id=${entity.user_id}&groups=${encodeURIComponent(groupIds)}&names=${encodeURIComponent(groupNames)}`;
 
         console.log('Generated group selection TwiML');
-        twimlResponse = `<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="alice">${groupList}</Say><Gather action="${selectionUrl}" method="POST" numDigits="1" timeout="10"></Gather><Say voice="alice">I did not receive your selection. Let me connect you to the first care group.</Say><Redirect>${baseUrl}/enhanced-twilio-voice-chat?group_id=${careGroups[0].id}&user_id=${entity.user_id}&type=user</Redirect></Response>`;
+        const fallbackUrl = `${baseUrl}/enhanced-twilio-voice-chat?group_id=${careGroups[0].id}&amp;user_id=${entity.user_id}&amp;type=user`;
+        twimlResponse = `<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="alice">${groupList}</Say><Gather action="${selectionUrl}" method="POST" numDigits="1" timeout="10"></Gather><Say voice="alice">I did not receive your selection. Let me connect you to the first care group.</Say><Redirect>${fallbackUrl}</Redirect></Response>`;
       } else {
         // Single care group or care recipient - proceed to voice chat
         console.log('Processing single care group access');
@@ -200,7 +201,9 @@ serve(async (req) => {
           }
           
           console.log('Generated single group TwiML with greeting:', greeting);
-          twimlResponse = `<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="alice">${greeting}</Say><Redirect>${chatUrl}</Redirect></Response>`;
+          // Escape ampersands for proper XML parsing
+          const escapedChatUrl = chatUrl.replace(/&/g, '&amp;');
+          twimlResponse = `<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="alice">${greeting}</Say><Redirect>${escapedChatUrl}</Redirect></Response>`;
         }
       }
     } else {
