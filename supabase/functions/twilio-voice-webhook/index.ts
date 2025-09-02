@@ -40,20 +40,26 @@ serve(async (req) => {
 
     // Format phone number (remove +1 if present for US numbers)
     const cleanPhone = twilioData.From.replace(/^\+1/, '').replace(/\D/g, '');
-    const formattedPhone = `+${cleanPhone}`;
+    
+    console.log('Looking up phone:', cleanPhone);
 
-    console.log('Looking up phone:', formattedPhone);
+    // Find care groups where the caller is a member
+    const { data: memberData, error: memberError } = await supabase
+      .from('profiles')
+      .select(`
+        phone,
+        care_group_members!inner(
+          is_admin,
+          care_groups!inner(
+            id, name, voice_pin, phone_auth_attempts, phone_lockout_until
+          )
+        )
+      `)
+      .eq('phone', cleanPhone);
 
-    // Find care group by phone number
-    const { data: careGroup, error: careGroupError } = await supabase
-      .from('care_groups')
-      .select('id, name, voice_pin, phone_auth_attempts, phone_lockout_until')
-      .eq('recipient_phone', formattedPhone)
-      .single();
+    console.log('Care group lookup result:', { memberData, error: memberError });
 
-    console.log('Care group lookup result:', { careGroup, error: careGroupError });
-
-    if (careGroupError || !careGroup) {
+    if (memberError || !memberData || memberData.length === 0) {
       console.log('Phone number not recognized');
       return new Response(`
         <?xml version="1.0" encoding="UTF-8"?>
@@ -65,6 +71,9 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'text/xml' },
       });
     }
+
+    // Use the first care group found (assuming user is admin of at least one)
+    const careGroup = memberData[0].care_group_members.find(m => m.is_admin)?.care_groups || memberData[0].care_group_members[0].care_groups;
 
     // Check if phone is locked out
     if (careGroup.phone_lockout_until && new Date(careGroup.phone_lockout_until) > new Date()) {

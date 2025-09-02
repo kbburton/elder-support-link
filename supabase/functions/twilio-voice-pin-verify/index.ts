@@ -31,16 +31,22 @@ serve(async (req) => {
 
     // Format phone number
     const cleanPhone = from.replace(/^\+1/, '').replace(/\D/g, '');
-    const formattedPhone = `+${cleanPhone}`;
 
-    // Find care group by phone number
-    const { data: careGroup, error: careGroupError } = await supabase
-      .from('care_groups')
-      .select('id, name, voice_pin, phone_auth_attempts, phone_lockout_until')
-      .eq('recipient_phone', formattedPhone)
-      .single();
+    // Find care groups where the caller is a member
+    const { data: memberData, error: memberError } = await supabase
+      .from('profiles')
+      .select(`
+        phone,
+        care_group_members!inner(
+          is_admin,
+          care_groups!inner(
+            id, name, voice_pin, phone_auth_attempts, phone_lockout_until
+          )
+        )
+      `)
+      .eq('phone', cleanPhone);
 
-    if (careGroupError || !careGroup) {
+    if (memberError || !memberData || memberData.length === 0) {
       console.log('Care group not found during PIN verification');
       return new Response(`
         <?xml version="1.0" encoding="UTF-8"?>
@@ -52,6 +58,9 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'text/xml' },
       });
     }
+
+    // Use the first care group found (preferring admin groups)
+    const careGroup = memberData[0].care_group_members.find(m => m.is_admin)?.care_groups || memberData[0].care_group_members[0].care_groups;
 
     // Verify PIN
     const pinMatch = await bcrypt.compare(digits, careGroup.voice_pin);
