@@ -106,6 +106,7 @@ serve(async (req) => {
     // Check caller type and find appropriate PIN location
     let careGroup = null;
     let userProfile = null;
+    let membershipData = null;
     let voicePin = null;
     let phoneAuthAttempts = 0;
     let phoneLockoutUntil = null;
@@ -145,7 +146,7 @@ serve(async (req) => {
         const profileWithPin = memberData.find(profile => profile.voice_pin) || memberData[0];
         
         // Get care group memberships for this user
-        const { data: membershipData, error: membershipError } = await supabase
+        const { data: membershipResult, error: membershipError } = await supabase
           .from('care_group_members')
           .select(`
             is_admin,
@@ -155,18 +156,21 @@ serve(async (req) => {
           `)
           .eq('user_id', profileWithPin.user_id);
 
-        console.log('Membership lookup result:', { membershipData, error: membershipError });
+        console.log('Membership lookup result:', { membershipData: membershipResult, error: membershipError });
 
-        if (!membershipError && membershipData && membershipData.length > 0) {
+        if (!membershipError && membershipResult && membershipResult.length > 0) {
           // Caller is a care group member - use their profile PIN
           userProfile = profileWithPin;
           voicePin = profileWithPin.voice_pin;
           phoneAuthAttempts = profileWithPin.phone_auth_attempts || 0;
           phoneLockoutUntil = profileWithPin.phone_lockout_until;
           
+          // Store membership data for later use
+          membershipData = membershipResult;
+          
           // Find their preferred care group (admin group if available)
-          const adminGroup = membershipData.find(m => m.is_admin);
-          careGroup = adminGroup?.care_groups || membershipData[0].care_groups;
+          const adminGroup = membershipResult.find(m => m.is_admin);
+          careGroup = adminGroup?.care_groups || membershipResult[0].care_groups;
           console.log('Found caller as care group member with PIN');
         }
       }
@@ -213,8 +217,17 @@ serve(async (req) => {
       });
     }
 
-    // Start PIN authentication flow
-    const gatherUrl = `https://yfwgegapmggwywrnzqvg.functions.supabase.co/twilio-voice-pin-verify`;
+    // Start PIN authentication flow - determine caller type and build URL parameters
+    let gatherUrl = `https://yfwgegapmggwywrnzqvg.functions.supabase.co/enhanced-twilio-pin-verify`;
+    
+    if (userProfile) {
+      // User calling - pass user information
+      const groupCount = membershipData ? membershipData.length : 0;
+      gatherUrl += `?type=user&user_id=${userProfile.user_id}&groups=${groupCount}`;
+    } else {
+      // Care recipient calling - pass care group information
+      gatherUrl += `?type=care_recipient&id=${careGroup.id}`;
+    }
     
     const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>

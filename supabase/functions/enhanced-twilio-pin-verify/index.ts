@@ -138,7 +138,7 @@ serve(async (req) => {
         });
         groupList += 'What care group are you calling about today? Please say the first name of the care recipient.';
 
-        const baseUrl = `https://${supabaseUrl.split('//')[1].split('.')[0]}.supabase.co/functions/v1`;
+        const baseUrl = `https://yfwgegapmggwywrnzqvg.functions.supabase.co`;
         const groupIds = careGroups.map(g => g.id).join(',');
         const chatUrl = `${baseUrl}/enhanced-twilio-voice-chat?user_id=${userId}&groups=${encodeURIComponent(groupIds)}&type=user`;
 
@@ -156,7 +156,7 @@ serve(async (req) => {
       } else {
         // Single care group or care recipient - proceed to voice chat
         const selectedGroup = careGroups[0];
-        const baseUrl = `https://${supabaseUrl.split('//')[1].split('.')[0]}.supabase.co/functions/v1`;
+        const baseUrl = `https://yfwgegapmggwywrnzqvg.functions.supabase.co`;
         let chatUrl = `${baseUrl}/enhanced-twilio-voice-chat?group_id=${selectedGroup.id}`;
         
         if (callerType === 'user') {
