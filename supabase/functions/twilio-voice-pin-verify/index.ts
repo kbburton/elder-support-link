@@ -43,13 +43,10 @@ serve(async (req) => {
       .from('profiles')
       .select(`
         phone,
-        voice_pin,
-        phone_auth_attempts,
-        phone_lockout_until,
         care_group_members!inner(
           is_admin,
           care_groups!inner(
-            id, name
+            id, name, voice_pin, phone_auth_attempts, phone_lockout_until
           )
         )
       `)
@@ -58,12 +55,14 @@ serve(async (req) => {
     console.log('Member lookup result:', { memberData, error: memberError });
 
     let careGroup = null;
-    let userProfile = null;
 
     if (!memberError && memberData && memberData.length > 0) {
-      // Caller is a care group member
-      userProfile = memberData[0];
-      careGroup = memberData[0].care_group_members.find(m => m.is_admin)?.care_groups || memberData[0].care_group_members[0].care_groups;
+      // Caller is a care group member - prioritize admin groups with voice_pin
+      const adminGroupWithPin = memberData[0].care_group_members.find(m => m.is_admin && m.care_groups.voice_pin);
+      const anyGroupWithPin = memberData[0].care_group_members.find(m => m.care_groups.voice_pin);
+      const adminGroup = memberData[0].care_group_members.find(m => m.is_admin);
+      
+      careGroup = adminGroupWithPin?.care_groups || anyGroupWithPin?.care_groups || adminGroup?.care_groups || memberData[0].care_group_members[0].care_groups;
       console.log('Found caller as care group member during PIN verification');
     } else {
       // Check if caller is the care recipient themselves
@@ -93,38 +92,24 @@ serve(async (req) => {
       });
     }
 
-    // Get PIN from user profile if it's a member, otherwise from care group
-    const voicePin = userProfile?.voice_pin || careGroup.voice_pin;
-    console.log('Voice PIN check:', { userProfilePin: !!userProfile?.voice_pin, careGroupPin: !!careGroup.voice_pin, hasPin: !!voicePin });
-
     // Verify PIN
-    const pinMatch = await bcrypt.compare(digits, voicePin);
+    const pinMatch = await bcrypt.compare(digits, careGroup.voice_pin);
     console.log('PIN verification result:', pinMatch);
 
     if (pinMatch) {
-      // Reset failed attempts on successful login - update the correct table
-      if (userProfile) {
-        await supabase
-          .from('profiles')
-          .update({ 
-            phone_auth_attempts: 0,
-            phone_lockout_until: null 
-          })
-          .eq('phone', cleanPhone);
-      } else {
-        await supabase
-          .from('care_groups')
-          .update({ 
-            phone_auth_attempts: 0,
-            phone_lockout_until: null 
-          })
-          .eq('id', careGroup.id);
-      }
+      // Reset failed attempts on successful login
+      await supabase
+        .from('care_groups')
+        .update({ 
+          phone_auth_attempts: 0,
+          phone_lockout_until: null 
+        })
+        .eq('id', careGroup.id);
 
       console.log('PIN verified successfully, starting voice chat');
 
       // Start WebSocket connection to OpenAI Realtime API
-      const chatUrl = `https://yfwgegegapmggwywrnzqvg.functions.supabase.co/twilio-voice-chat?careGroupId=${careGroup.id}&callSid=${callSid}`;
+      const chatUrl = `https://yfwgegapmggwywrnzqvg.functions.supabase.co/twilio-voice-chat?careGroupId=${careGroup.id}&callSid=${callSid}`;
       
       const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -138,8 +123,8 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'text/xml' },
       });
     } else {
-      // Increment failed attempts - get current attempts from the correct source
-      const currentAttempts = userProfile?.phone_auth_attempts || careGroup.phone_auth_attempts || 0;
+      // Increment failed attempts
+      const currentAttempts = careGroup.phone_auth_attempts || 0;
       const newAttempts = currentAttempts + 1;
       let lockoutUntil = null;
       
@@ -148,24 +133,14 @@ serve(async (req) => {
         lockoutUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
       }
 
-      // Update failed attempts in the correct table
-      if (userProfile) {
-        await supabase
-          .from('profiles')
-          .update({ 
-            phone_auth_attempts: newAttempts,
-            phone_lockout_until: lockoutUntil
-          })
-          .eq('phone', cleanPhone);
-      } else {
-        await supabase
-          .from('care_groups')
-          .update({ 
-            phone_auth_attempts: newAttempts,
-            phone_lockout_until: lockoutUntil
-          })
-          .eq('id', careGroup.id);
-      }
+      // Update failed attempts
+      await supabase
+        .from('care_groups')
+        .update({ 
+          phone_auth_attempts: newAttempts,
+          phone_lockout_until: lockoutUntil
+        })
+        .eq('id', careGroup.id);
 
       const remainingAttempts = 4 - newAttempts;
       

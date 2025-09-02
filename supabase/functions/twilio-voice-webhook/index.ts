@@ -54,13 +54,10 @@ serve(async (req) => {
       .from('profiles')
       .select(`
         phone,
-        voice_pin,
-        phone_auth_attempts,
-        phone_lockout_until,
         care_group_members!inner(
           is_admin,
           care_groups!inner(
-            id, name
+            id, name, voice_pin, phone_auth_attempts, phone_lockout_until
           )
         )
       `)
@@ -69,12 +66,14 @@ serve(async (req) => {
     console.log('Member lookup result:', { memberData, error: memberError });
 
     let careGroup = null;
-    let userProfile = null;
 
     if (!memberError && memberData && memberData.length > 0) {
-      // Caller is a care group member
-      userProfile = memberData[0];
-      careGroup = memberData[0].care_group_members.find(m => m.is_admin)?.care_groups || memberData[0].care_group_members[0].care_groups;
+      // Caller is a care group member - prioritize admin groups with voice_pin
+      const adminGroupWithPin = memberData[0].care_group_members.find(m => m.is_admin && m.care_groups.voice_pin);
+      const anyGroupWithPin = memberData[0].care_group_members.find(m => m.care_groups.voice_pin);
+      const adminGroup = memberData[0].care_group_members.find(m => m.is_admin);
+      
+      careGroup = adminGroupWithPin?.care_groups || anyGroupWithPin?.care_groups || adminGroup?.care_groups || memberData[0].care_group_members[0].care_groups;
       console.log('Found caller as care group member');
     } else {
       // Check if caller is the care recipient themselves
@@ -104,14 +103,9 @@ serve(async (req) => {
       });
     }
 
-    // Check PIN from user profile if it's a member, otherwise from care group
-    const voicePin = userProfile?.voice_pin || careGroup.voice_pin;
-    const phoneAuthAttempts = userProfile?.phone_auth_attempts || careGroup.phone_auth_attempts || 0;
-    const phoneLockoutUntil = userProfile?.phone_lockout_until || careGroup.phone_lockout_until;
-
     // Check if phone is locked out
-    if (phoneLockoutUntil && new Date(phoneLockoutUntil) > new Date()) {
-      console.log('Phone is locked out until:', phoneLockoutUntil);
+    if (careGroup.phone_lockout_until && new Date(careGroup.phone_lockout_until) > new Date()) {
+      console.log('Phone is locked out until:', careGroup.phone_lockout_until);
       const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say>This phone number is temporarily locked due to multiple incorrect PIN attempts. Please try again later or contact support.</Say>
@@ -124,8 +118,8 @@ serve(async (req) => {
     }
 
     // Check if PIN is set up
-    if (!voicePin) {
-      console.log('No PIN set up for user/care group');
+    if (!careGroup.voice_pin) {
+      console.log('No PIN set up for care group:', careGroup.id);
       const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say>Please set up your voice PIN in the app to continue. Visit your profile settings to create a four-digit PIN for voice access.</Say>
