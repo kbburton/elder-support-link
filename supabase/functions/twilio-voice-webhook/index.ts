@@ -217,9 +217,12 @@ serve(async (req) => {
       });
     }
 
-    // XML escape function for safe TwiML
-    function xmlEscape(str: string): string {
-      return str.replace(/[<>&'"]/g, (match) => {
+    // XML escape function for safe TwiML - handles null/undefined values
+    function xmlEscape(str: any): string {
+      if (str === null || str === undefined) {
+        return 'the care group';
+      }
+      return String(str).replace(/[<>&'"]/g, (match) => {
         switch (match) {
           case '<': return '&lt;';
           case '>': return '&gt;';
@@ -231,26 +234,44 @@ serve(async (req) => {
       });
     }
 
+    // Ensure we have valid values for URL construction
+    if (!careGroup.id) {
+      console.error('Care group missing ID:', careGroup);
+      throw new Error('Invalid care group data');
+    }
+
     // Start PIN authentication flow - determine caller type and build URL parameters
     let gatherUrl = `https://yfwgegapmggwywrnzqvg.functions.supabase.co/enhanced-twilio-pin-verify`;
     
     if (userProfile) {
       // User calling - pass user information
       const groupCount = membershipData ? membershipData.length : 0;
-      gatherUrl += `?type=user&user_id=${userProfile.user_id}&groups=${groupCount}`;
+      if (!userProfile.user_id) {
+        console.error('User profile missing user_id:', userProfile);
+        throw new Error('Invalid user profile data');
+      }
+      gatherUrl += `?type=user&user_id=${encodeURIComponent(userProfile.user_id)}&groups=${groupCount}`;
     } else {
       // Care recipient calling - pass care group information
-      gatherUrl += `?type=care_recipient&id=${careGroup.id}`;
+      gatherUrl += `?type=care_recipient&id=${encodeURIComponent(careGroup.id)}`;
     }
+
+    // Get care group name with fallback
+    const careGroupName = careGroup.name || 'your care group';
+    
+    console.log('Generated gather URL:', gatherUrl);
+    console.log('Care group name for TwiML:', careGroupName);
     
     const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say>Hello! Welcome to ${xmlEscape(careGroup.name)}'s care assistant. Please enter your four-digit PIN followed by the pound key.</Say>
+  <Say>Hello! Welcome to ${xmlEscape(careGroupName)}'s care assistant. Please enter your four-digit PIN followed by the pound key.</Say>
   <Gather action="${gatherUrl}" method="POST" numDigits="4" finishOnKey="#" timeout="10">
   </Gather>
   <Say>I didn't receive your PIN. Please try again.</Say>
   <Redirect>${gatherUrl}</Redirect>
 </Response>`;
+
+    console.log('Generated TwiML response:', twimlResponse);
     
     return new Response(twimlResponse, {
       headers: { ...corsHeaders, 'Content-Type': 'text/xml' },
