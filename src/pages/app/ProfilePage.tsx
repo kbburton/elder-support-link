@@ -352,78 +352,50 @@ const ProfilePage = () => {
               </div>
 
               {/* Voice PIN Section */}
-              {careGroups.length > 0 && (
-                <div className="space-y-4 border-t pt-6">
-                  <h3 className="text-lg font-semibold text-foreground">Voice Authentication</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Set up a 4-digit PIN for voice access to your care group information.
-                  </p>
-                  
+              <div className="space-y-4 border-t pt-6">
+                <h3 className="text-lg font-semibold text-foreground">Voice Authentication</h3>
+                <p className="text-sm text-muted-foreground">
+                  Set up a 4-digit PIN for voice access. This PIN will work across all your care groups.
+                </p>
+                
+                {!hasPinSet && (
                   <FormField
                     control={form.control}
                     name="voice_pin"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Care Group</FormLabel>
-                        <Select onValueChange={handleCareGroupChange} value={selectedCareGroup}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select care group" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {careGroups.map((group) => (
-                              <SelectItem key={group.id} value={group.id}>
-                                {group.name} ({group.recipient_phone})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <FormLabel>Set Voice PIN</FormLabel>
+                        <FormControl>
+                          <Input 
+                            {...field} 
+                            type="password" 
+                            placeholder="Enter 4-digit PIN"
+                            maxLength={4}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Create a 4-digit PIN for voice authentication across all your care groups
+                        </FormDescription>
+                        <FormMessage />
                       </FormItem>
                     )}
                   />
-
-                  {selectedCareGroup && (
-                    <>
-                      {!hasPinSet && (
-                        <FormField
-                          control={form.control}
-                          name="voice_pin"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Set Voice PIN</FormLabel>
-                              <FormControl>
-                                <Input 
-                                  {...field} 
-                                  type="password" 
-                                  placeholder="Enter 4-digit PIN"
-                                  maxLength={4}
-                                />
-                              </FormControl>
-                              <FormDescription>
-                                Create a 4-digit PIN for voice authentication
-                              </FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      )}
-                      
-                      {hasPinSet && (
-                        <div className="space-y-2">
-                          <p className="text-sm text-green-600">✓ Voice PIN is set</p>
-                          <Button 
-                            type="button" 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => setShowPinForm(!showPinForm)}
-                          >
-                            Change PIN
-                          </Button>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
+                )}
+                
+                {hasPinSet && (
+                  <div className="space-y-2">
+                    <p className="text-sm text-green-600">✓ Voice PIN is set for all your care groups</p>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setShowPinForm(!showPinForm)}
+                    >
+                      Change PIN
+                    </Button>
+                  </div>
+                )}
+              </div>
 
               <Button type="submit" disabled={isLoading || saveMutation.isPending}>
                 {saveMutation.isPending ? "Saving..." : "Save changes"}
