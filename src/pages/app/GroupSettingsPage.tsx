@@ -3,7 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
-import { LogOut, Users, Mail, Calendar, Trash2, RotateCcw, AlertTriangle, UserPlus } from "lucide-react";
+import { LogOut, Users, Mail, Calendar, Trash2, RotateCcw, AlertTriangle, UserPlus, Phone } from "lucide-react";
 import SEO from "@/components/layout/SEO";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,7 @@ export default function GroupSettingsPage() {
   const [invitations, setInvitations] = useState<any[]>([]);
   const [groupMembers, setGroupMembers] = useState<any[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [careRecipientPin, setCareRecipientPin] = useState("");
 
   // Check if user is admin and load invitation data
   useEffect(() => {
@@ -275,6 +276,56 @@ const toggleAdminStatus = async (userId: string, currentAdmin: boolean) => {
   }
 };
 
+const saveCareRecipientPin = async () => {
+  if (!careRecipientPin.trim()) {
+    toast({
+      title: "PIN required",
+      description: "Please enter a 4-digit PIN",
+      variant: "destructive"
+    });
+    return;
+  }
+
+  if (!/^\d{4}$/.test(careRecipientPin)) {
+    toast({
+      title: "Invalid PIN",
+      description: "PIN must be exactly 4 digits",
+      variant: "destructive"
+    });
+    return;
+  }
+
+  try {
+    const bcrypt = await import('bcryptjs');
+    const hashedPin = await bcrypt.hash(careRecipientPin, 10);
+    
+    const { error } = await supabase
+      .from('care_groups')
+      .update({ 
+        voice_pin: hashedPin,
+        phone_auth_attempts: 0,
+        phone_lockout_until: null 
+      })
+      .eq('id', groupId);
+
+    if (error) throw error;
+
+    toast({
+      title: "PIN saved",
+      description: "Care recipient voice PIN has been set successfully",
+    });
+
+    setCareRecipientPin("");
+  } catch (error: any) {
+    console.error('Error saving care recipient PIN:', error);
+    toast({
+      title: "Error saving PIN",
+      description: error.message || "Something went wrong",
+      variant: "destructive"
+    });
+  }
+};
+
 const handleSignOut = async () => {
   try {
     await supabase.auth.signOut();
@@ -312,9 +363,10 @@ const handleSignOut = async () => {
       </header>
 
       <Tabs defaultValue="notifications" className="space-y-6">
-        <TabsList className="grid grid-cols-3 lg:w-[400px]">
+        <TabsList className="grid grid-cols-4 lg:w-[500px]">
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           {isAdmin && <TabsTrigger value="invite">Invite Others</TabsTrigger>}
+          {isAdmin && <TabsTrigger value="voice">Voice PIN</TabsTrigger>}
           <TabsTrigger value="deleted">Recently Deleted</TabsTrigger>
         </TabsList>
 
@@ -463,6 +515,37 @@ const handleSignOut = async () => {
                       ))}
                     </div>
                   )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+
+        {isAdmin && (
+          <TabsContent value="voice" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Phone className="h-5 w-5" />
+                  Care Recipient Voice PIN
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Set up a 4-digit PIN for the care recipient to use when calling the voice chat system.
+                </p>
+                <div className="flex gap-4">
+                  <Input
+                    type="password"
+                    placeholder="Enter 4-digit PIN"
+                    value={careRecipientPin}
+                    onChange={(e) => setCareRecipientPin(e.target.value)}
+                    maxLength={4}
+                    className="flex-1 max-w-[200px]"
+                  />
+                  <Button onClick={saveCareRecipientPin}>
+                    Save PIN
+                  </Button>
                 </div>
               </CardContent>
             </Card>
