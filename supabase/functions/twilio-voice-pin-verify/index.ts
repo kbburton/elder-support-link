@@ -21,11 +21,17 @@ serve(async (req) => {
 
   try {
     console.log('PIN verification called');
+    console.log('Request method:', req.method);
+    console.log('Request headers:', Object.fromEntries(req.headers.entries()));
     
-    const formData = await req.formData();
-    const callSid = formData.get('CallSid') as string;
-    const from = formData.get('From') as string;
-    const digits = formData.get('Digits') as string;
+    const body = await req.text();
+    console.log('Raw request body:', body);
+    
+    // Parse URL-encoded form data manually
+    const urlParams = new URLSearchParams(body);
+    const callSid = urlParams.get('CallSid') || '';
+    const from = urlParams.get('From') || '';
+    const digits = urlParams.get('Digits') || '';
 
     console.log('PIN verification data:', { callSid, from, digits });
 

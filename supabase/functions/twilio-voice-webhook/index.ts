@@ -30,37 +30,19 @@ serve(async (req) => {
     console.log('Request method:', req.method);
     console.log('Request headers:', Object.fromEntries(req.headers.entries()));
     
-    let twilioData: TwilioRequest;
+    const body = await req.text();
+    console.log('Raw request body:', body);
     
-    try {
-      const formData = await req.formData();
-      twilioData = {
-        CallSid: formData.get('CallSid') as string,
-        From: formData.get('From') as string,
-        To: formData.get('To') as string,
-        CallStatus: formData.get('CallStatus') as string,
-      };
-    } catch (parseError) {
-      console.error('Error parsing form data:', parseError);
-      
-      // Try parsing as JSON if form data fails
-      try {
-        const body = await req.text();
-        console.log('Raw request body:', body);
-        const jsonData = JSON.parse(body);
-        twilioData = {
-          CallSid: jsonData.CallSid,
-          From: jsonData.From,
-          To: jsonData.To,
-          CallStatus: jsonData.CallStatus,
-        };
-      } catch (jsonError) {
-        console.error('Error parsing JSON:', jsonError);
-        throw new Error('Unable to parse request data');
-      }
-    }
+    // Parse URL-encoded form data manually
+    const urlParams = new URLSearchParams(body);
+    const twilioData: TwilioRequest = {
+      CallSid: urlParams.get('CallSid') || '',
+      From: urlParams.get('From') || '',
+      To: urlParams.get('To') || '',
+      CallStatus: urlParams.get('CallStatus') || '',
+    };
 
-    console.log('Twilio data:', twilioData);
+    console.log('Parsed Twilio data:', twilioData);
 
     // Format phone number (remove +1 if present for US numbers)
     const cleanPhone = twilioData.From.replace(/^\+1/, '').replace(/\D/g, '');
