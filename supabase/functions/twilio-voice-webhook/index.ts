@@ -27,14 +27,38 @@ serve(async (req) => {
 
   try {
     console.log('Twilio voice webhook called');
+    console.log('Request method:', req.method);
+    console.log('Request headers:', Object.fromEntries(req.headers.entries()));
     
-    const formData = await req.formData();
-    const twilioData: TwilioRequest = {
-      CallSid: formData.get('CallSid') as string,
-      From: formData.get('From') as string,
-      To: formData.get('To') as string,
-      CallStatus: formData.get('CallStatus') as string,
-    };
+    let twilioData: TwilioRequest;
+    
+    try {
+      const formData = await req.formData();
+      twilioData = {
+        CallSid: formData.get('CallSid') as string,
+        From: formData.get('From') as string,
+        To: formData.get('To') as string,
+        CallStatus: formData.get('CallStatus') as string,
+      };
+    } catch (parseError) {
+      console.error('Error parsing form data:', parseError);
+      
+      // Try parsing as JSON if form data fails
+      try {
+        const body = await req.text();
+        console.log('Raw request body:', body);
+        const jsonData = JSON.parse(body);
+        twilioData = {
+          CallSid: jsonData.CallSid,
+          From: jsonData.From,
+          To: jsonData.To,
+          CallStatus: jsonData.CallStatus,
+        };
+      } catch (jsonError) {
+        console.error('Error parsing JSON:', jsonError);
+        throw new Error('Unable to parse request data');
+      }
+    }
 
     console.log('Twilio data:', twilioData);
 
@@ -43,7 +67,7 @@ serve(async (req) => {
     
     console.log('Looking up phone:', cleanPhone);
 
-    // Find care groups where the caller is a member
+    // First, check if caller is a care group member
     const { data: memberData, error: memberError } = await supabase
       .from('profiles')
       .select(`
@@ -57,10 +81,31 @@ serve(async (req) => {
       `)
       .eq('phone', cleanPhone);
 
-    console.log('Care group lookup result:', { memberData, error: memberError });
+    console.log('Member lookup result:', { memberData, error: memberError });
 
-    if (memberError || !memberData || memberData.length === 0) {
-      console.log('Phone number not recognized');
+    let careGroup = null;
+
+    if (!memberError && memberData && memberData.length > 0) {
+      // Caller is a care group member - prioritize admin groups
+      careGroup = memberData[0].care_group_members.find(m => m.is_admin)?.care_groups || memberData[0].care_group_members[0].care_groups;
+      console.log('Found caller as care group member');
+    } else {
+      // Check if caller is the care recipient themselves
+      const { data: recipientData, error: recipientError } = await supabase
+        .from('care_groups')
+        .select('id, name, voice_pin, phone_auth_attempts, phone_lockout_until, recipient_phone')
+        .eq('recipient_phone', cleanPhone);
+
+      console.log('Recipient lookup result:', { recipientData, error: recipientError });
+
+      if (!recipientError && recipientData && recipientData.length > 0) {
+        careGroup = recipientData[0];
+        console.log('Found caller as care recipient');
+      }
+    }
+
+    if (!careGroup) {
+      console.log('Phone number not recognized as member or recipient');
       return new Response(`
         <?xml version="1.0" encoding="UTF-8"?>
         <Response>
@@ -71,9 +116,6 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'text/xml' },
       });
     }
-
-    // Use the first care group found (assuming user is admin of at least one)
-    const careGroup = memberData[0].care_group_members.find(m => m.is_admin)?.care_groups || memberData[0].care_group_members[0].care_groups;
 
     // Check if phone is locked out
     if (careGroup.phone_lockout_until && new Date(careGroup.phone_lockout_until) > new Date()) {
