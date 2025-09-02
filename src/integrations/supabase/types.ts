@@ -1628,9 +1628,12 @@ export type Database = {
           last_login: string | null
           last_name: string | null
           phone: string | null
+          phone_auth_attempts: number | null
+          phone_lockout_until: string | null
           state: string | null
           updated_at: string
           user_id: string
+          voice_pin: string | null
           zip: string | null
         }
         Insert: {
@@ -1643,9 +1646,12 @@ export type Database = {
           last_login?: string | null
           last_name?: string | null
           phone?: string | null
+          phone_auth_attempts?: number | null
+          phone_lockout_until?: string | null
           state?: string | null
           updated_at?: string
           user_id: string
+          voice_pin?: string | null
           zip?: string | null
         }
         Update: {
@@ -1658,9 +1664,12 @@ export type Database = {
           last_login?: string | null
           last_name?: string | null
           phone?: string | null
+          phone_auth_attempts?: number | null
+          phone_lockout_until?: string | null
           state?: string | null
           updated_at?: string
           user_id?: string
+          voice_pin?: string | null
           zip?: string | null
         }
         Relationships: [

@@ -38,44 +38,59 @@ serve(async (req) => {
     // Format phone number
     const cleanPhone = from.replace(/^\+1/, '').replace(/\D/g, '');
 
-    // First, check if caller is a care group member
-    const { data: memberData, error: memberError } = await supabase
-      .from('profiles')
-      .select(`
-        phone,
-        care_group_members!inner(
-          is_admin,
-          care_groups!inner(
-            id, name, voice_pin, phone_auth_attempts, phone_lockout_until
-          )
-        )
-      `)
-      .eq('phone', cleanPhone);
-
-    console.log('Member lookup result:', { memberData, error: memberError });
-
+    // Check caller type and find appropriate PIN location
     let careGroup = null;
+    let userProfile = null;
+    let voicePin = null;
+    let phoneAuthAttempts = 0;
+    let phoneLockoutUntil = null;
 
-    if (!memberError && memberData && memberData.length > 0) {
-      // Caller is a care group member - prioritize admin groups with voice_pin
-      const adminGroupWithPin = memberData[0].care_group_members.find(m => m.is_admin && m.care_groups.voice_pin);
-      const anyGroupWithPin = memberData[0].care_group_members.find(m => m.care_groups.voice_pin);
-      const adminGroup = memberData[0].care_group_members.find(m => m.is_admin);
-      
-      careGroup = adminGroupWithPin?.care_groups || anyGroupWithPin?.care_groups || adminGroup?.care_groups || memberData[0].care_group_members[0].care_groups;
-      console.log('Found caller as care group member during PIN verification');
+    // First check if caller is the care recipient themselves
+    const { data: recipientData, error: recipientError } = await supabase
+      .from('care_groups')
+      .select('id, name, voice_pin, phone_auth_attempts, phone_lockout_until, recipient_phone')
+      .eq('recipient_phone', cleanPhone);
+
+    console.log('Recipient lookup result:', { recipientData, error: recipientError });
+
+    if (!recipientError && recipientData && recipientData.length > 0) {
+      // Caller is a care recipient
+      careGroup = recipientData[0];
+      voicePin = careGroup.voice_pin;
+      phoneAuthAttempts = careGroup.phone_auth_attempts || 0;
+      phoneLockoutUntil = careGroup.phone_lockout_until;
+      console.log('Found caller as care recipient during PIN verification');
     } else {
-      // Check if caller is the care recipient themselves
-      const { data: recipientData, error: recipientError } = await supabase
-        .from('care_groups')
-        .select('id, name, voice_pin, phone_auth_attempts, phone_lockout_until, recipient_phone')
-        .eq('recipient_phone', cleanPhone);
+      // Check if caller is a care group member (user/admin)
+      const { data: memberData, error: memberError } = await supabase
+        .from('profiles')
+        .select(`
+          phone,
+          voice_pin,
+          phone_auth_attempts,
+          phone_lockout_until,
+          care_group_members!inner(
+            is_admin,
+            care_groups!inner(
+              id, name
+            )
+          )
+        `)
+        .eq('phone', cleanPhone);
 
-      console.log('Recipient lookup result:', { recipientData, error: recipientError });
+      console.log('Member lookup result:', { memberData, error: memberError });
 
-      if (!recipientError && recipientData && recipientData.length > 0) {
-        careGroup = recipientData[0];
-        console.log('Found caller as care recipient during PIN verification');
+      if (!memberError && memberData && memberData.length > 0) {
+        // Caller is a care group member - use their profile PIN
+        userProfile = memberData[0];
+        voicePin = userProfile.voice_pin;
+        phoneAuthAttempts = userProfile.phone_auth_attempts || 0;
+        phoneLockoutUntil = userProfile.phone_lockout_until;
+        
+        // Find their preferred care group (admin group if available)
+        const adminGroup = memberData[0].care_group_members.find(m => m.is_admin);
+        careGroup = adminGroup?.care_groups || memberData[0].care_group_members[0].care_groups;
+        console.log('Found caller as care group member during PIN verification');
       }
     }
 
@@ -93,18 +108,30 @@ serve(async (req) => {
     }
 
     // Verify PIN
-    const pinMatch = await bcrypt.compare(digits, careGroup.voice_pin);
+    const pinMatch = await bcrypt.compare(digits, voicePin);
     console.log('PIN verification result:', pinMatch);
 
     if (pinMatch) {
-      // Reset failed attempts on successful login
-      await supabase
-        .from('care_groups')
-        .update({ 
-          phone_auth_attempts: 0,
-          phone_lockout_until: null 
-        })
-        .eq('id', careGroup.id);
+      // Reset failed attempts on successful login - update the correct table
+      if (userProfile) {
+        // Caller is a care group member - update profiles table
+        await supabase
+          .from('profiles')
+          .update({ 
+            phone_auth_attempts: 0,
+            phone_lockout_until: null 
+          })
+          .eq('phone', cleanPhone);
+      } else {
+        // Caller is a care recipient - update care_groups table
+        await supabase
+          .from('care_groups')
+          .update({ 
+            phone_auth_attempts: 0,
+            phone_lockout_until: null 
+          })
+          .eq('id', careGroup.id);
+      }
 
       console.log('PIN verified successfully, starting voice chat');
 
@@ -123,8 +150,8 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'text/xml' },
       });
     } else {
-      // Increment failed attempts
-      const currentAttempts = careGroup.phone_auth_attempts || 0;
+      // Increment failed attempts - use the correct current attempts value
+      const currentAttempts = phoneAuthAttempts;
       const newAttempts = currentAttempts + 1;
       let lockoutUntil = null;
       
@@ -133,14 +160,26 @@ serve(async (req) => {
         lockoutUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
       }
 
-      // Update failed attempts
-      await supabase
-        .from('care_groups')
-        .update({ 
-          phone_auth_attempts: newAttempts,
-          phone_lockout_until: lockoutUntil
-        })
-        .eq('id', careGroup.id);
+      // Update failed attempts in the correct table
+      if (userProfile) {
+        // Caller is a care group member - update profiles table
+        await supabase
+          .from('profiles')
+          .update({ 
+            phone_auth_attempts: newAttempts,
+            phone_lockout_until: lockoutUntil
+          })
+          .eq('phone', cleanPhone);
+      } else {
+        // Caller is a care recipient - update care_groups table
+        await supabase
+          .from('care_groups')
+          .update({ 
+            phone_auth_attempts: newAttempts,
+            phone_lockout_until: lockoutUntil
+          })
+          .eq('id', careGroup.id);
+      }
 
       const remainingAttempts = 4 - newAttempts;
       

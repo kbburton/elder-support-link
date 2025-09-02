@@ -49,44 +49,59 @@ serve(async (req) => {
     
     console.log('Looking up phone:', cleanPhone);
 
-    // First, check if caller is a care group member
-    const { data: memberData, error: memberError } = await supabase
-      .from('profiles')
-      .select(`
-        phone,
-        care_group_members!inner(
-          is_admin,
-          care_groups!inner(
-            id, name, voice_pin, phone_auth_attempts, phone_lockout_until
-          )
-        )
-      `)
-      .eq('phone', cleanPhone);
-
-    console.log('Member lookup result:', { memberData, error: memberError });
-
+    // Check caller type and find appropriate PIN location
     let careGroup = null;
+    let userProfile = null;
+    let voicePin = null;
+    let phoneAuthAttempts = 0;
+    let phoneLockoutUntil = null;
 
-    if (!memberError && memberData && memberData.length > 0) {
-      // Caller is a care group member - prioritize admin groups with voice_pin
-      const adminGroupWithPin = memberData[0].care_group_members.find(m => m.is_admin && m.care_groups.voice_pin);
-      const anyGroupWithPin = memberData[0].care_group_members.find(m => m.care_groups.voice_pin);
-      const adminGroup = memberData[0].care_group_members.find(m => m.is_admin);
-      
-      careGroup = adminGroupWithPin?.care_groups || anyGroupWithPin?.care_groups || adminGroup?.care_groups || memberData[0].care_group_members[0].care_groups;
-      console.log('Found caller as care group member');
+    // First check if caller is the care recipient themselves
+    const { data: recipientData, error: recipientError } = await supabase
+      .from('care_groups')
+      .select('id, name, voice_pin, phone_auth_attempts, phone_lockout_until, recipient_phone')
+      .eq('recipient_phone', cleanPhone);
+
+    console.log('Recipient lookup result:', { recipientData, error: recipientError });
+
+    if (!recipientError && recipientData && recipientData.length > 0) {
+      // Caller is a care recipient
+      careGroup = recipientData[0];
+      voicePin = careGroup.voice_pin;
+      phoneAuthAttempts = careGroup.phone_auth_attempts || 0;
+      phoneLockoutUntil = careGroup.phone_lockout_until;
+      console.log('Found caller as care recipient');
     } else {
-      // Check if caller is the care recipient themselves
-      const { data: recipientData, error: recipientError } = await supabase
-        .from('care_groups')
-        .select('id, name, voice_pin, phone_auth_attempts, phone_lockout_until, recipient_phone')
-        .eq('recipient_phone', cleanPhone);
+      // Check if caller is a care group member (user/admin)
+      const { data: memberData, error: memberError } = await supabase
+        .from('profiles')
+        .select(`
+          phone,
+          voice_pin,
+          phone_auth_attempts,
+          phone_lockout_until,
+          care_group_members!inner(
+            is_admin,
+            care_groups!inner(
+              id, name
+            )
+          )
+        `)
+        .eq('phone', cleanPhone);
 
-      console.log('Recipient lookup result:', { recipientData, error: recipientError });
+      console.log('Member lookup result:', { memberData, error: memberError });
 
-      if (!recipientError && recipientData && recipientData.length > 0) {
-        careGroup = recipientData[0];
-        console.log('Found caller as care recipient');
+      if (!memberError && memberData && memberData.length > 0) {
+        // Caller is a care group member - use their profile PIN
+        userProfile = memberData[0];
+        voicePin = userProfile.voice_pin;
+        phoneAuthAttempts = userProfile.phone_auth_attempts || 0;
+        phoneLockoutUntil = userProfile.phone_lockout_until;
+        
+        // Find their preferred care group (admin group if available)
+        const adminGroup = memberData[0].care_group_members.find(m => m.is_admin);
+        careGroup = adminGroup?.care_groups || memberData[0].care_group_members[0].care_groups;
+        console.log('Found caller as care group member');
       }
     }
 
@@ -104,8 +119,8 @@ serve(async (req) => {
     }
 
     // Check if phone is locked out
-    if (careGroup.phone_lockout_until && new Date(careGroup.phone_lockout_until) > new Date()) {
-      console.log('Phone is locked out until:', careGroup.phone_lockout_until);
+    if (phoneLockoutUntil && new Date(phoneLockoutUntil) > new Date()) {
+      console.log('Phone is locked out until:', phoneLockoutUntil);
       const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say>This phone number is temporarily locked due to multiple incorrect PIN attempts. Please try again later or contact support.</Say>
@@ -118,8 +133,8 @@ serve(async (req) => {
     }
 
     // Check if PIN is set up
-    if (!careGroup.voice_pin) {
-      console.log('No PIN set up for care group:', careGroup.id);
+    if (!voicePin) {
+      console.log('No PIN set up for caller');
       const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say>Please set up your voice PIN in the app to continue. Visit your profile settings to create a four-digit PIN for voice access.</Say>

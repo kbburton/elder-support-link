@@ -111,6 +111,8 @@ const ProfilePage = () => {
         zip: profile.profile.zip || "",
         voice_pin: "",
       });
+      // Check if user has a PIN set in their profile
+      setHasPinSet(!!profile.profile.voice_pin);
     }
     if (profile?.careGroups) {
       setCareGroups(profile.careGroups.map(cg => cg.care_groups).filter(Boolean));
@@ -118,7 +120,6 @@ const ProfilePage = () => {
         const firstGroup = profile.careGroups[0].care_groups;
         if (firstGroup) {
           setSelectedCareGroup(firstGroup.id);
-          setHasPinSet(!!firstGroup.voice_pin);
         }
       }
     }
@@ -146,12 +147,12 @@ const ProfilePage = () => {
       if (error) throw error;
 
       // Handle voice PIN for new setup
-      if (values.voice_pin && selectedCareGroup) {
+      if (values.voice_pin) {
         const hashedPin = await bcrypt.hash(values.voice_pin, 10);
         const { error: pinError } = await supabase
-          .from('care_groups')
+          .from('profiles')
           .update({ voice_pin: hashedPin })
-          .eq('id', selectedCareGroup);
+          .eq('user_id', user.id);
 
         if (pinError) throw pinError;
         setHasPinSet(true);
@@ -169,21 +170,29 @@ const ProfilePage = () => {
   // Handle PIN change
   const pinMutation = useMutation({
     mutationFn: async (values: PinFormValues) => {
-      if (!selectedCareGroup) throw new Error('No care group selected');
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No user found');
       
-      const currentGroup = careGroups.find(cg => cg.id === selectedCareGroup);
-      if (!currentGroup?.voice_pin) throw new Error('No current PIN set');
+      // Get current profile to check existing PIN
+      const { data: currentProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('voice_pin')
+        .eq('user_id', user.id)
+        .single();
+        
+      if (profileError) throw profileError;
+      if (!currentProfile?.voice_pin) throw new Error('No current PIN set');
 
       // Verify current PIN
-      const isValid = await bcrypt.compare(values.current_pin, currentGroup.voice_pin);
+      const isValid = await bcrypt.compare(values.current_pin, currentProfile.voice_pin);
       if (!isValid) throw new Error('Current PIN is incorrect');
 
       // Hash and save new PIN
       const hashedPin = await bcrypt.hash(values.new_pin, 10);
       const { error } = await supabase
-        .from('care_groups')
+        .from('profiles')
         .update({ voice_pin: hashedPin })
-        .eq('id', selectedCareGroup);
+        .eq('user_id', user.id);
 
       if (error) throw error;
     },
@@ -207,8 +216,7 @@ const ProfilePage = () => {
 
   const handleCareGroupChange = (careGroupId: string) => {
     setSelectedCareGroup(careGroupId);
-    const group = careGroups.find(cg => cg.id === careGroupId);
-    setHasPinSet(!!group?.voice_pin);
+    // PIN is now stored in user profile, not care group, so no need to check group PIN
   };
 
   if (isLoading) {
