@@ -27,82 +27,75 @@ serve(async (req) => {
     const from = params.get('From') || '';
     const digits = params.get('Digits') || '';
     
-    // Parse URL parameters to determine caller type
+    // Parse URL parameters - now we just get the phone number
     const url = new URL(req.url);
-    const callerType = url.searchParams.get('type'); // 'care_recipient' or 'user'
-    const entityId = url.searchParams.get('id');
-    const userId = url.searchParams.get('user_id');
-    const groupCount = parseInt(url.searchParams.get('groups') || '0');
+    const phoneParam = url.searchParams.get('phone');
 
+    // Use phone number from URL parameter or fallback to 'from'
+    const lookupPhone = phoneParam || from.replace(/^\+1/, '').replace(/\D/g, '');
+    
     console.log('PIN verification details:', {
-      callerType,
-      entityId,
-      userId,
-      groupCount,
+      lookupPhone,
       digits: digits.length
     });
 
-    const cleanPhone = from.replace(/^\+1/, '').replace(/\D/g, '');
     let pinMatch = false;
     let entity = null;
     let careGroups = [];
+    let callerType = null;
 
-    // Verify PIN based on caller type
-    if (callerType === 'care_recipient' && entityId) {
-      // Get care recipient data
-      const { data: careGroup, error } = await supabase
-        .from('care_groups')
-        .select('*')
-        .eq('id', entityId)
-        .single();
+    // First, try to find the phone number in care_groups table (care recipient)
+    const { data: careGroupMatch, error: careGroupError } = await supabase
+      .from('care_groups')
+      .select('*')
+      .eq('recipient_phone', lookupPhone)
+      .single();
 
-      if (error || !careGroup) {
-        throw new Error('Care group not found');
-      }
-
-      entity = careGroup;
-      pinMatch = await compare(digits, careGroup.voice_pin);
+    if (!careGroupError && careGroupMatch && careGroupMatch.voice_pin) {
+      console.log('Found care recipient match');
+      entity = careGroupMatch;
+      callerType = 'care_recipient';
+      pinMatch = await compare(digits, careGroupMatch.voice_pin);
       
       if (pinMatch) {
-        careGroups = [careGroup];
+        careGroups = [careGroupMatch];
       }
-      
-    } else if (callerType === 'user' && userId) {
-      // Get user profile data
-      const { data: profile, error } = await supabase
+    } else {
+      // Try to find in profiles table (care group member)
+      const { data: profileMatch, error: profileError } = await supabase
         .from('profiles')
         .select('*')
-        .eq('user_id', userId)
+        .eq('phone', lookupPhone)
         .single();
 
-      if (error || !profile) {
-        throw new Error('User profile not found');
-      }
+      if (!profileError && profileMatch && profileMatch.voice_pin) {
+        console.log('Found care group member match');
+        entity = profileMatch;
+        callerType = 'user';
+        pinMatch = await compare(digits, profileMatch.voice_pin);
+        
+        if (pinMatch) {
+          // Get user's care groups
+          const { data: groups, error: groupsError } = await supabase
+            .from('care_group_members')
+            .select(`
+              care_groups (
+                id,
+                name,
+                recipient_first_name
+              )
+            `)
+            .eq('user_id', profileMatch.user_id);
 
-      entity = profile;
-      pinMatch = await compare(digits, profile.voice_pin);
-      
-      if (pinMatch) {
-        // Get user's care groups
-        const { data: groups, error: groupsError } = await supabase
-          .from('care_group_members')
-          .select(`
-            care_groups (
-              id,
-              name,
-              recipient_first_name
-            )
-          `)
-          .eq('user_id', userId);
-
-        if (!groupsError && groups) {
-          careGroups = groups.map(g => g.care_groups).filter(Boolean);
+          if (!groupsError && groups) {
+            careGroups = groups.map(g => g.care_groups).filter(Boolean);
+          }
         }
       }
     }
 
     if (!entity) {
-      throw new Error('Invalid caller type or missing entity');
+      throw new Error('Phone number not found in system');
     }
 
     let twimlResponse = '';
@@ -120,37 +113,37 @@ serve(async (req) => {
         await supabase
           .from('care_groups')
           .update(updateData)
-          .eq('id', entityId);
+          .eq('id', entity.id);
       } else {
         await supabase
           .from('profiles')
           .update(updateData)
-          .eq('user_id', userId);
+          .eq('user_id', entity.user_id);
       }
 
       // Handle care group selection for users with multiple groups
       if (callerType === 'user' && careGroups.length > 1) {
         console.log('User has multiple care groups, prompting for selection');
         
-        let groupList = 'You are part of more than one care group. Let me list them. ';
+        let groupList = 'Please select a care group. ';
         careGroups.forEach((group, index) => {
-          groupList += `${index + 1}. ${group.recipient_first_name}'s care group. `;
+          groupList += `Press ${index + 1} for ${group.recipient_first_name}'s care group. `;
         });
-        groupList += 'What care group are you calling about today? Please say the first name of the care recipient.';
+        groupList += 'Please press the number for your selection.';
 
         const baseUrl = `https://yfwgegapmggwywrnzqvg.functions.supabase.co`;
         const groupIds = careGroups.map(g => g.id).join(',');
-        const chatUrl = `${baseUrl}/enhanced-twilio-voice-chat?user_id=${userId}&groups=${encodeURIComponent(groupIds)}&type=user`;
+        const groupNames = careGroups.map(g => g.recipient_first_name).join(',');
+        const selectionUrl = `${baseUrl}/enhanced-twilio-group-selection?user_id=${entity.user_id}&groups=${encodeURIComponent(groupIds)}&names=${encodeURIComponent(groupNames)}`;
 
         twimlResponse = `
           <?xml version="1.0" encoding="UTF-8"?>
           <Response>
             <Say voice="alice">${groupList}</Say>
-            <Record action="${chatUrl}" method="POST" maxLength="10" timeout="5" finishOnKey="#"/>
-            <Say voice="alice">I didn't hear a response. Let me connect you to the first care group.</Say>
-            <Connect>
-              <Stream url="${chatUrl}&default_group=${careGroups[0].id}"/>
-            </Connect>
+            <Gather action="${selectionUrl}" method="POST" numDigits="1" timeout="10">
+            </Gather>
+            <Say voice="alice">I didn't receive your selection. Let me connect you to the first care group.</Say>
+            <Redirect>${baseUrl}/enhanced-twilio-voice-chat?group_id=${careGroups[0].id}&user_id=${entity.user_id}&type=user</Redirect>
           </Response>
         `;
       } else {
@@ -160,19 +153,17 @@ serve(async (req) => {
         let chatUrl = `${baseUrl}/enhanced-twilio-voice-chat?group_id=${selectedGroup.id}`;
         
         if (callerType === 'user') {
-          chatUrl += `&user_id=${userId}&type=user`;
+          chatUrl += `&user_id=${entity.user_id}&type=user`;
+          var greeting = `Welcome to ${selectedGroup.recipient_first_name}'s care group, what would you like to know?`;
         } else {
           chatUrl += `&type=care_recipient`;
+          var greeting = `Welcome to ${selectedGroup.recipient_first_name || 'your care group'}, what would you like to know?`;
         }
-
-        const greeting = callerType === 'care_recipient' 
-          ? `Welcome ${selectedGroup.recipient_first_name || 'to your care system'}.`
-          : `Welcome to ${selectedGroup.recipient_first_name}'s care group.`;
 
         twimlResponse = `
           <?xml version="1.0" encoding="UTF-8"?>
           <Response>
-            <Say voice="alice">${greeting} I'm here to help you access information about appointments, contacts, activities, tasks, and documents. What would you like to know?</Say>
+            <Say voice="alice">${greeting}</Say>
             <Connect>
               <Stream url="${chatUrl}"/>
             </Connect>
@@ -198,12 +189,12 @@ serve(async (req) => {
         await supabase
           .from('care_groups')
           .update(updateData)
-          .eq('id', entityId);
+          .eq('id', entity.id);
       } else {
         await supabase
           .from('profiles')
           .update(updateData)
-          .eq('user_id', userId);
+          .eq('user_id', entity.user_id);
       }
 
       if (lockoutUntil) {

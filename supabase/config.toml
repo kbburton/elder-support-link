@@ -45,5 +45,14 @@ verify_jwt = false
 [functions.twilio-voice-pin-verify]
 verify_jwt = false
 
-[functions.twilio-voice-chat]
+[functions.enhanced-twilio-pin-verify]
+verify_jwt = false
+
+[functions.enhanced-twilio-voice-chat]
+verify_jwt = false
+
+[functions.enhanced-twilio-group-selection]
+verify_jwt = false
+
+[functions.enhanced-twilio-webhook]
 verify_jwt = false

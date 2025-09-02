@@ -240,31 +240,15 @@ serve(async (req) => {
       throw new Error('Invalid care group data');
     }
 
-    // Start PIN authentication flow - determine caller type and build URL parameters
-    let gatherUrl = `https://yfwgegapmggwywrnzqvg.functions.supabase.co/enhanced-twilio-pin-verify`;
-    
-    if (userProfile) {
-      // User calling - pass user information
-      const groupCount = membershipData ? membershipData.length : 0;
-      if (!userProfile.user_id) {
-        console.error('User profile missing user_id:', userProfile);
-        throw new Error('Invalid user profile data');
-      }
-      gatherUrl += `?type=user&user_id=${encodeURIComponent(userProfile.user_id)}&groups=${groupCount}`;
-    } else {
-      // Care recipient calling - pass care group information
-      gatherUrl += `?type=care_recipient&id=${encodeURIComponent(careGroup.id)}`;
-    }
-
-    // Get care group name with fallback
-    const careGroupName = careGroup.name || 'your care group';
+    // Simple PIN authentication flow - pass phone number for lookup
+    const cleanPhone = twilioData.From.replace(/^\+1/, '').replace(/\D/g, '');
+    const gatherUrl = `https://yfwgegapmggwywrnzqvg.functions.supabase.co/enhanced-twilio-pin-verify?phone=${encodeURIComponent(cleanPhone)}`;
     
     console.log('Generated gather URL:', gatherUrl);
-    console.log('Care group name for TwiML:', careGroupName);
     
     const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say>Hello! Welcome to ${xmlEscape(careGroupName)}'s care assistant. Please enter your four-digit PIN followed by the pound key.</Say>
+  <Say>Welcome to Elder-Support. Please enter your four-digit PIN followed by the pound key.</Say>
   <Gather action="${gatherUrl}" method="POST" numDigits="4" finishOnKey="#" timeout="10">
   </Gather>
   <Say>I didn't receive your PIN. Please try again.</Say>
