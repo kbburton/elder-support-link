@@ -178,11 +178,7 @@ serve(async (req) => {
 
     if (!careGroup) {
       console.log('Phone number not recognized as member or recipient');
-      const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say>I'm sorry, but this phone number is not recognized in our system. Please call from a registered number or contact support for assistance.</Say>
-  <Hangup/>
-</Response>`;
+      const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?><Response><Say>I'm sorry, but this phone number is not recognized in our system. Please call from a registered number or contact support for assistance.</Say><Hangup/></Response>`;
       
       return new Response(twimlResponse, {
         headers: { ...corsHeaders, 'Content-Type': 'text/xml' },
@@ -192,11 +188,7 @@ serve(async (req) => {
     // Check if phone is locked out
     if (phoneLockoutUntil && new Date(phoneLockoutUntil) > new Date()) {
       console.log('Phone is locked out until:', phoneLockoutUntil);
-      const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say>This phone number is temporarily locked due to multiple incorrect PIN attempts. Please try again later or contact support.</Say>
-  <Hangup/>
-</Response>`;
+      const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?><Response><Say>This phone number is temporarily locked due to multiple incorrect PIN attempts. Please try again later or contact support.</Say><Hangup/></Response>`;
       
       return new Response(twimlResponse, {
         headers: { ...corsHeaders, 'Content-Type': 'text/xml' },
@@ -206,11 +198,7 @@ serve(async (req) => {
     // Check if PIN is set up
     if (!voicePin) {
       console.log('No PIN set up for caller');
-      const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say>Please set up your voice PIN in the app to continue. Visit your profile settings to create a four-digit PIN for voice access.</Say>
-  <Hangup/>
-</Response>`;
+      const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?><Response><Say>Please set up your voice PIN in the app to continue. Visit your profile settings to create a four-digit PIN for voice access.</Say><Hangup/></Response>`;
       
       return new Response(twimlResponse, {
         headers: { ...corsHeaders, 'Content-Type': 'text/xml' },
@@ -246,14 +234,7 @@ serve(async (req) => {
     
     console.log('Generated gather URL:', gatherUrl);
     
-    const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say>Welcome to Elder-Support. Please enter your four-digit PIN followed by the pound key.</Say>
-  <Gather action="${gatherUrl}" method="POST" numDigits="4" finishOnKey="#" timeout="10">
-  </Gather>
-  <Say>I didn't receive your PIN. Please try again.</Say>
-  <Redirect>${gatherUrl}</Redirect>
-</Response>`;
+    const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?><Response><Say>Welcome to Elder-Support. Please enter your four-digit PIN followed by the pound key.</Say><Gather action="${gatherUrl}" method="POST" numDigits="4" finishOnKey="#" timeout="10"></Gather><Say>I didn't receive your PIN. Please try again.</Say><Redirect>${gatherUrl}</Redirect></Response>`;
 
     console.log('Generated TwiML response:', twimlResponse);
     
@@ -263,11 +244,7 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in Twilio webhook:', error);
-    const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say>I'm sorry, there was an error processing your request. Please try again later.</Say>
-  <Hangup/>
-</Response>`;
+    const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?><Response><Say>I'm sorry, there was an error processing your request. Please try again later.</Say><Hangup/></Response>`;
     
     return new Response(twimlResponse, {
       status: 500,
