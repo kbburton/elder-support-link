@@ -179,13 +179,13 @@ serve(async (req) => {
         
         if (callerType === 'user') {
           chatUrl += `&user_id=${entity.user_id}&type=user`;
-          greeting = `Welcome to ${selectedGroup.recipient_first_name}s care group, what would you like to know?`;
+          greeting = `Welcome to ${selectedGroup.recipient_first_name}'s care group, what would you like to know?`;
         } else {
           chatUrl += `&type=care_recipient`;
           greeting = `Welcome to ${selectedGroup.recipient_first_name || 'your care group'}, what would you like to know?`;
         }
 
-        twimlResponse = `<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="alice">${greeting}</Say><Connect><Stream url="${chatUrl}"/></Connect></Response>`;
+        twimlResponse = `<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="alice">${greeting}</Say><Redirect>${chatUrl}</Redirect></Response>`;
       }
     } else {
       console.log('PIN verification failed');
