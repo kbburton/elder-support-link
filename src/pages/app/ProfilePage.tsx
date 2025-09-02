@@ -17,7 +17,16 @@ import SEO from "@/components/layout/SEO";
 const ProfileSchema = z.object({
   first_name: z.string().min(1, "First name is required"),
   last_name: z.string().min(1, "Last name is required"),
-  phone: z.string().optional(),
+  phone: z.string()
+    .optional()
+    .refine((phone) => {
+      if (!phone || phone.trim() === '') return true;
+      // Basic phone validation - should be 10-11 digits
+      const digitsOnly = phone.replace(/\D/g, '');
+      return digitsOnly.length >= 10 && digitsOnly.length <= 11;
+    }, {
+      message: "Phone number must be 10-11 digits",
+    }),
   address: z.string().optional(),
   city: z.string().optional(),
   state: z.string().optional(),
@@ -163,7 +172,13 @@ const ProfilePage = () => {
       form.setValue('voice_pin', '');
     },
     onError: (error) => {
-      toast.error("Failed to update profile: " + error.message);
+      // Handle phone number duplicate error
+      if (error.message?.includes('PHONE_DUPLICATE:')) {
+        const errorMessage = error.message.split('PHONE_DUPLICATE:')[1]?.trim() || "That phone number is already in use. Please choose another number.";
+        toast.error(errorMessage);
+      } else {
+        toast.error("Failed to update profile: " + error.message);
+      }
     },
   });
 

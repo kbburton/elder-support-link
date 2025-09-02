@@ -24,7 +24,15 @@ const CreateGroupSchema = z.object({
   recipient_city: z.string().min(1, "City is required"),
   recipient_state: z.string().min(1, "State is required"),
   recipient_zip: z.string().min(1, "ZIP code is required"),
-  recipient_phone: z.string().min(1, "Phone number is required"),
+  recipient_phone: z.string()
+    .min(1, "Phone number is required")
+    .refine((phone) => {
+      // Basic phone validation - should be 10-11 digits
+      const digitsOnly = phone.replace(/\D/g, '');
+      return digitsOnly.length >= 10 && digitsOnly.length <= 11;
+    }, {
+      message: "Phone number must be 10-11 digits",
+    }),
   recipient_email: z
     .string()
     .email("Invalid email address")
@@ -177,11 +185,21 @@ export default function CreateGroupPage() {
       navigate(`/app/${group.id}/calendar`);
     },
     onError: (err: any) => {
-      toast({ 
-        title: "Creation failed", 
-        description: err.message ?? "Please try again.", 
-        variant: "destructive" 
-      });
+      // Handle phone number duplicate error
+      if (err.message?.includes('PHONE_DUPLICATE:')) {
+        const errorMessage = err.message.split('PHONE_DUPLICATE:')[1]?.trim() || "That phone number is already in use. Please choose another number.";
+        toast({ 
+          title: "Phone number already in use", 
+          description: errorMessage, 
+          variant: "destructive" 
+        });
+      } else {
+        toast({ 
+          title: "Creation failed", 
+          description: err.message ?? "Please try again.", 
+          variant: "destructive" 
+        });
+      }
     },
   });
 
