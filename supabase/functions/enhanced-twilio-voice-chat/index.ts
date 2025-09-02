@@ -1,14 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
-
-// Import the same data access functions from the voice data file
-import {
-  getUpcomingAppointments,
-  getPcpContact,
-  getOpenTasks,
-  getDocumentSummaries,
-  getRecentActivities
-} from '../twilio-voice-chat/index.ts';
+import { format, addDays, startOfDay, endOfDay } from 'https://esm.sh/date-fns@4.1.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -346,7 +338,41 @@ async function handleFunctionCall(data: any, careGroupId: string, openaiWs: WebS
 // Data access functions (read-only versions)
 async function getAppointments(careGroupId: string, timeframe: string): Promise<string> {
   try {
-    const appointments = await getUpcomingAppointments(careGroupId);
+    const startDate = startOfDay(new Date());
+    const endDate = endOfDay(addDays(new Date(), 7));
+
+    const { data, error } = await supabase
+      .from('appointments')
+      .select(`
+        id,
+        description,
+        date_time,
+        category,
+        street_address,
+        city,
+        state
+      `)
+      .eq('group_id', careGroupId)
+      .eq('is_deleted', false)
+      .gte('date_time', startDate.toISOString())
+      .lte('date_time', endDate.toISOString())
+      .order('date_time', { ascending: true })
+      .limit(5);
+
+    if (error) {
+      console.error('Error fetching appointments:', error);
+      return 'Sorry, I could not retrieve appointment information at this time.';
+    }
+
+    const appointments = (data || []).map(appointment => ({
+      id: appointment.id,
+      description: appointment.description || 'Appointment',
+      dateTime: appointment.date_time,
+      category: appointment.category || '',
+      streetAddress: appointment.street_address || undefined,
+      city: appointment.city || undefined,
+      state: appointment.state || undefined
+    }));
     
     if (appointments.length === 0) {
       return 'No upcoming appointments found.';
@@ -365,13 +391,43 @@ async function getAppointments(careGroupId: string, timeframe: string): Promise<
 
     return response;
   } catch (error) {
+    console.error('Error in getAppointments:', error);
     return 'Sorry, I could not retrieve appointment information at this time.';
   }
 }
 
 async function getTasks(careGroupId: string, status: string): Promise<string> {
   try {
-    const tasks = await getOpenTasks(careGroupId);
+    const { data, error } = await supabase
+      .from('tasks')
+      .select(`
+        id,
+        title,
+        description,
+        due_date,
+        priority,
+        primary_owner_id,
+        profiles!tasks_primary_owner_id_fkey(first_name, last_name)
+      `)
+      .eq('group_id', careGroupId)
+      .eq('is_deleted', false)
+      .neq('status', 'Completed')
+      .order('due_date', { ascending: true, nullsFirst: false })
+      .limit(10);
+
+    if (error) {
+      console.error('Error fetching tasks:', error);
+      return 'Sorry, I could not retrieve task information at this time.';
+    }
+
+    const tasks = (data || []).map(task => ({
+      id: task.id,
+      title: task.title || 'Untitled Task',
+      description: task.description || undefined,
+      dueDate: task.due_date || undefined,
+      priority: task.priority || 'medium',
+      assignedToName: task.profiles ? `${task.profiles.first_name || ''} ${task.profiles.last_name || ''}`.trim() : undefined
+    }));
     
     if (tasks.length === 0) {
       return 'No open tasks found.';
@@ -392,13 +448,40 @@ async function getTasks(careGroupId: string, status: string): Promise<string> {
 
     return response;
   } catch (error) {
+    console.error('Error in getTasks:', error);
     return 'Sorry, I could not retrieve task information at this time.';
   }
 }
 
 async function getDocuments(careGroupId: string, searchTerm?: string): Promise<string> {
   try {
-    const documents = await getDocumentSummaries(careGroupId);
+    const { data, error } = await supabase
+      .from('documents')
+      .select(`
+        id,
+        title,
+        summary,
+        category,
+        upload_date
+      `)
+      .eq('group_id', careGroupId)
+      .eq('is_deleted', false)
+      .not('summary', 'is', null)
+      .order('upload_date', { ascending: false })
+      .limit(5);
+
+    if (error) {
+      console.error('Error fetching documents:', error);
+      return 'Sorry, I could not retrieve document information at this time.';
+    }
+
+    const documents = (data || []).map(doc => ({
+      id: doc.id,
+      title: doc.title || 'Untitled Document',
+      summary: doc.summary || undefined,
+      category: doc.category || undefined,
+      uploadDate: doc.upload_date
+    }));
     
     if (documents.length === 0) {
       return 'No documents found.';
@@ -415,17 +498,42 @@ async function getDocuments(careGroupId: string, searchTerm?: string): Promise<s
 
     return response;
   } catch (error) {
+    console.error('Error in getDocuments:', error);
     return 'Sorry, I could not retrieve document information at this time.';
   }
 }
 
 async function getContacts(careGroupId: string, type?: string): Promise<string> {
   try {
-    const pcp = await getPcpContact(careGroupId);
-    
-    if (!pcp) {
+    const { data, error } = await supabase
+      .from('contacts')
+      .select(`
+        id,
+        first_name,
+        last_name,
+        phone_primary,
+        phone_secondary,
+        organization_name
+      `)
+      .eq('care_group_id', careGroupId)
+      .eq('is_deleted', false)
+      .eq('contact_type', 'medical')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data) {
       return 'No primary care physician contact found.';
     }
+
+    const pcp = {
+      id: data.id,
+      firstName: data.first_name || '',
+      lastName: data.last_name || '',
+      phonePrimary: data.phone_primary || undefined,
+      phoneSecondary: data.phone_secondary || undefined,
+      organizationName: data.organization_name || undefined
+    };
 
     let response = `Primary care physician: ${pcp.firstName} ${pcp.lastName}`;
     if (pcp.organizationName) {
@@ -438,13 +546,42 @@ async function getContacts(careGroupId: string, type?: string): Promise<string> 
 
     return response;
   } catch (error) {
+    console.error('Error in getContacts:', error);
     return 'Sorry, I could not retrieve contact information at this time.';
   }
 }
 
 async function getRecentActivities(careGroupId: string): Promise<string> {
   try {
-    const activities = await getRecentActivities(careGroupId);
+    const startDate = startOfDay(addDays(new Date(), -7));
+
+    const { data, error } = await supabase
+      .from('activity_logs')
+      .select(`
+        id,
+        title,
+        type,
+        date_time,
+        notes
+      `)
+      .eq('group_id', careGroupId)
+      .eq('is_deleted', false)
+      .gte('date_time', startDate.toISOString())
+      .order('date_time', { ascending: false })
+      .limit(5);
+
+    if (error) {
+      console.error('Error fetching activities:', error);
+      return 'Sorry, I could not retrieve activity information at this time.';
+    }
+
+    const activities = (data || []).map(activity => ({
+      id: activity.id,
+      title: activity.title || undefined,
+      type: activity.type || undefined,
+      dateTime: activity.date_time,
+      notes: activity.notes || undefined
+    }));
     
     if (activities.length === 0) {
       return 'No recent activities found.';
@@ -462,6 +599,7 @@ async function getRecentActivities(careGroupId: string): Promise<string> {
 
     return response;
   } catch (error) {
+    console.error('Error in getRecentActivities:', error);
     return 'Sorry, I could not retrieve activity information at this time.';
   }
 }
