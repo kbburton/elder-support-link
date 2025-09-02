@@ -217,6 +217,20 @@ serve(async (req) => {
       });
     }
 
+    // XML escape function for safe TwiML
+    function xmlEscape(str: string): string {
+      return str.replace(/[<>&'"]/g, (match) => {
+        switch (match) {
+          case '<': return '&lt;';
+          case '>': return '&gt;';
+          case '&': return '&amp;';
+          case '"': return '&quot;';
+          case "'": return '&apos;';
+          default: return match;
+        }
+      });
+    }
+
     // Start PIN authentication flow - determine caller type and build URL parameters
     let gatherUrl = `https://yfwgegapmggwywrnzqvg.functions.supabase.co/enhanced-twilio-pin-verify`;
     
@@ -231,7 +245,7 @@ serve(async (req) => {
     
     const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say>Hello! Welcome to ${careGroup.name}'s care assistant. Please enter your four-digit PIN followed by the pound key.</Say>
+  <Say>Hello! Welcome to ${xmlEscape(careGroup.name)}'s care assistant. Please enter your four-digit PIN followed by the pound key.</Say>
   <Gather action="${gatherUrl}" method="POST" numDigits="4" finishOnKey="#" timeout="10">
   </Gather>
   <Say>I didn't receive your PIN. Please try again.</Say>
