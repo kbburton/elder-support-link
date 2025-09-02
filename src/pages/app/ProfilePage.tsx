@@ -141,7 +141,6 @@ const ProfilePage = () => {
           city: values.city || null,
           state: values.state || null,
           zip: values.zip || null,
-          email: profile?.user?.email,
         });
 
       if (error) throw error;
