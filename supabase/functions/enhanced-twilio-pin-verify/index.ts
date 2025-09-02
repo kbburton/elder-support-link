@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
-import { hash, compare } from 'https://deno.land/x/bcrypt@v0.2.4/mod.ts';
+import bcrypt from 'https://esm.sh/bcryptjs@2.4.3';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -55,7 +55,7 @@ serve(async (req) => {
       console.log('Found care recipient match');
       entity = careGroupMatch;
       callerType = 'care_recipient';
-      pinMatch = await compare(digits, careGroupMatch.voice_pin);
+      pinMatch = await bcrypt.compare(digits, careGroupMatch.voice_pin);
       
       if (pinMatch) {
         careGroups = [careGroupMatch];
@@ -72,7 +72,7 @@ serve(async (req) => {
         console.log('Found care group member match');
         entity = profileMatch;
         callerType = 'user';
-        pinMatch = await compare(digits, profileMatch.voice_pin);
+        pinMatch = await bcrypt.compare(digits, profileMatch.voice_pin);
         
         if (pinMatch) {
           // Get user's care groups
