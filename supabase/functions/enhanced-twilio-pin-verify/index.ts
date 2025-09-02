@@ -135,6 +135,8 @@ serve(async (req) => {
 
     if (pinMatch) {
       console.log('PIN verification successful');
+      console.log('Care groups found:', careGroups.length);
+      console.log('Caller type:', callerType);
       
       // Reset failed attempts
       const updateData = {
@@ -160,32 +162,46 @@ serve(async (req) => {
         
         let groupList = 'Please select a care group. ';
         careGroups.forEach((group, index) => {
-          groupList += `Press ${index + 1} for ${group.recipient_first_name}'s care group. `;
+          const firstName = group.recipient_first_name || 'Care Group';
+          groupList += `Press ${index + 1} for ${firstName} care group. `;
         });
         groupList += 'Please press the number for your selection.';
 
         const baseUrl = `https://yfwgegapmggwywrnzqvg.functions.supabase.co`;
         const groupIds = careGroups.map(g => g.id).join(',');
-        const groupNames = careGroups.map(g => g.recipient_first_name).join(',');
+        const groupNames = careGroups.map(g => g.recipient_first_name || 'Unknown').join(',');
         const selectionUrl = `${baseUrl}/enhanced-twilio-group-selection?user_id=${entity.user_id}&groups=${encodeURIComponent(groupIds)}&names=${encodeURIComponent(groupNames)}`;
 
-        twimlResponse = `<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="alice">${groupList}</Say><Gather action="${selectionUrl}" method="POST" numDigits="1" timeout="10"></Gather><Say voice="alice">I didn't receive your selection. Let me connect you to the first care group.</Say><Redirect>${baseUrl}/enhanced-twilio-voice-chat?group_id=${careGroups[0].id}&user_id=${entity.user_id}&type=user</Redirect></Response>`;
+        console.log('Generated group selection TwiML');
+        twimlResponse = `<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="alice">${groupList}</Say><Gather action="${selectionUrl}" method="POST" numDigits="1" timeout="10"></Gather><Say voice="alice">I did not receive your selection. Let me connect you to the first care group.</Say><Redirect>${baseUrl}/enhanced-twilio-voice-chat?group_id=${careGroups[0].id}&user_id=${entity.user_id}&type=user</Redirect></Response>`;
       } else {
         // Single care group or care recipient - proceed to voice chat
-        const selectedGroup = careGroups[0];
-        const baseUrl = `https://yfwgegapmggwywrnzqvg.functions.supabase.co`;
-        let chatUrl = `${baseUrl}/enhanced-twilio-voice-chat?group_id=${selectedGroup.id}`;
-        let greeting = '';
+        console.log('Processing single care group access');
         
-        if (callerType === 'user') {
-          chatUrl += `&user_id=${entity.user_id}&type=user`;
-          greeting = `Welcome to ${selectedGroup.recipient_first_name}'s care group, what would you like to know?`;
+        if (!careGroups || careGroups.length === 0) {
+          console.error('No care groups available for user');
+          twimlResponse = `<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="alice">I am sorry, no care groups were found for your account. Please contact support. Goodbye.</Say><Hangup/></Response>`;
         } else {
-          chatUrl += `&type=care_recipient`;
-          greeting = `Welcome to ${selectedGroup.recipient_first_name || 'your care group'}, what would you like to know?`;
+          const selectedGroup = careGroups[0];
+          console.log('Selected group:', selectedGroup?.id, selectedGroup?.recipient_first_name);
+          
+          const baseUrl = `https://yfwgegapmggwywrnzqvg.functions.supabase.co`;
+          let chatUrl = `${baseUrl}/enhanced-twilio-voice-chat?group_id=${selectedGroup.id}`;
+          let greeting = '';
+          
+          if (callerType === 'user') {
+            chatUrl += `&user_id=${entity.user_id}&type=user`;
+            const firstName = selectedGroup.recipient_first_name || 'the care group';
+            greeting = `Welcome to ${firstName} care group, what would you like to know?`;
+          } else {
+            chatUrl += `&type=care_recipient`;
+            const firstName = selectedGroup.recipient_first_name || 'your care group';
+            greeting = `Welcome to ${firstName}, what would you like to know?`;
+          }
+          
+          console.log('Generated single group TwiML with greeting:', greeting);
+          twimlResponse = `<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="alice">${greeting}</Say><Redirect>${chatUrl}</Redirect></Response>`;
         }
-
-        twimlResponse = `<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="alice">${greeting}</Say><Redirect>${chatUrl}</Redirect></Response>`;
       }
     } else {
       console.log('PIN verification failed');
@@ -222,6 +238,8 @@ serve(async (req) => {
       }
     }
 
+    console.log('Final TwiML response length:', twimlResponse.length);
+    console.log('Final TwiML response preview:', twimlResponse.substring(0, 200) + '...');
     console.log('Sending TwiML response for PIN verification');
 
     return new Response(twimlResponse, {
