@@ -43,12 +43,15 @@ serve(async (req) => {
       const baseUrl = `https://yfwgegapmggwywrnzqvg.functions.supabase.co`;
       const chatUrl = `${baseUrl}/enhanced-twilio-voice-chat?group_id=${selectedGroupId}&user_id=${userId}&type=user`;
       
+      // Escape ampersands for proper XML parsing
+      const escapedChatUrl = chatUrl.replace(/&/g, '&amp;');
+      
       const twimlResponse = `
         <?xml version="1.0" encoding="UTF-8"?>
         <Response>
           <Say voice="alice">I didn't understand your selection. Connecting you to ${selectedGroupName}'s care group. What would you like to know?</Say>
           <Connect>
-            <Stream url="${chatUrl}"/>
+            <Stream url="${escapedChatUrl}"/>
           </Connect>
         </Response>
       `;
@@ -70,12 +73,15 @@ serve(async (req) => {
     const baseUrl = `https://yfwgegapmggwywrnzqvg.functions.supabase.co`;
     const chatUrl = `${baseUrl}/enhanced-twilio-voice-chat?group_id=${selectedGroupId}&user_id=${userId}&type=user`;
     
+    // Escape ampersands for proper XML parsing
+    const escapedChatUrl = chatUrl.replace(/&/g, '&amp;');
+    
     const twimlResponse = `
       <?xml version="1.0" encoding="UTF-8"?>
       <Response>
         <Say voice="alice">Welcome to ${selectedGroupName}'s care group, what would you like to know?</Say>
         <Connect>
-          <Stream url="${chatUrl}"/>
+          <Stream url="${escapedChatUrl}"/>
         </Connect>
       </Response>
     `;
