@@ -201,24 +201,16 @@ async function processPDF(fileBuffer: ArrayBuffer): Promise<string> {
     // If we get very little text (< 1000 chars), assume it's scanned and use OCR
     if (pdfText.length < 1000) {
       console.log('PDF has little embedded text, using OCR');
-      const bytes = new Uint8Array(fileBuffer);
-      let binaryString = '';
-      for (let i = 0; i < bytes.length; i++) {
-        binaryString += String.fromCharCode(bytes[i]);
-      }
-      const base64File = btoa(binaryString);
+      // Proper base64 encoding for binary data
+      const base64File = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)));
       return await extractTextWithOpenAI(base64File, 'pdf');
     }
     
     return pdfText;
   } catch (error) {
     console.log('Failed to extract embedded text, falling back to OCR:', error);
-    const bytes = new Uint8Array(fileBuffer);
-    let binaryString = '';
-    for (let i = 0; i < bytes.length; i++) {
-      binaryString += String.fromCharCode(bytes[i]);
-    }
-    const base64File = btoa(binaryString);
+    // Proper base64 encoding for binary data
+    const base64File = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)));
     return await extractTextWithOpenAI(base64File, 'pdf');
   }
 }
