@@ -195,50 +195,15 @@ serve(async (req) => {
 
 async function processPDF(fileBuffer: ArrayBuffer): Promise<string> {
   try {
-    // First, try to extract embedded text using a simple approach
-    const pdfText = extractEmbeddedTextFromPDF(fileBuffer);
-    
-    // If we get very little text (< 1000 chars), assume it's scanned and use OCR
-    if (pdfText.length < 1000) {
-      console.log('PDF has little embedded text, using OCR');
-      // Proper base64 encoding for binary data
-      const base64File = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)));
-      return await extractTextWithOpenAI(base64File, 'pdf');
-    }
-    
-    return pdfText;
-  } catch (error) {
-    console.log('Failed to extract embedded text, falling back to OCR:', error);
-    // Proper base64 encoding for binary data
+    console.log('Processing PDF with OpenAI (embedded text extraction is unreliable)');
+    // Always use OpenAI for PDF text extraction as embedded text extraction
+    // often produces corrupted results due to PDF encoding complexity
     const base64File = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)));
     return await extractTextWithOpenAI(base64File, 'pdf');
+  } catch (error) {
+    console.error('Failed to process PDF with OpenAI:', error);
+    throw new Error(`PDF processing failed: ${error.message}`);
   }
-}
-
-function extractEmbeddedTextFromPDF(fileBuffer: ArrayBuffer): string {
-  // Simple PDF text extraction - look for text objects
-  const pdfText = new TextDecoder('latin1').decode(fileBuffer);
-  const textMatches = pdfText.match(/\(([^)]+)\)/g) || [];
-  
-  let extractedText = '';
-  for (const match of textMatches) {
-    const text = match.slice(1, -1); // Remove parentheses
-    if (text.length > 2 && /[a-zA-Z]/.test(text)) {
-      extractedText += text + ' ';
-    }
-  }
-  
-  // Also look for stream content
-  const streamMatches = pdfText.match(/stream\s*(.*?)\s*endstream/gs) || [];
-  for (const stream of streamMatches) {
-    const content = stream.replace(/^stream\s*/, '').replace(/\s*endstream$/, '');
-    const readable = content.replace(/[^\x20-\x7E\n\r\t]/g, ' ').trim();
-    if (readable.length > 10) {
-      extractedText += readable + ' ';
-    }
-  }
-  
-  return extractedText.trim();
 }
 
 async function processDOCX(fileBuffer: ArrayBuffer): Promise<string> {
