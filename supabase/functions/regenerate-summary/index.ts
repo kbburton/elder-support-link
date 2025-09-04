@@ -76,7 +76,8 @@ serve(async (req) => {
       }
     }
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    // Use OpenAI Responses API for consistent processing
+    const response = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${OPENAI_API_KEY}`,
@@ -84,26 +85,18 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a helpful assistant that creates concise summaries. Focus on key points, important dates, and actionable information.'
-          },
-          {
-            role: 'user',
-            content: `Please create a comprehensive summary of this document:\n\n${textContent.substring(0, 10000)}`
-          }
-        ],
-        max_tokens: 400,
-      }),
+        input: `Create a comprehensive summary of this document. Focus on key points, important dates, names, amounts, and actionable information:\n\n${textContent.substring(0, 10000)}`
+      })
     });
 
     if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.statusText}`);
+      const errorText = await response.text();
+      console.error(`OpenAI Responses API error: ${response.status} - ${errorText}`);
+      throw new Error(`Summary generation failed: ${response.statusText}`);
     }
 
     const data = await response.json();
-    const newSummary = data.choices[0]?.message?.content || 'Summary could not be generated.';
+    const newSummary = data.output_text || 'Summary could not be generated.';
 
     const { error: updateError } = await supabaseClient
       .from('documents')
@@ -120,6 +113,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
+    console.error('Error in regenerate-summary function:', error);
     return new Response(
       JSON.stringify({ error: error.message, success: false }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
