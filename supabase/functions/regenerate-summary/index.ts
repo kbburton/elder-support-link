@@ -41,8 +41,39 @@ serve(async (req) => {
 
     let textContent = document.full_text;
     
+    // If no text content, attempt to reprocess the document
     if (!textContent || textContent.trim().length === 0) {
-      throw new Error('No text content available to summarize');
+      console.log('No text content found, attempting to reprocess document');
+      
+      try {
+        // Call the process-document function to extract text
+        const { error: processError } = await supabaseClient.functions.invoke('process-document', {
+          body: { documentId }
+        });
+        
+        if (processError) {
+          console.error('Reprocessing failed:', processError);
+          throw new Error(`Document reprocessing failed: ${processError.message}`);
+        }
+        
+        // Fetch the updated document with extracted text
+        const { data: updatedDoc, error: fetchError } = await supabaseClient
+          .from('documents')
+          .select('full_text')
+          .eq('id', documentId)
+          .single();
+          
+        if (fetchError || !updatedDoc?.full_text) {
+          throw new Error('Document reprocessing completed but no text was extracted');
+        }
+        
+        textContent = updatedDoc.full_text;
+        console.log(`Reprocessed document, extracted ${textContent.length} characters`);
+        
+      } catch (reprocessError) {
+        console.error('Document reprocessing failed:', reprocessError);
+        throw new Error(`No text content available and reprocessing failed: ${reprocessError.message}`);
+      }
     }
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {

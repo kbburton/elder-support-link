@@ -380,12 +380,12 @@ async function convertPDFToImageAndAnalyze(fileBuffer: ArrayBuffer): Promise<str
   }
 
   try {
-    console.log('Converting PDF to base64 for image analysis');
+    console.log('Converting PDF to base64 for Vision API analysis');
     
     // Convert PDF buffer to base64 for OpenAI Vision API
     const base64File = encodeBase64Chunked(fileBuffer);
     
-    console.log(`Sending PDF as image to OpenAI Vision API, size: ${(fileBuffer.byteLength / 1024 / 1024).toFixed(1)}MB`);
+    console.log(`Sending PDF to OpenAI Vision API, size: ${(fileBuffer.byteLength / 1024 / 1024).toFixed(1)}MB`);
     
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -410,7 +410,8 @@ async function convertPDFToImageAndAnalyze(fileBuffer: ArrayBuffer): Promise<str
               {
                 type: 'image_url',
                 image_url: {
-                  url: `data:application/pdf;base64,${base64File}`
+                  url: `data:application/pdf;base64,${base64File}`,
+                  detail: 'high'
                 }
               }
             ]
@@ -422,24 +423,24 @@ async function convertPDFToImageAndAnalyze(fileBuffer: ArrayBuffer): Promise<str
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`PDF OCR API error: ${response.status} ${response.statusText} - ${errorText}`);
-      throw new Error(`PDF OCR failed: ${response.statusText}`);
+      console.error(`PDF Vision API error: ${response.status} ${response.statusText} - ${errorText}`);
+      throw new Error(`PDF Vision API failed: ${response.statusText} - ${errorText}`);
     }
 
     const data = await response.json();
     const extractedText = data.choices[0]?.message?.content || '';
     
-    console.log(`PDF OCR extracted ${extractedText.length} characters`);
+    console.log(`PDF Vision API extracted ${extractedText.length} characters`);
     
     // Check if the extracted text looks valid
     if (extractedText && extractedText.length > 20 && !isGarbledText(extractedText)) {
       return extractedText;
     }
     
-    throw new Error('PDF OCR could not extract meaningful text');
+    throw new Error('PDF Vision API could not extract meaningful text');
     
   } catch (error) {
-    console.error('PDF OCR error:', error);
+    console.error('PDF Vision API error:', error);
     throw error;
   }
 }
