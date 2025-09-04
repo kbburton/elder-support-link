@@ -203,12 +203,11 @@ async function routeAndProcess(fileBuffer: ArrayBuffer, fileType: string, mimeTy
     return { text };
   }
   
-  // Office files - convert to PDF first, then process
+  // Office files - use Responses API with file upload
   if (fileType.includes('docx') || fileType.includes('pptx') || fileType.includes('xlsx') ||
       mimeType.includes('officedocument') || mimeType.includes('ms-excel')) {
-    console.log('Office file detected - converting to PDF not implemented, using basic extraction');
-    // For now, use basic text extraction until we implement PDF conversion
-    return await processOfficeFile(fileBuffer, fileType);
+    console.log('Processing Office file with Responses API');
+    return await processOfficeFileWithResponses(fileBuffer, mimeType, apiKey);
   }
   
   throw new Error(`Unsupported file type: ${fileType}. Supported types: PDF, DOCX, PPTX, XLSX, TXT, JPG, PNG, WebP`);
@@ -303,46 +302,47 @@ async function processImageWithResponses(fileBuffer: ArrayBuffer, mimeType: stri
   }
 }
 
-async function processOfficeFile(fileBuffer: ArrayBuffer, fileType: string): Promise<{text: string}> {
-  // Basic text extraction for Office files
-  // In a production system, you'd convert to PDF first
+async function processOfficeFileWithResponses(fileBuffer: ArrayBuffer, mimeType: string, apiKey: string): Promise<{text: string}> {
   try {
-    const textDecoder = new TextDecoder();
-    const content = textDecoder.decode(fileBuffer);
+    // Upload Office file to OpenAI - the API can handle Office files directly
+    const filename = mimeType.includes('word') ? 'document.docx' : 
+                    mimeType.includes('presentation') ? 'presentation.pptx' : 'spreadsheet.xlsx';
+    const fileId = await uploadFileToOpenAI(fileBuffer, mimeType, filename, apiKey);
     
-    let extractedText = '';
-    
-    if (fileType.includes('docx')) {
-      // Extract DOCX text
-      const textMatches = content.match(/<w:t[^>]*>([^<]*)<\/w:t>/g) || [];
-      extractedText = textMatches
-        .map(match => match.replace(/<w:t[^>]*>([^<]*)<\/w:t>/, '$1'))
-        .join(' ')
-        .trim();
-    } else if (fileType.includes('xlsx')) {
-      // Extract XLSX text
-      const stringMatches = content.match(/<t[^>]*>([^<]+)<\/t>/g) || [];
-      extractedText = stringMatches
-        .map(match => match.replace(/<t[^>]*>([^<]+)<\/t>/, '$1'))
-        .filter(text => text.length > 1 && /[a-zA-Z]/.test(text))
-        .join(' ');
-    } else if (fileType.includes('pptx')) {
-      // Extract PPTX text
-      const textMatches = content.match(/<a:t[^>]*>([^<]+)<\/a:t>/g) || [];
-      extractedText = textMatches
-        .map(match => match.replace(/<a:t[^>]*>([^<]+)<\/a:t>/, '$1'))
-        .join(' ');
+    // Use Responses API with input_file
+    const response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        input: [{
+          role: 'user',
+          content: [
+            { type: 'input_file', file_id: fileId },
+            { type: 'input_text', text: 'Extract all text content from this document. Preserve the structure and meaning of the text while making it readable.' }
+          ]
+        }]
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`OpenAI Responses API error: ${response.status} - ${errorText}`);
+      throw new Error(`Office file processing failed: ${response.statusText}`);
     }
+
+    const data = await response.json();
+    const text = data.output_text || '';
     
-    if (!extractedText || extractedText.length < 10) {
-      throw new Error(`Unable to extract text from ${fileType} file. Consider converting to PDF first.`);
-    }
-    
-    return { text: extractedText };
+    console.log(`Extracted ${text.length} characters from Office file`);
+    return { text };
     
   } catch (error) {
-    console.error(`Office file processing error:`, error);
-    throw new Error(`${fileType} processing failed: ${error.message}`);
+    console.error('Office file processing error:', error);
+    throw new Error(`Office file processing failed: ${error.message}`);
   }
 }
 
@@ -453,145 +453,6 @@ function isGarbledText(text: string): boolean {
   return false;
 }
 
-async function extractTextWithOpenAI(base64File: string, fileType: string): Promise<string> {
-  const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-  if (!openAIApiKey) {
-    throw new Error('OpenAI API key not configured');
-  }
-
-  // For other file types (images, docx), use vision API
-  let prompt = 'Please extract all text content from this image using OCR. Return only the text content without any formatting or explanations. Include all visible text, even if it appears to be handwritten.';
-  let mimeType = 'image/jpeg';
-  
-  if (fileType === 'docx') {
-    prompt = 'Please extract all readable text content from this Microsoft Word document (.docx). Return only the actual document text that a human would read, preserving the meaning but removing formatting. Do not include any metadata, headers, footers, or technical information about the file structure.';
-    mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-  }
-
-  console.log(`Calling OpenAI vision API with ${fileType} file, size: ${(base64File.length * 0.75 / 1024 / 1024).toFixed(1)}MB`);
-
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openAIApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: prompt },
-            {
-              type: 'image_url',
-              image_url: {
-                url: `data:${mimeType};base64,${base64File}`
-              }
-            }
-          ]
-        }
-      ],
-      max_tokens: 4000
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`);
-    throw new Error(`OpenAI API error: ${response.statusText} - ${errorText}`);
-  }
-
-  const data = await response.json();
-  const extractedText = data.choices[0]?.message?.content || '';
-  console.log(`Extracted ${extractedText.length} characters from ${fileType}`);
-  return extractedText;
-}
-
-
-async function generateSummary(text: string): Promise<string> {
-  if (!text || text.trim().length === 0) {
-    throw new Error('No content available to summarize');
-  }
-  
-  // Check for error messages that shouldn't be summarized
-  const errorPatterns = [
-    'no visible text',
-    'cannot read',
-    'unable to extract',
-    'processing failed',
-    'could not be extracted',
-    'compressed or encoded format',
-    'could not be processed',
-    'cannot extract text from this file',
-    'sorry, i can\'t extract text'
-  ];
-  
-  const lowerText = text.toLowerCase();
-  const hasErrorPattern = errorPatterns.some(pattern => lowerText.includes(pattern));
-  
-  if (hasErrorPattern) {
-    throw new Error('Document content appears to contain error messages rather than actual document text');
-  }
-
-  const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-  if (!openAIApiKey) {
-    throw new Error('OpenAI API key not configured');
-  }
-
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openAIApiKey}`,
-      'Content-Type': 'application/json',
-    },
-      body: JSON.stringify({
-        model: 'gpt-4.1-mini-2025-04-14',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a helpful assistant that creates concise summaries of documents. Focus on key points, important dates, medications, actions needed, and critical information. Keep summaries under 300 words and make them useful for caregivers and healthcare professionals.'
-          },
-          {
-            role: 'user',
-            content: `Please provide a concise summary of the following document content, highlighting the most important information:\n\n${text.substring(0, 10000)}`
-          }
-        ],
-        max_completion_tokens: 400
-      }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Failed to generate summary:', errorText);
-    throw new Error(`Summary generation failed: ${response.statusText}`);
-  }
-
-  const data = await response.json();
-  const summary = data.choices[0]?.message?.content;
-  if (!summary) {
-    throw new Error('No summary content returned from AI');
-  }
-  return summary;
-}
-
-// Sanitize text to prevent Unicode escape sequence errors in PostgreSQL
-function sanitizeTextForDatabaseFallback(text: string): string {
-  if (!text || typeof text !== 'string') {
-    return '';
-  }
-  
-  return text
-    // Remove null bytes which can cause PostgreSQL issues
-    .replace(/\0/g, '')
-    // Replace problematic Unicode escape sequences
-    .replace(/\\u[0-9a-fA-F]{4}/g, '')
-    // Replace other control characters that might cause issues
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ')
-    // Normalize whitespace
-    .replace(/\s+/g, ' ')
-    .trim();
-}
 
 // Export functions for testing
 export { isGarbledText };
