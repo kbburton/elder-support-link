@@ -195,65 +195,13 @@ serve(async (req) => {
 
 async function processPDF(fileBuffer: ArrayBuffer): Promise<string> {
   try {
-    console.log('Processing PDF with text extraction approach');
+    console.log('Processing PDF with OpenAI document analysis');
     
     // Check file size
     const fileSizeMB = fileBuffer.byteLength / (1024 * 1024);
     console.log(`PDF file size: ${fileSizeMB.toFixed(1)}MB`);
     
-    // Try to extract text directly from PDF structure
-    const textDecoder = new TextDecoder('utf-8', { fatal: false });
-    const pdfText = textDecoder.decode(fileBuffer);
-    
-    // Look for readable text content in the PDF
-    const textMatches = [];
-    
-    // Extract text from PDF streams and objects
-    const streamMatches = pdfText.match(/stream\s*([\s\S]*?)\s*endstream/gi) || [];
-    for (const match of streamMatches) {
-      const streamContent = match.replace(/^stream\s*/, '').replace(/\s*endstream$/i, '');
-      // Try to decode if it looks like readable text
-      if (/[a-zA-Z0-9\s]{10,}/.test(streamContent)) {
-        textMatches.push(streamContent);
-      }
-    }
-    
-    // Look for direct text content
-    const directTextMatches = pdfText.match(/\(((?:[^()\\]|\\.)*)\)/g) || [];
-    for (const match of directTextMatches) {
-      const content = match.slice(1, -1); // Remove parentheses
-      if (content.length > 3 && /[a-zA-Z]/.test(content)) {
-        textMatches.push(content);
-      }
-    }
-    
-    // Look for text objects with Tj operators
-    const tjMatches = pdfText.match(/\(((?:[^()\\]|\\.)*)\)\s*Tj/g) || [];
-    for (const match of tjMatches) {
-      const content = match.replace(/\s*Tj$/, '').slice(1, -1);
-      if (content.length > 2 && /[a-zA-Z]/.test(content)) {
-        textMatches.push(content);
-      }
-    }
-    
-    let extractedText = textMatches.join(' ').trim();
-    
-    // Clean up extracted text
-    extractedText = extractedText
-      .replace(/\\[rn]/g, ' ')
-      .replace(/\\\\/g, '\\')
-      .replace(/\\([()])/g, '$1')
-      .replace(/\s+/g, ' ')
-      .trim();
-    
-    // If we got some readable text, return it
-    if (extractedText.length > 50 && /[a-zA-Z]{5,}/.test(extractedText)) {
-      console.log(`Extracted ${extractedText.length} characters from PDF`);
-      return extractedText;
-    }
-    
-    // If direct extraction failed, fall back to OpenAI
-    console.log('Direct PDF extraction failed, falling back to OpenAI OCR');
+    // Use OpenAI's advanced document processing capabilities
     const base64File = encodeBase64Chunked(fileBuffer);
     return await extractTextWithOpenAI(base64File, 'pdf');
     
@@ -359,9 +307,9 @@ async function extractTextWithOpenAI(base64File: string, fileType: string): Prom
     throw new Error('OpenAI API key not configured');
   }
 
-  // For PDFs, we need to try a different approach since we can't send PDF data as images
+  // For PDFs, use vision API by treating as image for OCR
   if (fileType === 'pdf') {
-    console.log('Attempting OpenAI text extraction for PDF using document understanding');
+    console.log('Processing PDF with OpenAI vision API for OCR');
     
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -374,7 +322,18 @@ async function extractTextWithOpenAI(base64File: string, fileType: string): Prom
         messages: [
           {
             role: 'user',
-            content: `Please extract readable text from this PDF content. The content may appear encoded or contain PDF markup. Extract only the human-readable text, ignoring PDF metadata, formatting codes, and binary content. Here is the PDF content (base64 decoded):\n\n${atob(base64File).substring(0, 8000)}`
+            content: [
+              { 
+                type: 'text', 
+                text: 'This is a PDF document. Please perform OCR to extract all readable text content. Return only the extracted text without formatting, explanations, or metadata. Focus on extracting all visible text that would be useful for document summarization.'
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:application/pdf;base64,${base64File}`
+                }
+              }
+            ]
           }
         ],
         max_tokens: 4000
