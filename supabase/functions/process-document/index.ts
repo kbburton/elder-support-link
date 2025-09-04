@@ -195,10 +195,18 @@ serve(async (req) => {
 
 async function processPDF(fileBuffer: ArrayBuffer): Promise<string> {
   try {
-    console.log('Processing PDF with OpenAI (embedded text extraction is unreliable)');
-    // Always use OpenAI for PDF text extraction as embedded text extraction
-    // often produces corrupted results due to PDF encoding complexity
-    const base64File = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)));
+    console.log('Processing PDF with OpenAI vision API');
+    
+    // Check file size - OpenAI vision API has a 20MB limit
+    const fileSizeMB = fileBuffer.byteLength / (1024 * 1024);
+    if (fileSizeMB > 19) {
+      throw new Error(`PDF file too large for vision API: ${fileSizeMB.toFixed(1)}MB. Maximum is 20MB.`);
+    }
+    
+    console.log(`PDF file size: ${fileSizeMB.toFixed(1)}MB`);
+    
+    // Use chunked base64 encoding to avoid memory issues
+    const base64File = encodeBase64Chunked(fileBuffer);
     return await extractTextWithOpenAI(base64File, 'pdf');
   } catch (error) {
     console.error('Failed to process PDF with OpenAI:', error);
@@ -306,12 +314,14 @@ async function extractTextWithOpenAI(base64File: string, fileType: string): Prom
   let mimeType = 'image/jpeg';
   
   if (fileType === 'pdf') {
-    prompt = 'Please extract all text content from this PDF document. Return only the text content without any formatting or explanations. If this is a scanned document, perform OCR to extract all visible text.';
+    prompt = 'Extract all readable text from this PDF document. Focus on the actual content that would be useful for healthcare professionals and caregivers. Return only the extracted text without any formatting, explanations, or metadata. If this is a scanned document, use OCR to extract all visible text.';
     mimeType = 'application/pdf';
   } else if (fileType === 'docx') {
     prompt = 'Please extract all readable text content from this Microsoft Word document (.docx). Return only the actual document text that a human would read, preserving the meaning but removing formatting. Do not include any metadata, headers, footers, or technical information about the file structure.';
     mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
   }
+
+  console.log(`Calling OpenAI with ${fileType} file, size: ${(base64File.length * 0.75 / 1024 / 1024).toFixed(1)}MB`);
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -320,7 +330,7 @@ async function extractTextWithOpenAI(base64File: string, fileType: string): Prom
       'Content-Type': 'application/json',
     },
       body: JSON.stringify({
-        model: 'gpt-4.1-2025-04-14',
+        model: 'gpt-4o',  // Use gpt-4o for better PDF handling like ChatGPT
         messages: [
           {
             role: 'user',
@@ -335,17 +345,20 @@ async function extractTextWithOpenAI(base64File: string, fileType: string): Prom
             ]
           }
         ],
-        max_completion_tokens: 4000
+        max_tokens: 4000  // gpt-4o uses max_tokens, not max_completion_tokens
       }),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
+    console.error(`OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`);
     throw new Error(`OpenAI API error: ${response.statusText} - ${errorText}`);
   }
 
   const data = await response.json();
-  return data.choices[0]?.message?.content || '';
+  const extractedText = data.choices[0]?.message?.content || '';
+  console.log(`Extracted ${extractedText.length} characters from ${fileType}`);
+  return extractedText;
 }
 
 async function generateSummary(text: string): Promise<string> {
