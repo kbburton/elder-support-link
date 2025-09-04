@@ -195,15 +195,15 @@ serve(async (req) => {
 
 async function processPDF(fileBuffer: ArrayBuffer): Promise<string> {
   try {
-    console.log('Processing PDF with OpenAI document analysis');
+    console.log('Processing PDF - attempting structured text extraction');
     
     // Check file size
     const fileSizeMB = fileBuffer.byteLength / (1024 * 1024);
     console.log(`PDF file size: ${fileSizeMB.toFixed(1)}MB`);
     
-    // Use OpenAI's advanced document processing capabilities
-    const base64File = encodeBase64Chunked(fileBuffer);
-    return await extractTextWithOpenAI(base64File, 'pdf');
+    // Try to extract text using OpenAI's text completion API
+    // This is more appropriate for PDF documents than vision API
+    return await extractPDFTextWithOpenAI(fileBuffer);
     
   } catch (error) {
     console.error('Failed to process PDF:', error);
@@ -301,16 +301,67 @@ async function processXLSX(fileBuffer: ArrayBuffer): Promise<string> {
   }
 }
 
-async function extractTextWithOpenAI(base64File: string, fileType: string): Promise<string> {
+// New function specifically for PDF text extraction
+async function extractPDFTextWithOpenAI(fileBuffer: ArrayBuffer): Promise<string> {
   const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
   if (!openAIApiKey) {
     throw new Error('OpenAI API key not configured');
   }
 
-  // For PDFs, use vision API by treating as image for OCR
-  if (fileType === 'pdf') {
-    console.log('Processing PDF with OpenAI vision API for OCR');
+  console.log('Extracting PDF text using OpenAI text analysis');
+  
+  try {
+    // Convert PDF to text using a different approach
+    // First try to extract text directly from PDF structure
+    const textDecoder = new TextDecoder('utf-8', { fatal: false });
+    const rawText = textDecoder.decode(fileBuffer);
     
+    console.log(`Raw PDF text length: ${rawText.length} characters`);
+    
+    // Look for readable text patterns in PDF
+    let extractedText = '';
+    
+    // Extract text between common PDF text markers
+    const textPatterns = [
+      /BT\s+(.*?)\s+ET/gs,  // Between BT (Begin Text) and ET (End Text)
+      /\((.*?)\)\s*Tj/gs,   // Text strings followed by Tj (show text)
+      /\[(.*?)\]\s*TJ/gs,   // Text arrays followed by TJ (show text with adjustments)
+    ];
+    
+    for (const pattern of textPatterns) {
+      const matches = rawText.match(pattern);
+      if (matches) {
+        for (const match of matches) {
+          // Clean up the match
+          let cleanText = match
+            .replace(/BT\s*|\s*ET/g, '')
+            .replace(/\)\s*Tj/g, '')
+            .replace(/\]\s*TJ/g, '')
+            .replace(/\(/g, '')
+            .replace(/\)/g, ' ')
+            .replace(/\[/g, '')
+            .replace(/\]/g, ' ')
+            .replace(/\\[nrt]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+          
+          if (cleanText.length > 2 && /[a-zA-Z]/.test(cleanText)) {
+            extractedText += cleanText + ' ';
+          }
+        }
+      }
+    }
+    
+    console.log(`Direct extraction found ${extractedText.length} characters`);
+    
+    // If direct extraction found reasonable text, use it
+    if (extractedText.length > 50 && !isGarbledText(extractedText)) {
+      return extractedText.trim();
+    }
+    
+    console.log('Direct extraction failed, trying OpenAI text analysis');
+    
+    // If direct extraction failed, use OpenAI to analyze the raw content
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -318,36 +369,69 @@ async function extractTextWithOpenAI(base64File: string, fileType: string): Prom
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: 'gpt-4.1-2025-04-14',
         messages: [
           {
+            role: 'system',
+            content: 'You are a PDF text extraction expert. Extract readable text from PDF raw content, ignoring formatting codes and binary data.'
+          },
+          {
             role: 'user',
-            content: [
-              { 
-                type: 'text', 
-                text: 'This is a PDF document. Please perform OCR to extract all readable text content. Return only the extracted text without formatting, explanations, or metadata. Focus on extracting all visible text that would be useful for document summarization.'
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:application/pdf;base64,${base64File}`
-                }
-              }
-            ]
+            content: `Extract readable text from this PDF content. Ignore PDF formatting codes, binary data, and metadata. Return only human-readable text that would be useful for summarization:\n\n${rawText.substring(0, 8000)}`
           }
         ],
-        max_tokens: 4000
+        max_completion_tokens: 4000
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`OpenAI API error for PDF: ${response.status} ${response.statusText} - ${errorText}`);
-      throw new Error(`PDF text extraction failed: ${response.statusText}`);
+      console.error(`OpenAI API error for PDF text analysis: ${response.status} ${response.statusText} - ${errorText}`);
+      throw new Error(`PDF text analysis failed: ${response.statusText}`);
     }
 
     const data = await response.json();
-    return data.choices[0]?.message?.content || 'No readable text found in PDF';
+    const analyzedText = data.choices[0]?.message?.content || '';
+    
+    console.log(`OpenAI analysis extracted ${analyzedText.length} characters`);
+    
+    if (analyzedText && !isGarbledText(analyzedText)) {
+      return analyzedText;
+    }
+    
+    throw new Error('Could not extract readable text from PDF using any method');
+    
+  } catch (error) {
+    console.error('PDF text extraction error:', error);
+    throw error;
+  }
+}
+
+// Helper function to detect garbled text
+function isGarbledText(text: string): boolean {
+  const garbledPatterns = [
+    /^[^\w\s]{10,}/,  // Starts with many non-word characters
+    /[^\w\s]{20,}/,   // Contains long sequences of non-word characters
+    /^[\x00-\x08\x0E-\x1F\x7F-\x9F]{5,}/, // Contains control characters
+  ];
+  
+  const totalChars = text.length;
+  const readableChars = (text.match(/[a-zA-Z0-9\s]/g) || []).length;
+  const readableRatio = readableChars / totalChars;
+  
+  // If less than 30% of characters are readable, consider it garbled
+  if (readableRatio < 0.3) {
+    return true;
+  }
+  
+  // Check for specific garbled patterns
+  return garbledPatterns.some(pattern => pattern.test(text));
+}
+
+async function extractTextWithOpenAI(base64File: string, fileType: string): Promise<string> {
+  const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+  if (!openAIApiKey) {
+    throw new Error('OpenAI API key not configured');
   }
 
   // For other file types (images, docx), use vision API
@@ -530,3 +614,6 @@ function sanitizeTextForDatabase(text: string): string {
     .replace(/\s+/g, ' ')
     .trim();
 }
+
+// Export functions for testing
+export { extractPDFTextWithOpenAI, isGarbledText };
