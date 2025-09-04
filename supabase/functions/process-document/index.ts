@@ -195,21 +195,70 @@ serve(async (req) => {
 
 async function processPDF(fileBuffer: ArrayBuffer): Promise<string> {
   try {
-    console.log('Processing PDF with OpenAI vision API');
+    console.log('Processing PDF with text extraction approach');
     
-    // Check file size - OpenAI vision API has a 20MB limit
+    // Check file size
     const fileSizeMB = fileBuffer.byteLength / (1024 * 1024);
-    if (fileSizeMB > 19) {
-      throw new Error(`PDF file too large for vision API: ${fileSizeMB.toFixed(1)}MB. Maximum is 20MB.`);
-    }
-    
     console.log(`PDF file size: ${fileSizeMB.toFixed(1)}MB`);
     
-    // Use chunked base64 encoding to avoid memory issues
+    // Try to extract text directly from PDF structure
+    const textDecoder = new TextDecoder('utf-8', { fatal: false });
+    const pdfText = textDecoder.decode(fileBuffer);
+    
+    // Look for readable text content in the PDF
+    const textMatches = [];
+    
+    // Extract text from PDF streams and objects
+    const streamMatches = pdfText.match(/stream\s*([\s\S]*?)\s*endstream/gi) || [];
+    for (const match of streamMatches) {
+      const streamContent = match.replace(/^stream\s*/, '').replace(/\s*endstream$/i, '');
+      // Try to decode if it looks like readable text
+      if (/[a-zA-Z0-9\s]{10,}/.test(streamContent)) {
+        textMatches.push(streamContent);
+      }
+    }
+    
+    // Look for direct text content
+    const directTextMatches = pdfText.match(/\(((?:[^()\\]|\\.)*)\)/g) || [];
+    for (const match of directTextMatches) {
+      const content = match.slice(1, -1); // Remove parentheses
+      if (content.length > 3 && /[a-zA-Z]/.test(content)) {
+        textMatches.push(content);
+      }
+    }
+    
+    // Look for text objects with Tj operators
+    const tjMatches = pdfText.match(/\(((?:[^()\\]|\\.)*)\)\s*Tj/g) || [];
+    for (const match of tjMatches) {
+      const content = match.replace(/\s*Tj$/, '').slice(1, -1);
+      if (content.length > 2 && /[a-zA-Z]/.test(content)) {
+        textMatches.push(content);
+      }
+    }
+    
+    let extractedText = textMatches.join(' ').trim();
+    
+    // Clean up extracted text
+    extractedText = extractedText
+      .replace(/\\[rn]/g, ' ')
+      .replace(/\\\\/g, '\\')
+      .replace(/\\([()])/g, '$1')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    // If we got some readable text, return it
+    if (extractedText.length > 50 && /[a-zA-Z]{5,}/.test(extractedText)) {
+      console.log(`Extracted ${extractedText.length} characters from PDF`);
+      return extractedText;
+    }
+    
+    // If direct extraction failed, fall back to OpenAI
+    console.log('Direct PDF extraction failed, falling back to OpenAI OCR');
     const base64File = encodeBase64Chunked(fileBuffer);
     return await extractTextWithOpenAI(base64File, 'pdf');
+    
   } catch (error) {
-    console.error('Failed to process PDF with OpenAI:', error);
+    console.error('Failed to process PDF:', error);
     throw new Error(`PDF processing failed: ${error.message}`);
   }
 }
@@ -310,10 +359,36 @@ async function extractTextWithOpenAI(base64File: string, fileType: string): Prom
     throw new Error('OpenAI API key not configured');
   }
 
-  // For PDFs, treat as image for OCR since OpenAI vision API doesn't accept PDF MIME type
+  // For PDFs, we need to try a different approach since we can't send PDF data as images
   if (fileType === 'pdf') {
-    console.log(`Processing PDF as image for OCR, size: ${(base64File.length * 0.75 / 1024 / 1024).toFixed(1)}MB`);
-    return await extractTextFromPDFAsImage(base64File);
+    console.log('Attempting OpenAI text extraction for PDF using document understanding');
+    
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAIApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'user',
+            content: `Please extract readable text from this PDF content. The content may appear encoded or contain PDF markup. Extract only the human-readable text, ignoring PDF metadata, formatting codes, and binary content. Here is the PDF content (base64 decoded):\n\n${atob(base64File).substring(0, 8000)}`
+          }
+        ],
+        max_tokens: 4000
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`OpenAI API error for PDF: ${response.status} ${response.statusText} - ${errorText}`);
+      throw new Error(`PDF text extraction failed: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.choices[0]?.message?.content || 'No readable text found in PDF';
   }
 
   // For other file types (images, docx), use vision API
