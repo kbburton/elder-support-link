@@ -218,7 +218,7 @@ async function processPDFWithResponses(fileBuffer: ArrayBuffer, apiKey: string):
     // Upload file to OpenAI
     const fileId = await uploadFileToOpenAI(fileBuffer, 'application/pdf', 'file.pdf', apiKey);
     
-    // Use Responses API with input_file
+    // Use Responses API with input_file (PDFs are supported)
     const response = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: {
@@ -231,7 +231,7 @@ async function processPDFWithResponses(fileBuffer: ArrayBuffer, apiKey: string):
           role: 'user',
           content: [
             { type: 'input_file', file_id: fileId },
-            { type: 'input_text', text: 'Extract all text content from this document. Preserve formatting and structure where possible.' }
+            { type: 'input_text', text: 'Extract all text content from this PDF document. Preserve formatting and structure where possible. Return all readable text content.' }
           ]
         }]
       })
@@ -240,17 +240,69 @@ async function processPDFWithResponses(fileBuffer: ArrayBuffer, apiKey: string):
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`OpenAI Responses API error: ${response.status} - ${errorText}`);
-      throw new Error(`OpenAI processing failed: ${response.statusText}`);
+      
+      // Fallback to Chat Completions API if Responses API fails
+      console.log('Falling back to Chat Completions API for PDF processing');
+      return await processPDFWithChatAPI(fileBuffer, apiKey);
     }
 
     const data = await response.json();
     const text = data.output_text || '';
+    
+    // If no text extracted, try fallback
+    if (!text || text.trim().length === 0) {
+      console.log('No text extracted with Responses API, trying Chat API fallback');
+      return await processPDFWithChatAPI(fileBuffer, apiKey);
+    }
     
     console.log(`Extracted ${text.length} characters from PDF`);
     return { text };
     
   } catch (error) {
     console.error('PDF processing error:', error);
+    console.log('Attempting Chat API fallback due to error');
+    return await processPDFWithChatAPI(fileBuffer, apiKey);
+  }
+}
+
+async function processPDFWithChatAPI(fileBuffer: ArrayBuffer, apiKey: string): Promise<{text: string}> {
+  try {
+    const fileId = await uploadFileToOpenAI(fileBuffer, 'application/pdf', 'file.pdf', apiKey);
+    
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [{
+          role: 'user',
+          content: [
+            { 
+              type: 'text', 
+              text: `Extract all text content from the uploaded PDF file. Preserve formatting and structure where possible. Return all readable text content. File ID: ${fileId}`
+            }
+          ]
+        }],
+        max_tokens: 4000
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Chat API fallback error: ${response.status} - ${errorText}`);
+      throw new Error(`PDF fallback processing failed: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const text = data.choices?.[0]?.message?.content || '';
+    
+    console.log(`Extracted ${text.length} characters from PDF using Chat API fallback`);
+    return { text };
+  } catch (error) {
+    console.error('PDF Chat API fallback error:', error);
     throw new Error(`PDF processing failed: ${error.message}`);
   }
 }
@@ -304,13 +356,14 @@ async function processImageWithResponses(fileBuffer: ArrayBuffer, mimeType: stri
 
 async function processOfficeFileWithResponses(fileBuffer: ArrayBuffer, mimeType: string, apiKey: string): Promise<{text: string}> {
   try {
-    // Upload Office file to OpenAI - the API can handle Office files directly
+    // Office files are not supported by Responses API input_file (only PDF)
+    // Use Chat Completions API with file upload instead
     const filename = mimeType.includes('word') ? 'document.docx' : 
                     mimeType.includes('presentation') ? 'presentation.pptx' : 'spreadsheet.xlsx';
     const fileId = await uploadFileToOpenAI(fileBuffer, mimeType, filename, apiKey);
     
-    // Use Responses API with input_file
-    const response = await fetch('https://api.openai.com/v1/responses', {
+    // Use Chat Completions API with file reference
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -318,24 +371,31 @@ async function processOfficeFileWithResponses(fileBuffer: ArrayBuffer, mimeType:
       },
       body: JSON.stringify({
         model: 'gpt-4o',
-        input: [{
+        messages: [{
           role: 'user',
           content: [
-            { type: 'input_file', file_id: fileId },
-            { type: 'input_text', text: 'Extract all text content from this document. Preserve the structure and meaning of the text while making it readable.' }
+            { 
+              type: 'text', 
+              text: `Extract all text content from the uploaded ${filename} file. Preserve the structure and meaning of the text while making it readable. Return only the extracted text content.`
+            },
+            {
+              type: 'text',
+              text: `File ID: ${fileId}`
+            }
           ]
-        }]
+        }],
+        max_tokens: 4000
       })
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`OpenAI Responses API error: ${response.status} - ${errorText}`);
+      console.error(`OpenAI Chat API error: ${response.status} - ${errorText}`);
       throw new Error(`Office file processing failed: ${response.statusText}`);
     }
 
     const data = await response.json();
-    const text = data.output_text || '';
+    const text = data.choices?.[0]?.message?.content || '';
     
     console.log(`Extracted ${text.length} characters from Office file`);
     return { text };

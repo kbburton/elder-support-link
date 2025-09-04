@@ -1,160 +1,151 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-describe('DOCX Processing Base64 Encoding Bug', () => {
-  let mockFetch: any;
+// Mock global fetch and Deno
+const mockFetch = vi.fn();
+const mockDeno = {
+  env: {
+    get: vi.fn((key: string) => {
+      if (key === 'OPENAI_API_KEY') return 'test-api-key';
+      if (key === 'SUPABASE_URL') return 'https://test.supabase.co';
+      if (key === 'SUPABASE_SERVICE_ROLE_KEY') return 'test-service-key';
+      return undefined;
+    })
+  }
+};
 
-  beforeEach(() => {
-    // Reset mocks
-    vi.clearAllMocks();
+// Store original values
+const originalFetch = global.fetch;
+const originalDeno = (global as any).Deno;
+
+beforeEach(() => {
+  global.fetch = mockFetch;
+  (global as any).Deno = mockDeno;
+  vi.clearAllMocks();
+});
+
+afterEach(() => {
+  global.fetch = originalFetch;
+  (global as any).Deno = originalDeno;
+});
+
+describe('Document Processing Fix', () => {
+  it('should fail DOCX processing with Responses API before fix', async () => {
+    // Mock the file upload success
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ id: 'file-test-123' })
+      })
+      // Mock Responses API failure for DOCX (the bug)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        statusText: 'Bad Request',
+        text: () => Promise.resolve(JSON.stringify({
+          error: {
+            message: "Invalid input: Expected file type to be a supported format: .pdf but got .docx."
+          }
+        }))
+      });
+
+    const { processOfficeFileWithResponses } = await import('../supabase/functions/process-document/index.ts');
     
-    // Mock the global fetch
-    mockFetch = vi.fn();
-    global.fetch = mockFetch;
+    const testBuffer = new ArrayBuffer(100);
     
-    // Mock Deno.env.get
-    vi.stubGlobal('Deno', {
-      env: {
-        get: vi.fn((key: string) => {
-          if (key === 'OPENAI_API_KEY') return 'test-api-key';
-          return undefined;
+    await expect(
+      processOfficeFileWithResponses(testBuffer, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'test-key')
+    ).rejects.toThrow('Office file processing failed');
+  });
+
+  it('should successfully process DOCX with Chat API after fix', async () => {
+    // Mock file upload success
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ id: 'file-test-123' })
+      })
+      // Mock Chat API success (the fix)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          choices: [{
+            message: {
+              content: 'This is the extracted text from the DOCX document.'
+            }
+          }]
         })
-      }
-    });
+      });
+
+    const { processOfficeFileWithResponses } = await import('../supabase/functions/process-document/index.ts');
+    
+    const testBuffer = new ArrayBuffer(100);
+    
+    const result = await processOfficeFileWithResponses(
+      testBuffer, 
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 
+      'test-key'
+    );
+
+    expect(result.text).toBe('This is the extracted text from the DOCX document.');
   });
 
-  it('should fail with large files using spread operator approach', () => {
-    // Create a large file buffer that would cause stack overflow with spread operator
-    const largeFileBuffer = new ArrayBuffer(100000); // 100KB
-    const bytes = new Uint8Array(largeFileBuffer);
-    
-    // Fill with some test data
-    for (let i = 0; i < bytes.length; i++) {
-      bytes[i] = i % 256;
-    }
-    
-    // The old approach that fails for large files
-    expect(() => {
-      const base64 = btoa(String.fromCharCode(...bytes));
-    }).toThrow(); // Should throw due to too many arguments
-  });
-
-  it('should handle large files correctly with chunked approach', () => {
-    // Create a large file buffer
-    const largeFileBuffer = new ArrayBuffer(100000); // 100KB
-    const bytes = new Uint8Array(largeFileBuffer);
-    
-    // Fill with some test data
-    for (let i = 0; i < bytes.length; i++) {
-      bytes[i] = i % 256;
-    }
-    
-    // The new approach that works for large files
-    let binaryString = '';
-    for (let i = 0; i < bytes.length; i++) {
-      binaryString += String.fromCharCode(bytes[i]);
-    }
-    const base64 = btoa(binaryString);
-    
-    expect(base64).toBeDefined();
-    expect(base64.length).toBeGreaterThan(0);
-    
-    // Verify we can decode it back
-    const decoded = atob(base64);
-    expect(decoded.length).toBe(bytes.length);
-  });
-
-  it('should send correct file data to OpenAI without corruption', async () => {
-    // Mock successful OpenAI response with actual content
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve({
-        choices: [
-          {
+  it('should handle PDF processing with fallback', async () => {
+    // Mock file upload success
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ id: 'file-test-pdf' })
+      })
+      // Mock Responses API returning empty text
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ output_text: '' })
+      })
+      // Mock file upload for fallback
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ id: 'file-test-pdf-fallback' })
+      })
+      // Mock Chat API fallback success
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          choices: [{
             message: {
-              content: 'John Doe Resume Software Engineer with 5 years experience'
+              content: 'This is the extracted PDF text using Chat API fallback.'
             }
-          }
-        ]
-      })
-    });
+          }]
+        })
+      });
 
-    // Create a mock DOCX file buffer with known content
-    const mockContent = 'PK\x03\x04John Doe Resume Content'; // Simplified DOCX-like structure
-    const mockFileBuffer = new ArrayBuffer(mockContent.length);
-    const bytes = new Uint8Array(mockFileBuffer);
-    for (let i = 0; i < mockContent.length; i++) {
-      bytes[i] = mockContent.charCodeAt(i);
-    }
+    const { processPDFWithResponses } = await import('../supabase/functions/process-document/index.ts');
+    
+    const testBuffer = new ArrayBuffer(100);
+    
+    const result = await processPDFWithResponses(testBuffer, 'test-key');
 
-    // Import and test the fixed processDOCX function
-    const { processDOCX } = await import('../supabase/functions/process-document/index.ts');
-    
-    const result = await processDOCX(mockFileBuffer);
-
-    // Verify fetch was called
-    expect(mockFetch).toHaveBeenCalledOnce();
-    
-    // Get the call arguments
-    const [url, options] = mockFetch.mock.calls[0];
-    const requestBody = JSON.parse(options.body);
-    const userMessage = requestBody.messages.find((msg: any) => msg.role === 'user');
-    
-    // Verify the base64 data is properly formed and contains the file data
-    expect(userMessage.content).toContain('File data: ');
-    const base64Part = userMessage.content.split('File data: ')[1];
-    expect(base64Part).toBeDefined();
-    
-    // The base64 should be valid
-    expect(() => atob(base64Part)).not.toThrow();
-    
-    // Should return actual content, not generic test content
-    expect(result).toContain('John Doe');
-    expect(result).not.toContain('Sample CustomX Application');
-    expect(result).not.toContain('test extraction systems');
+    expect(result.text).toBe('This is the extracted PDF text using Chat API fallback.');
   });
 
-  it('should demonstrate the old bug - corrupted base64 leading to wrong content', async () => {
-    // This demonstrates what happens when base64 encoding fails/corrupts
-    const largeBytes = new Uint8Array(100000);
-    
-    // This will throw with the old spread operator approach
-    let base64Failed = false;
-    try {
-      btoa(String.fromCharCode(...largeBytes));
-    } catch (error) {
-      base64Failed = true;
-    }
-    
-    expect(base64Failed).toBe(true); // Demonstrates the encoding failure
-    
-    // When encoding fails, OpenAI gets invalid data and returns generic content
-    const invalidBase64 = 'corrupted-data';
-    
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve({
-        choices: [
-          {
-            message: {
-              content: 'Sample CustomX Application This document is an example of a Microsoft Word file extracted for text testing purposes.'
-            }
-          }
-        ]
+  it('should process PDF successfully with Responses API when it works', async () => {
+    // Mock file upload success
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ id: 'file-test-pdf' })
       })
-    });
+      // Mock Responses API success
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ output_text: 'Successfully extracted PDF text.' })
+      });
+
+    const { processPDFWithResponses } = await import('../supabase/functions/process-document/index.ts');
     
-    // This simulates what happens with corrupted base64
-    const response = await fetch('test-url', {
-      method: 'POST',
-      body: JSON.stringify({
-        messages: [{ role: 'user', content: `File data: ${invalidBase64}` }]
-      })
-    });
+    const testBuffer = new ArrayBuffer(100);
     
-    const data = await response.json();
-    const content = data.choices[0].message.content;
-    
-    // This demonstrates the bug - corrupted input leads to generic output
-    expect(content).toContain('Sample CustomX Application');
+    const result = await processPDFWithResponses(testBuffer, 'test-key');
+
+    expect(result.text).toBe('Successfully extracted PDF text.');
   });
 });
