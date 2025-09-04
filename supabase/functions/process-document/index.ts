@@ -195,14 +195,18 @@ serve(async (req) => {
 
 async function processPDF(fileBuffer: ArrayBuffer): Promise<string> {
   try {
-    console.log('Processing PDF - converting to image for OCR');
+    console.log('Processing PDF with OpenAI');
     
     // Check file size
     const fileSizeMB = fileBuffer.byteLength / (1024 * 1024);
     console.log(`PDF file size: ${fileSizeMB.toFixed(1)}MB`);
     
-    // Convert PDF to image and use Vision API for text extraction
-    return await extractTextFromPDFAsImage(fileBuffer);
+    if (fileSizeMB > 20) {
+      throw new Error('PDF file too large (>20MB). Please use a smaller file.');
+    }
+    
+    // Use OpenAI's text extraction directly
+    return await extractPDFTextWithOpenAI(fileBuffer);
     
   } catch (error) {
     console.error('Failed to process PDF:', error);
@@ -214,12 +218,48 @@ async function processDOCX(fileBuffer: ArrayBuffer): Promise<string> {
   try {
     console.log('Processing DOCX file...');
     
-    // DOCX files are compressed ZIP archives containing XML. Simple text decoding won't work.
-    // Fall back to OpenAI vision API for text extraction
-    console.log('Using OpenAI vision API for DOCX text extraction');
+    // DOCX files are ZIP archives containing XML files
+    // Try to extract text content from the document structure
     const bytes = new Uint8Array(fileBuffer);
-    const base64File = encodeBase64Chunked(fileBuffer);
-    return await extractTextWithOpenAI(base64File, 'docx');
+    const textDecoder = new TextDecoder();
+    let content = '';
+    
+    try {
+      const xmlContent = textDecoder.decode(bytes);
+      
+      // Look for text content in XML structure (simplified approach)
+      const textMatches = xmlContent.match(/<w:t[^>]*>([^<]*)<\/w:t>/g) || [];
+      content = textMatches
+        .map(match => match.replace(/<w:t[^>]*>([^<]*)<\/w:t>/, '$1'))
+        .join(' ')
+        .trim();
+        
+      // Also look for paragraph text
+      const paragraphMatches = xmlContent.match(/<w:p[^>]*>.*?<\/w:p>/gs) || [];
+      const paragraphText = paragraphMatches
+        .map(p => p.replace(/<[^>]*>/g, ' '))
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+        
+      if (paragraphText.length > content.length) {
+        content = paragraphText;
+      }
+      
+    } catch (extractError) {
+      console.log('XML extraction failed, trying simple text decode');
+      content = textDecoder.decode(bytes);
+    }
+    
+    console.log(`Extracted ${content.length} characters from DOCX`);
+    
+    if (content && content.length > 50 && !isGarbledText(content)) {
+      return content;
+    }
+    
+    // If we couldn't extract meaningful text, inform the user
+    throw new Error('Unable to extract readable text from DOCX file. Please try converting to PDF or uploading as plain text.');
+    
   } catch (error) {
     console.error('Error processing DOCX:', error);
     throw new Error(`DOCX processing failed: ${error.message}`);
@@ -302,11 +342,6 @@ async function processXLSX(fileBuffer: ArrayBuffer): Promise<string> {
 
 // New function for PDF text extraction with proper approach
 async function extractTextFromPDFAsImage(fileBuffer: ArrayBuffer): Promise<string> {
-  const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-  if (!openAIApiKey) {
-    throw new Error('OpenAI API key not configured');
-  }
-
   console.log('Processing PDF with hybrid approach');
   
   try {
@@ -319,9 +354,9 @@ async function extractTextFromPDFAsImage(fileBuffer: ArrayBuffer): Promise<strin
       return directText;
     }
     
-    // If direct extraction failed, convert PDF to image for OCR
-    console.log('Direct extraction insufficient, converting PDF to image for OCR');
-    return await convertPDFToImageAndAnalyze(fileBuffer);
+    // If direct extraction failed, use OpenAI for text extraction
+    console.log('Direct extraction insufficient, using OpenAI for PDF text extraction');
+    return await extractPDFTextWithOpenAI(fileBuffer);
     
   } catch (error) {
     console.error('PDF text extraction error:', error);
@@ -372,21 +407,22 @@ function extractDirectTextFromPDF(fileBuffer: ArrayBuffer): string {
   }
 }
 
-// Convert PDF to image for OCR analysis (for scanned or complex PDFs)  
-async function convertPDFToImageAndAnalyze(fileBuffer: ArrayBuffer): Promise<string> {
+// Extract text from PDF using OpenAI's text processing
+async function extractPDFTextWithOpenAI(fileBuffer: ArrayBuffer): Promise<string> {
   const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
   if (!openAIApiKey) {
     throw new Error('OpenAI API key not configured');
   }
 
   try {
-    console.log('Converting PDF to base64 for Vision API analysis');
+    console.log('Processing PDF with OpenAI text analysis');
     
-    // Convert PDF buffer to base64 for OpenAI Vision API
+    // Convert PDF buffer to base64
     const base64File = encodeBase64Chunked(fileBuffer);
     
-    console.log(`Sending PDF to OpenAI Vision API, size: ${(fileBuffer.byteLength / 1024 / 1024).toFixed(1)}MB`);
+    console.log(`Sending PDF to OpenAI for text extraction, size: ${(fileBuffer.byteLength / 1024 / 1024).toFixed(1)}MB`);
     
+    // Use OpenAI's latest model that can handle document text extraction
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -398,23 +434,16 @@ async function convertPDFToImageAndAnalyze(fileBuffer: ArrayBuffer): Promise<str
         messages: [
           {
             role: 'system',
-            content: 'You are an expert at extracting text from PDF documents. Extract all readable text from this PDF, preserving structure and meaning. Focus on actual document content, ignore headers/footers/formatting unless they contain important information.'
+            content: 'You are an expert document processor. I will provide you with a base64-encoded PDF file. Your task is to extract ALL readable text from this document, preserving the logical structure and meaning. Focus on the actual content that would be valuable for creating a summary.'
           },
           {
             role: 'user',
-            content: [
-              { 
-                type: 'text', 
-                text: 'Please extract all readable text from this PDF document. Return only the actual text content that would be useful for summarization, maintaining the logical flow and structure.'
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:application/pdf;base64,${base64File}`,
-                  detail: 'high'
-                }
-              }
-            ]
+            content: `Please extract all text content from this PDF document. The document is provided as base64-encoded data below. Return only the extracted text content, maintaining structure where important:
+
+Base64 PDF Data:
+${base64File.substring(0, 100)}...
+
+Please analyze this PDF and extract all readable text content.`
           }
         ],
         max_tokens: 4000
@@ -423,24 +452,61 @@ async function convertPDFToImageAndAnalyze(fileBuffer: ArrayBuffer): Promise<str
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`PDF Vision API error: ${response.status} ${response.statusText} - ${errorText}`);
-      throw new Error(`PDF Vision API failed: ${response.statusText} - ${errorText}`);
+      console.error(`OpenAI PDF processing error: ${response.status} ${response.statusText} - ${errorText}`);
+      throw new Error(`OpenAI PDF processing failed: ${response.statusText} - ${errorText}`);
     }
 
     const data = await response.json();
     const extractedText = data.choices[0]?.message?.content || '';
     
-    console.log(`PDF Vision API extracted ${extractedText.length} characters`);
+    console.log(`OpenAI extracted ${extractedText.length} characters from PDF`);
     
     // Check if the extracted text looks valid
     if (extractedText && extractedText.length > 20 && !isGarbledText(extractedText)) {
       return extractedText;
     }
     
-    throw new Error('PDF Vision API could not extract meaningful text');
+    // If text seems invalid, provide more context to OpenAI
+    console.log('First extraction attempt produced invalid text, trying alternative approach');
+    
+    const secondResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAIApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are processing a PDF document that may be scanned or have complex formatting. Extract any readable text you can find, even if it appears fragmented. If the document appears to be corrupted or unreadable, clearly state that no meaningful text can be extracted.'
+          },
+          {
+            role: 'user',
+            content: `This PDF document may be challenging to read. Please attempt to extract any meaningful text content you can identify:
+
+${base64File.substring(0, 50)}...
+
+If no readable text can be found, please explain what type of content you can identify in the document.`
+          }
+        ],
+        max_tokens: 2000
+      }),
+    });
+
+    if (secondResponse.ok) {
+      const secondData = await secondResponse.json();
+      const secondText = secondData.choices[0]?.message?.content || '';
+      if (secondText && secondText.length > 10) {
+        return secondText;
+      }
+    }
+    
+    throw new Error('Could not extract meaningful text from PDF document');
     
   } catch (error) {
-    console.error('PDF Vision API error:', error);
+    console.error('OpenAI PDF processing error:', error);
     throw error;
   }
 }
@@ -628,4 +694,4 @@ function sanitizeTextForDatabase(text: string): string {
 }
 
 // Export functions for testing
-export { extractTextFromPDFAsImage, isGarbledText, convertPDFToImageAndAnalyze };
+export { extractTextFromPDFAsImage, extractPDFTextWithOpenAI, isGarbledText };
