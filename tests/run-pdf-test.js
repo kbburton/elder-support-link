@@ -2,7 +2,7 @@ import { execSync } from 'child_process';
 
 try {
   console.log('Running PDF text extraction tests...');
-  const result = execSync('npm test tests/pdf-text-extraction-fix.test.ts', { 
+  const result = execSync('npm test tests/pdf-ocr-fix.test.ts', { 
     encoding: 'utf8',
     stdio: 'pipe' 
   });

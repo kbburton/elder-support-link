@@ -319,13 +319,13 @@ async function extractTextFromPDFAsImage(fileBuffer: ArrayBuffer): Promise<strin
       return directText;
     }
     
-    // If direct extraction failed, use OpenAI for analysis of the raw content
-    console.log('Direct extraction insufficient, using AI analysis of PDF content');
-    return await analyzeRawPDFContent(fileBuffer);
+    // If direct extraction failed, convert PDF to image for OCR
+    console.log('Direct extraction insufficient, converting PDF to image for OCR');
+    return await convertPDFToImageAndAnalyze(fileBuffer);
     
   } catch (error) {
     console.error('PDF text extraction error:', error);
-    throw error;
+    throw new Error(`No readable text could be extracted from PDF: ${error.message}`);
   }
 }
 
@@ -337,37 +337,29 @@ function extractDirectTextFromPDF(fileBuffer: ArrayBuffer): string {
     
     let extractedText = '';
     
-    // More comprehensive text extraction patterns for PDFs
-    const textPatterns = [
-      // Standard PDF text operators
-      /BT\s+(.*?)\s+ET/gs,  // Between BT (Begin Text) and ET (End Text)
-      /\((.*?)\)\s*Tj/gs,   // Text strings followed by Tj (show text)
-      /\[(.*?)\]\s*TJ/gs,   // Text arrays followed by TJ (show text with adjustments)
-      // Look for content streams with text
-      /<([^<>]+)>/g,        // Text in angle brackets
-      // Font definitions often contain readable text
-      /\/F\d+\s+\d+\s+Tf\s+([^<\r\n]+)/g
-    ];
+    // Look for text in parentheses (common PDF text encoding)
+    const textInParens = rawText.match(/\(([^)]+)\)\s*Tj/g);
+    if (textInParens) {
+      for (const match of textInParens) {
+        const text = match.replace(/^\(|\)\s*Tj$/g, '');
+        if (text && text.length > 1 && /[a-zA-Z]/.test(text)) {
+          extractedText += text + ' ';
+        }
+      }
+    }
     
-    for (const pattern of textPatterns) {
-      const matches = rawText.match(pattern);
-      if (matches) {
-        for (const match of matches) {
-          // Clean up the match more thoroughly
-          let cleanText = match
-            .replace(/BT\s*|\s*ET/g, '')
-            .replace(/\)\s*Tj/g, '')
-            .replace(/\]\s*TJ/g, '')
-            .replace(/\/F\d+\s+\d+\s+Tf\s*/g, '')
-            .replace(/[()[\]<>]/g, ' ')
-            .replace(/\\[nrt]/g, ' ')
-            .replace(/\s+/g, ' ')
-            .replace(/[^\w\s.,!?-]/g, ' ')
-            .trim();
-          
-          // Only include text that looks meaningful
-          if (cleanText.length > 3 && /[a-zA-Z]/.test(cleanText) && !/^[\d\s.,]+$/.test(cleanText)) {
-            extractedText += cleanText + ' ';
+    // Look for text in arrays
+    const textInArrays = rawText.match(/\[([^\]]+)\]\s*TJ/g);
+    if (textInArrays) {
+      for (const match of textInArrays) {
+        const content = match.replace(/^\[|\]\s*TJ$/g, '');
+        const textParts = content.match(/\(([^)]+)\)/g);
+        if (textParts) {
+          for (const part of textParts) {
+            const text = part.replace(/[()]/g, '');
+            if (text && text.length > 1 && /[a-zA-Z]/.test(text)) {
+              extractedText += text + ' ';
+            }
           }
         }
       }
@@ -380,43 +372,20 @@ function extractDirectTextFromPDF(fileBuffer: ArrayBuffer): string {
   }
 }
 
-// Analyze raw PDF content with AI (for complex or scanned PDFs)
-async function analyzeRawPDFContent(fileBuffer: ArrayBuffer): Promise<string> {
+// Convert PDF to image for OCR analysis (for scanned or complex PDFs)  
+async function convertPDFToImageAndAnalyze(fileBuffer: ArrayBuffer): Promise<string> {
   const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
   if (!openAIApiKey) {
     throw new Error('OpenAI API key not configured');
   }
 
   try {
-    // Get readable portions of the PDF for AI analysis
-    const textDecoder = new TextDecoder('utf-8', { fatal: false });
-    const rawText = textDecoder.decode(fileBuffer);
+    console.log('Converting PDF to base64 for image analysis');
     
-    // Extract potentially readable sections (avoiding pure binary data)
-    const readableSections: string[] = [];
+    // Convert PDF buffer to base64 for OpenAI Vision API
+    const base64File = encodeBase64Chunked(fileBuffer);
     
-    // Look for sections that might contain text content
-    const contentRegex = /stream\s*(.*?)\s*endstream/gs;
-    const matches = rawText.match(contentRegex);
-    
-    if (matches) {
-      for (const match of matches) {
-        const content = match.replace(/stream\s*|\s*endstream/g, '');
-        // Only include content that has some readable characters
-        if (content.length > 50 && /[a-zA-Z]/.test(content)) {
-          readableSections.push(content);
-        }
-      }
-    }
-    
-    // If no stream content, analyze the full document structure
-    if (readableSections.length === 0) {
-      readableSections.push(rawText.substring(0, 8000));
-    }
-    
-    const contentToAnalyze = readableSections.join('\n').substring(0, 12000);
-    
-    console.log(`Analyzing ${contentToAnalyze.length} characters of PDF content with AI`);
+    console.log(`Sending PDF as image to OpenAI Vision API, size: ${(fileBuffer.byteLength / 1024 / 1024).toFixed(1)}MB`);
     
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -425,41 +394,52 @@ async function analyzeRawPDFContent(fileBuffer: ArrayBuffer): Promise<string> {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4o',
         messages: [
           {
             role: 'system',
-            content: 'You are a PDF text extraction expert. Your task is to find and extract readable text from PDF raw data. Ignore binary data, formatting codes, metadata, and structural elements. Return only human-readable text that would be useful for document summarization.'
+            content: 'You are an expert at extracting text from PDF documents. Extract all readable text from this PDF, preserving structure and meaning. Focus on actual document content, ignore headers/footers/formatting unless they contain important information.'
           },
           {
             role: 'user',
-            content: `Extract readable text from this PDF content. Look for actual document text, ignoring PDF structure, formatting codes, and binary data:\n\n${contentToAnalyze}`
+            content: [
+              { 
+                type: 'text', 
+                text: 'Please extract all readable text from this PDF document. Return only the actual text content that would be useful for summarization, maintaining the logical flow and structure.'
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:application/pdf;base64,${base64File}`
+                }
+              }
+            ]
           }
         ],
-        max_tokens: 3000
+        max_tokens: 4000
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`AI analysis API error: ${response.status} ${response.statusText} - ${errorText}`);
-      throw new Error(`PDF AI analysis failed: ${response.statusText}`);
+      console.error(`PDF OCR API error: ${response.status} ${response.statusText} - ${errorText}`);
+      throw new Error(`PDF OCR failed: ${response.statusText}`);
     }
 
     const data = await response.json();
     const extractedText = data.choices[0]?.message?.content || '';
     
-    console.log(`AI analysis extracted ${extractedText.length} characters`);
+    console.log(`PDF OCR extracted ${extractedText.length} characters`);
     
     // Check if the extracted text looks valid
     if (extractedText && extractedText.length > 20 && !isGarbledText(extractedText)) {
       return extractedText;
     }
     
-    throw new Error('AI could not extract meaningful text from PDF content');
+    throw new Error('PDF OCR could not extract meaningful text');
     
   } catch (error) {
-    console.error('PDF AI analysis error:', error);
+    console.error('PDF OCR error:', error);
     throw error;
   }
 }
@@ -647,4 +627,4 @@ function sanitizeTextForDatabase(text: string): string {
 }
 
 // Export functions for testing
-export { extractTextFromPDFAsImage, isGarbledText };
+export { extractTextFromPDFAsImage, isGarbledText, convertPDFToImageAndAnalyze };
