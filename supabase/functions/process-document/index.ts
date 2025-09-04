@@ -310,18 +310,22 @@ async function extractTextWithOpenAI(base64File: string, fileType: string): Prom
     throw new Error('OpenAI API key not configured');
   }
 
+  // For PDFs, treat as image for OCR since OpenAI vision API doesn't accept PDF MIME type
+  if (fileType === 'pdf') {
+    console.log(`Processing PDF as image for OCR, size: ${(base64File.length * 0.75 / 1024 / 1024).toFixed(1)}MB`);
+    return await extractTextFromPDFAsImage(base64File);
+  }
+
+  // For other file types (images, docx), use vision API
   let prompt = 'Please extract all text content from this image using OCR. Return only the text content without any formatting or explanations. Include all visible text, even if it appears to be handwritten.';
   let mimeType = 'image/jpeg';
   
-  if (fileType === 'pdf') {
-    prompt = 'Extract all readable text from this PDF document. Focus on the actual content that would be useful for healthcare professionals and caregivers. Return only the extracted text without any formatting, explanations, or metadata. If this is a scanned document, use OCR to extract all visible text.';
-    mimeType = 'application/pdf';
-  } else if (fileType === 'docx') {
+  if (fileType === 'docx') {
     prompt = 'Please extract all readable text content from this Microsoft Word document (.docx). Return only the actual document text that a human would read, preserving the meaning but removing formatting. Do not include any metadata, headers, footers, or technical information about the file structure.';
     mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
   }
 
-  console.log(`Calling OpenAI with ${fileType} file, size: ${(base64File.length * 0.75 / 1024 / 1024).toFixed(1)}MB`);
+  console.log(`Calling OpenAI vision API with ${fileType} file, size: ${(base64File.length * 0.75 / 1024 / 1024).toFixed(1)}MB`);
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -329,24 +333,24 @@ async function extractTextWithOpenAI(base64File: string, fileType: string): Prom
       'Authorization': `Bearer ${openAIApiKey}`,
       'Content-Type': 'application/json',
     },
-      body: JSON.stringify({
-        model: 'gpt-4o',  // Use gpt-4o for better PDF handling like ChatGPT
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:${mimeType};base64,${base64File}`
-                }
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            {
+              type: 'image_url',
+              image_url: {
+                url: `data:${mimeType};base64,${base64File}`
               }
-            ]
-          }
-        ],
-        max_tokens: 4000  // gpt-4o uses max_tokens, not max_completion_tokens
-      }),
+            }
+          ]
+        }
+      ],
+      max_tokens: 4000
+    }),
   });
 
   if (!response.ok) {
@@ -359,6 +363,54 @@ async function extractTextWithOpenAI(base64File: string, fileType: string): Prom
   const extractedText = data.choices[0]?.message?.content || '';
   console.log(`Extracted ${extractedText.length} characters from ${fileType}`);
   return extractedText;
+}
+
+// Fallback function for PDF processing as image
+async function extractTextFromPDFAsImage(base64File: string): Promise<string> {
+  const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+  if (!openAIApiKey) {
+    throw new Error('OpenAI API key not configured');
+  }
+
+  console.log('Processing PDF as image with OCR...');
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${openAIApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { 
+              type: 'text', 
+              text: 'This is a PDF document converted to an image. Please perform OCR to extract all readable text. Return only the extracted text content without any formatting, explanations, or metadata. Focus on healthcare-related content that would be useful for caregivers.'
+            },
+            {
+              type: 'image_url',
+              image_url: {
+                url: `data:image/jpeg;base64,${base64File}`
+              }
+            }
+          ]
+        }
+      ],
+      max_tokens: 4000
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`OpenAI OCR API error: ${response.status} ${response.statusText} - ${errorText}`);
+    throw new Error(`PDF OCR processing failed: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data.choices[0]?.message?.content || 'No text could be extracted from PDF';
 }
 
 async function generateSummary(text: string): Promise<string> {
