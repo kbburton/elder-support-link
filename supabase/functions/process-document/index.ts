@@ -410,36 +410,6 @@ function sanitizeTextForDatabase(text: string): string {
     .replace(/'/g, "''") // Escape single quotes for SQL
     .trim();
 }
-            content: 'You are processing a PDF document that may be scanned or have complex formatting. Extract any readable text you can find, even if it appears fragmented. If the document appears to be corrupted or unreadable, clearly state that no meaningful text can be extracted.'
-          },
-          {
-            role: 'user',
-            content: `This PDF document may be challenging to read. Please attempt to extract any meaningful text content you can identify:
-
-${base64File.substring(0, 50)}...
-
-If no readable text can be found, please explain what type of content you can identify in the document.`
-          }
-        ],
-        max_tokens: 2000
-      }),
-    });
-
-    if (secondResponse.ok) {
-      const secondData = await secondResponse.json();
-      const secondText = secondData.choices[0]?.message?.content || '';
-      if (secondText && secondText.length > 10) {
-        return secondText;
-      }
-    }
-    
-    throw new Error('Could not extract meaningful text from PDF document');
-    
-  } catch (error) {
-    console.error('OpenAI PDF processing error:', error);
-    throw error;
-  }
-}
 
 // Helper function to detect garbled text with improved detection
 function isGarbledText(text: string): boolean {
@@ -606,7 +576,7 @@ async function generateSummary(text: string): Promise<string> {
 }
 
 // Sanitize text to prevent Unicode escape sequence errors in PostgreSQL
-function sanitizeTextForDatabase(text: string): string {
+function sanitizeTextForDatabaseFallback(text: string): string {
   if (!text || typeof text !== 'string') {
     return '';
   }
@@ -624,4 +594,4 @@ function sanitizeTextForDatabase(text: string): string {
 }
 
 // Export functions for testing
-export { extractTextFromPDFAsImage, extractPDFTextWithOpenAI, isGarbledText };
+export { isGarbledText };
