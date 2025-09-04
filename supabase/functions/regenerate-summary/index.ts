@@ -83,7 +83,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4.1-mini-2025-04-14',
+        model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
@@ -94,7 +94,7 @@ serve(async (req) => {
             content: `Please create a comprehensive summary of this document:\n\n${textContent.substring(0, 10000)}`
           }
         ],
-        max_completion_tokens: 400,
+        max_tokens: 400,
       }),
     });
 

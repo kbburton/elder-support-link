@@ -422,7 +422,7 @@ async function extractPDFTextWithOpenAI(fileBuffer: ArrayBuffer): Promise<string
     
     console.log(`Sending PDF to OpenAI for text extraction, size: ${(fileBuffer.byteLength / 1024 / 1024).toFixed(1)}MB`);
     
-    // Use OpenAI's latest model that can handle document text extraction
+    // Use OpenAI's vision model that can handle PDF documents
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -430,23 +430,25 @@ async function extractPDFTextWithOpenAI(fileBuffer: ArrayBuffer): Promise<string
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
-            content: 'You are an expert document processor. I will provide you with a base64-encoded PDF file. Your task is to extract ALL readable text from this document, preserving the logical structure and meaning. Focus on the actual content that would be valuable for creating a summary.'
+            content: 'Extract all text content from this PDF document. Preserve formatting and structure where possible.'
           },
           {
             role: 'user',
-            content: `Please extract all text content from this PDF document. The document is provided as base64-encoded data below. Return only the extracted text content, maintaining structure where important:
-
-Base64 PDF Data:
-${base64File.substring(0, 100)}...
-
-Please analyze this PDF and extract all readable text content.`
+            content: [
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:application/pdf;base64,${base64File}`
+                }
+              }
+            ]
           }
         ],
-        max_tokens: 4000
+        max_tokens: 2000
       }),
     });
 
