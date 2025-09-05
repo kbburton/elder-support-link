@@ -1,5 +1,5 @@
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
-import { Outlet, useNavigate, useParams } from "react-router-dom";
+import { Outlet, useNavigate, useParams, useLocation } from "react-router-dom";
 import AppHeader from "./AppHeader";
 import { AppSidebar } from "../navigation/AppSidebar";
 import { useEffect } from "react";
@@ -11,6 +11,7 @@ import { DemoRedirectModal } from "@/components/demo/DemoRedirectModal";
 import { useState } from "react";
 const AppLayout = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const { groupId } = useParams();
   const { isDemo, demoGroupId } = useDemo();
@@ -46,7 +47,8 @@ const AppLayout = () => {
       if (!session && !isDemo) {
         console.log('No session found, redirecting to login');
         toast({ title: "Session required", description: "Please log in again." });
-        navigate("/login", { replace: true });
+        const returnTo = encodeURIComponent(location.pathname + location.search);
+        navigate(`/login?returnTo=${returnTo}`, { replace: true });
       }
     };
 
@@ -57,14 +59,15 @@ const AppLayout = () => {
       
       if (!session && event !== 'INITIAL_SESSION') {
         toast({ title: "Session expired", description: "Please log in again." });
-        navigate("/login", { replace: true });
+        const returnTo = encodeURIComponent(location.pathname + location.search);
+        navigate(`/login?returnTo=${returnTo}`, { replace: true });
       }
     });
 
     return () => {
       subscription?.unsubscribe();
     };
-  }, [navigate, toast, isDemo, groupId, demoGroupId]);
+  }, [navigate, toast, isDemo, groupId, demoGroupId, location]);
   const handleDemoRedirect = () => {
     navigate(`/app/${demoGroupId}/calendar`);
     setShowDemoRedirect(false);
