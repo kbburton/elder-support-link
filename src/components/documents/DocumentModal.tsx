@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Download, Trash2, RefreshCw } from "lucide-react";
+import { Download, Trash2, RefreshCw, Share, Copy, Check } from "lucide-react";
 import { 
   AlertDialog,
   AlertDialogAction,
@@ -78,6 +78,7 @@ export function DocumentModal({ document, isOpen, onClose, groupId }: DocumentMo
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [showRegenerateModal, setShowRegenerateModal] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -261,6 +262,30 @@ export function DocumentModal({ document, isOpen, onClose, groupId }: DocumentMo
     }
   };
 
+  const handleShareLink = async () => {
+    if (!document?.id) return;
+    
+    const shareUrl = `${window.location.origin}/app/${groupId}/documents?openDocument=${document.id}`;
+    
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setLinkCopied(true);
+      toast({
+        title: "Link copied",
+        description: "Shareable document link copied to clipboard.",
+      });
+      
+      // Reset the copied state after 2 seconds
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to copy link to clipboard.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const getReadableFileType = (filename?: string, fileType?: string) => {
     if (!filename && !fileType) return 'Unknown';
     
@@ -434,15 +459,33 @@ export function DocumentModal({ document, isOpen, onClose, groupId }: DocumentMo
               </Button>
               
               {document.file_url && (
-                <Button
-                  type="button"
-                  variant="outline" 
-                  onClick={handleDownload}
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  Download
-                </Button>
+              <Button
+                type="button"
+                variant="outline" 
+                onClick={handleDownload}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Download
+              </Button>
               )}
+              
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleShareLink}
+              >
+                {linkCopied ? (
+                  <>
+                    <Check className="mr-2 h-4 w-4 text-green-600" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Share className="mr-2 h-4 w-4" />
+                    Share Link
+                  </>
+                )}
+              </Button>
               
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
