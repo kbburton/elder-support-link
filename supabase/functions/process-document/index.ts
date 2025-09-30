@@ -98,13 +98,22 @@ serve(async (req) => {
 
       console.log(`Processing file type: ${fileType}, MIME: ${mimeType}`);
 
-      // Check if it's an Office document (DOCX, XLSX, PPTX)
-      if (mimeType.includes('officedocument') || mimeType.includes('ms-excel') || 
-          fileType.includes('docx') || fileType.includes('xlsx') || fileType.includes('pptx')) {
-        // For Office documents, extract basic text first
-        extractedText = await extractOfficeText(fileBuffer, mimeType);
+      // For all files, try to extract text using basic methods first
+      // This will work for Office docs, plain text, etc.
+      let basicExtractedText = '';
+      
+      if (mimeType.includes('officedocument') || mimeType.includes('ms-excel')) {
+        basicExtractedText = await extractOfficeText(fileBuffer, mimeType);
+      } else if (mimeType.includes('text/plain')) {
+        basicExtractedText = new TextDecoder('utf-8').decode(fileBuffer);
+      }
+
+      // If basic extraction got substantial text, use it
+      if (basicExtractedText.trim().length > 100) {
+        extractedText = basicExtractedText;
+        console.log(`Used basic extraction: ${extractedText.length} characters`);
       } else {
-        // Convert file to base64 for Gemini (images, PDFs)
+        // Otherwise use Gemini for PDFs and images
         const bytes = new Uint8Array(fileBuffer);
         let binaryString = '';
         for (let i = 0; i < bytes.length; i++) {
@@ -112,7 +121,6 @@ serve(async (req) => {
         }
         const base64File = btoa(binaryString);
 
-        // Extract text using Gemini (handles images and PDFs)
         extractedText = await extractTextWithGemini(base64File, mimeType, LOVABLE_API_KEY);
       }
 
@@ -296,40 +304,71 @@ async function extractOfficeText(fileBuffer: ArrayBuffer, mimeType: string): Pro
     const decoder = new TextDecoder('utf-8', { fatal: false });
     const text = decoder.decode(fileBuffer);
     
-    // Try to extract text from XML-based Office formats
+    // Try multiple extraction patterns for Office formats
     let extractedText = '';
+    const allMatches: string[] = [];
     
     if (mimeType.includes('wordprocessingml')) {
-      // DOCX - extract from document.xml
-      const matches = text.match(/<w:t[^>]*>([^<]+)<\/w:t>/g);
-      if (matches) {
-        extractedText = matches.map(match => match.replace(/<[^>]+>/g, '')).join(' ');
+      // DOCX - try multiple patterns
+      const patterns = [
+        /<w:t[^>]*>([^<]+)<\/w:t>/g,
+        /<w:t>([^<]+)<\/w:t>/g,
+        /<text[^>]*>([^<]+)<\/text>/g,
+      ];
+      
+      for (const pattern of patterns) {
+        const matches = text.match(pattern);
+        if (matches) {
+          allMatches.push(...matches.map(m => m.replace(/<[^>]+>/g, '').trim()));
+        }
       }
     } else if (mimeType.includes('spreadsheetml') || mimeType.includes('ms-excel')) {
-      // XLSX - extract from cell values
-      const matches = text.match(/<(?:t|v)[^>]*>([^<]+)<\/(?:t|v)>/g);
-      if (matches) {
-        extractedText = matches.map(match => match.replace(/<[^>]+>/g, '')).join(' ');
+      // XLSX - extract cell values
+      const patterns = [
+        /<t[^>]*>([^<]+)<\/t>/g,
+        /<v>([^<]+)<\/v>/g,
+        /<si><t>([^<]+)<\/t><\/si>/g,
+      ];
+      
+      for (const pattern of patterns) {
+        const matches = text.match(pattern);
+        if (matches) {
+          allMatches.push(...matches.map(m => m.replace(/<[^>]+>/g, '').trim()));
+        }
       }
     } else if (mimeType.includes('presentationml')) {
-      // PPTX - extract from slide text
-      const matches = text.match(/<a:t[^>]*>([^<]+)<\/a:t>/g);
-      if (matches) {
-        extractedText = matches.map(match => match.replace(/<[^>]+>/g, '')).join(' ');
+      // PPTX - extract slide text
+      const patterns = [
+        /<a:t[^>]*>([^<]+)<\/a:t>/g,
+        /<a:t>([^<]+)<\/a:t>/g,
+      ];
+      
+      for (const pattern of patterns) {
+        const matches = text.match(pattern);
+        if (matches) {
+          allMatches.push(...matches.map(m => m.replace(/<[^>]+>/g, '').trim()));
+        }
       }
     }
     
-    if (extractedText.trim().length > 0) {
+    // Clean and combine extracted text
+    extractedText = allMatches
+      .filter(t => t.length > 0 && !t.match(/^[\s\n\r]*$/))
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    if (extractedText.length > 0) {
       console.log(`Extracted ${extractedText.length} characters from Office document`);
       return extractedText;
     }
     
-    // If basic extraction didn't work, return a message
-    return `This is an Office document (${mimeType.split('/').pop()}) that contains content but requires more advanced processing. Please download and open with appropriate software for full access.`;
+    console.log('No text extracted from Office document, returning empty');
+    return '';
     
   } catch (error) {
     console.error('Office text extraction error:', error);
-    return `Unable to extract text from this Office document. Error: ${error.message}`;
+    return '';
   }
 }
 
