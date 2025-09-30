@@ -35,6 +35,18 @@ const ACCEPTED_FILE_TYPES = FILE_LIMITS.ALLOWED_DOCUMENT_TYPES.reduce((acc, type
   return acc;
 }, {} as Record<string, string[]>);
 
+// Sanitize storage object keys: ASCII letters, numbers, dots, underscores and hyphens only
+const sanitizeKey = (name: string) => {
+  const normalized = name
+    .normalize('NFKD')
+    .replace(/[\s\u2013\u2014\u2212]+/g, '-')
+    .replace(/[^a-zA-Z0-9._-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^\.+/, '')
+    .slice(0, 200);
+  return normalized || 'file';
+};
+
 export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProps) => {
   const { groupId } = useParams();
   const { toast } = useToast();
@@ -195,11 +207,15 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
         try {
           logger.documentUploadStart(file.name, file.size, groupId!, user.id);
 
-          // Create filename with new format: filename_timestamp_groupId.ext
-          const fileExt = file.name.split('.').pop();
-          const baseName = file.name.replace(/\.[^/.]+$/, "");
+          // Create safe filename with format: base_timestamp_groupId.ext
+          const originalExt = file.name.includes('.') ? file.name.split('.').pop() || '' : '';
+          const baseNameRaw = originalExt
+            ? file.name.slice(0, -(originalExt.length + 1))
+            : file.name;
+          const safeBase = sanitizeKey(baseNameRaw);
+          const safeExt = sanitizeKey(originalExt.toLowerCase()) || 'bin';
           const timestamp = Date.now();
-          const fileName = `${baseName}_${timestamp}_${groupId}.${fileExt}`;
+          const fileName = `${safeBase}_${timestamp}_${groupId}.${safeExt}`;
           filePath = fileName;
 
           let uploadSuccess = false;
@@ -219,7 +235,7 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
               if (existingFiles && existingFiles.length > 0) {
                 // File exists, regenerate filename with new timestamp
                 const newTimestamp = Date.now() + attempt;
-                filePath = `${baseName}_${newTimestamp}_${groupId}.${fileExt}`;
+                filePath = `${safeBase}_${newTimestamp}_${groupId}.${safeExt}`;
                 continue; // Try again with new filename
               }
 
@@ -231,7 +247,7 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
                 if (uploadError.message.includes('already exists')) {
                   // File was created between our check and upload, try with new filename
                   const newTimestamp = Date.now() + attempt;
-                  filePath = `${baseName}_${newTimestamp}_${groupId}.${fileExt}`;
+                  filePath = `${safeBase}_${newTimestamp}_${groupId}.${safeExt}`;
                   continue;
                 }
                 throw new Error(`Storage upload failed: ${uploadError.message}`);
@@ -256,7 +272,7 @@ export const DocumentUpload = ({ onUploadComplete, onClose }: DocumentUploadProp
                 
                 // Generate completely new filename for next attempt
                 const newTimestamp = Date.now() + attempt;
-                filePath = `${baseName}_${newTimestamp}_${groupId}.${fileExt}`;
+                filePath = `${safeBase}_${newTimestamp}_${groupId}.${safeExt}`;
               }
             }
           }

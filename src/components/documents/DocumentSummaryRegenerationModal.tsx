@@ -88,11 +88,9 @@ export default function DocumentSummaryRegenerationModal({
       // Try the "new" function first
       let { data, error } = await callEdge("regenerate-summary");
       if (error) {
-        // If it's a 404 / function-not-found, fall back to process-document
-        const isNotFound =
-          (error as any)?.message?.includes("404") ||
-          (error as any)?.message?.toLowerCase?.().includes("not found") ||
-          (error as any)?.name === "FunctionsHttpError";
+        const status = (error as any)?.context?.response?.status ?? (error as any)?.status;
+        const message = (error as any)?.message ?? '';
+        const isNotFound = status === 404 || /not\s*found/i.test(String(message));
         if (isNotFound) {
           ({ data, error } = await callEdge("process-document"));
         }

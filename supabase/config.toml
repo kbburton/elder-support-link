@@ -33,6 +33,9 @@ verify_jwt = true
 [functions.process-document]
 verify_jwt = true
 
+[functions.regenerate-summary]
+verify_jwt = true
+
 [functions.send-invitation]
 verify_jwt = true
 
