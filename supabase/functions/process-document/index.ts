@@ -104,16 +104,21 @@ serve(async (req) => {
       
       if (mimeType.includes('officedocument') || mimeType.includes('ms-excel')) {
         basicExtractedText = await extractOfficeText(fileBuffer, mimeType);
+        
+        // For Office documents, if extraction yields minimal text, provide a clear message
+        if (basicExtractedText.trim().length < 100) {
+          throw new Error(`Unable to extract text from this ${fileType.includes('word') ? 'Word' : fileType.includes('spreadsheet') ? 'Excel' : 'PowerPoint'} document. The file may be corrupted, password-protected, or contain primarily non-text content. Please verify the file can be opened in its native application.`);
+        }
+        extractedText = basicExtractedText;
+        console.log(`Extracted ${extractedText.length} characters from Office document`);
+        
       } else if (mimeType.includes('text/plain')) {
         basicExtractedText = new TextDecoder('utf-8').decode(fileBuffer);
-      }
-
-      // If basic extraction got substantial text, use it
-      if (basicExtractedText.trim().length > 100) {
         extractedText = basicExtractedText;
-        console.log(`Used basic extraction: ${extractedText.length} characters`);
+        console.log(`Extracted ${extractedText.length} characters from plain text`);
+        
       } else {
-        // Otherwise use Gemini for PDFs and images
+        // Use Gemini vision API for PDFs and images
         const bytes = new Uint8Array(fileBuffer);
         let binaryString = '';
         for (let i = 0; i < bytes.length; i++) {
