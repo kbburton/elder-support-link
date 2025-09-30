@@ -13,9 +13,9 @@ serve(async (req) => {
   }
 
   try {
-    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-    if (!OPENAI_API_KEY) {
-      throw new Error('OPENAI_API_KEY is not configured');
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (!LOVABLE_API_KEY) {
+      throw new Error('LOVABLE_API_KEY is not configured');
     }
 
     const supabaseClient = createClient(
@@ -46,7 +46,6 @@ serve(async (req) => {
       console.log('No text content found, attempting to reprocess document');
       
       try {
-        // Call the process-document function to extract text
         const { error: processError } = await supabaseClient.functions.invoke('process-document', {
           body: { documentId }
         });
@@ -76,27 +75,44 @@ serve(async (req) => {
       }
     }
 
-    // Use OpenAI Responses API for consistent processing
-    const response = await fetch('https://api.openai.com/v1/responses', {
+    // Generate new summary using Gemini
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        input: `Create a comprehensive summary of this document. Focus on key points, important dates, names, amounts, and actionable information:\n\n${textContent.substring(0, 10000)}`
+        model: 'google/gemini-2.5-flash',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a document summarization expert. Create concise, comprehensive summaries that capture key points, important dates, names, amounts, and actionable information.'
+          },
+          {
+            role: 'user',
+            content: `Create a comprehensive summary of this document:\n\n${textContent.substring(0, 10000)}`
+          }
+        ]
       })
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`OpenAI Responses API error: ${response.status} - ${errorText}`);
+      console.error(`Lovable AI Gateway error: ${response.status} - ${errorText}`);
+      
+      if (response.status === 429) {
+        throw new Error('Rate limit exceeded. Please try again later.');
+      }
+      if (response.status === 402) {
+        throw new Error('AI credits exhausted. Please add funds to your Lovable workspace.');
+      }
+      
       throw new Error(`Summary generation failed: ${response.statusText}`);
     }
 
     const data = await response.json();
-    const newSummary = data.output_text || 'Summary could not be generated.';
+    const newSummary = data.choices?.[0]?.message?.content || 'Summary could not be generated.';
 
     const { error: updateError } = await supabaseClient
       .from('documents')

@@ -7,7 +7,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const FILE_SIZE_LIMIT = 10 * 1024 * 1024; // 10MB
+const FILE_SIZE_LIMIT = 32 * 1024 * 1024; // 32MB
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -15,9 +15,9 @@ serve(async (req) => {
   }
 
   try {
-    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-    if (!OPENAI_API_KEY) {
-      throw new Error('OPENAI_API_KEY is not configured');
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (!LOVABLE_API_KEY) {
+      throw new Error('LOVABLE_API_KEY is not configured');
     }
 
     const supabaseClient = createClient(
@@ -94,29 +94,26 @@ serve(async (req) => {
       size: fileBuffer.byteLength,
       mimeType: fileData.type,
       processedAt: new Date().toISOString(),
-      processingVersion: '2.0'
+      processingVersion: '3.0-gemini'
     };
 
-    // Extract text based on file type
-    let extractedText = '';
-    const fileType = document.file_type?.toLowerCase() || '';
-    const filename = document.original_filename?.toLowerCase() || '';
+    // Convert file to base64 for Gemini
+    const bytes = new Uint8Array(fileBuffer);
+    let binaryString = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binaryString += String.fromCharCode(bytes[i]);
+    }
+    const base64File = btoa(binaryString);
 
-    if (fileType.includes('pdf') || filename.endsWith('.pdf')) {
-      extractedText = await processPDF(fileBuffer);
-    } else if (fileType.includes('word') || filename.endsWith('.docx') || filename.endsWith('.doc')) {
-      extractedText = await processDOCX(fileBuffer);
-    } else if (fileType.includes('powerpoint') || filename.endsWith('.pptx') || filename.endsWith('.ppt')) {
-      extractedText = await processPPTX(fileBuffer);
-    } else if (fileType.includes('excel') || filename.endsWith('.xlsx') || filename.endsWith('.xls')) {
-      extractedText = await processXLSX(fileBuffer);
-    } else if (fileType.includes('image') || /\.(jpg|jpeg|png|gif|bmp|tiff)$/i.test(filename)) {
-      const base64File = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)));
-      extractedText = await extractTextWithOpenAI(base64File, fileType);
-    } else if (fileType.includes('text') || filename.endsWith('.txt')) {
-      extractedText = new TextDecoder().decode(fileBuffer);
-    } else {
-      throw new Error(`Unsupported file type: ${fileType}`);
+    const mimeType = document.file_type || fileData.type || 'application/octet-stream';
+
+    // Extract text using Gemini (handles all file types natively)
+    let extractedText = '';
+    try {
+      extractedText = await extractTextWithGemini(base64File, mimeType, LOVABLE_API_KEY);
+    } catch (error) {
+      console.error('Text extraction error:', error);
+      extractedText = `Text extraction failed: ${error.message}`;
     }
 
     // Log text extraction result
@@ -125,7 +122,7 @@ serve(async (req) => {
       component: 'enhanced-process-document',
       operation: 'text_extraction',
       message: `Extracted ${extractedText.length} characters from document`,
-      metadata: { documentId, textLength: extractedText.length, fileType }
+      metadata: { documentId, textLength: extractedText.length, fileType: mimeType }
     });
 
     // Truncate if too long
@@ -135,8 +132,8 @@ serve(async (req) => {
 
     // Generate category-specific summary
     let summary = '';
-    if (extractedText.trim().length > 0) {
-      summary = await generateCategorySpecificSummary(extractedText, document.category, supabaseClient);
+    if (extractedText.trim().length > 0 && !extractedText.includes('failed')) {
+      summary = await generateCategorySpecificSummary(extractedText, document.category, supabaseClient, LOVABLE_API_KEY);
     }
 
     // Update document with results
@@ -213,101 +210,65 @@ serve(async (req) => {
   }
 });
 
-// Text extraction functions
-async function processPDF(fileBuffer: ArrayBuffer): Promise<string> {
-  // For now, use OpenAI for PDF processing as it's most reliable
-  const base64File = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)));
-  return await extractTextWithOpenAI(base64File, 'application/pdf');
-}
-
-async function processDOCX(fileBuffer: ArrayBuffer): Promise<string> {
-  // Basic DOCX text extraction (simplified)
+async function extractTextWithGemini(base64File: string, mimeType: string, apiKey: string): Promise<string> {
   try {
-    const text = new TextDecoder().decode(fileBuffer);
-    // Look for document.xml content patterns
-    const matches = text.match(/<w:t[^>]*>([^<]+)<\/w:t>/g);
-    if (matches) {
-      return matches.map(match => match.replace(/<[^>]+>/g, '')).join(' ');
-    }
-    return 'Unable to extract text from DOCX file';
-  } catch (error) {
-    throw new Error(`DOCX processing failed: ${error.message}`);
-  }
-}
-
-async function processPPTX(fileBuffer: ArrayBuffer): Promise<string> {
-  // Basic PPTX text extraction (simplified)
-  try {
-    const text = new TextDecoder().decode(fileBuffer);
-    // Look for slide content patterns
-    const matches = text.match(/<a:t[^>]*>([^<]+)<\/a:t>/g);
-    if (matches) {
-      return matches.map(match => match.replace(/<[^>]+>/g, '')).join(' ');
-    }
-    return 'Unable to extract text from PPTX file';
-  } catch (error) {
-    throw new Error(`PPTX processing failed: ${error.message}`);
-  }
-}
-
-async function processXLSX(fileBuffer: ArrayBuffer): Promise<string> {
-  // Basic XLSX text extraction (simplified)
-  try {
-    const text = new TextDecoder().decode(fileBuffer);
-    // Look for cell content patterns
-    const matches = text.match(/<t[^>]*>([^<]+)<\/t>/g);
-    if (matches) {
-      return matches.map(match => match.replace(/<[^>]+>/g, '')).join(' ');
-    }
-    return 'Unable to extract text from XLSX file';
-  } catch (error) {
-    throw new Error(`XLSX processing failed: ${error.message}`);
-  }
-}
-
-async function extractTextWithOpenAI(base64File: string, fileType: string): Promise<string> {
-  const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-  
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${OPENAI_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: 'Extract all text content from this document. Return only the text, no formatting or explanations.'
-            },
-            {
-              type: 'image_url',
-              image_url: {
-                url: `data:${fileType};base64,${base64File}`
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: 'Extract all text content from this document. Preserve formatting and structure where possible. Return all readable text content. If this is a PDF, image, Word document, PowerPoint, or Excel file, carefully read and transcribe all visible text.'
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:${mimeType};base64,${base64File}`
+                }
               }
-            }
-          ]
-        }
-      ],
-      max_tokens: 4000
-    }),
-  });
+            ]
+          }
+        ]
+      })
+    });
 
-  if (!response.ok) {
-    throw new Error(`OpenAI API error: ${response.statusText}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Lovable AI Gateway error: ${response.status} - ${errorText}`);
+      
+      if (response.status === 429) {
+        throw new Error('Rate limit exceeded. Please try again later.');
+      }
+      if (response.status === 402) {
+        throw new Error('AI credits exhausted. Please add funds to your Lovable workspace.');
+      }
+      
+      throw new Error(`Text extraction failed: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const text = data.choices?.[0]?.message?.content || '';
+    
+    console.log(`Extracted ${text.length} characters using Gemini`);
+    return text || 'No text could be extracted';
+    
+  } catch (error) {
+    console.error('Gemini text extraction error:', error);
+    throw error;
   }
-
-  const data = await response.json();
-  return data.choices[0]?.message?.content || 'No text could be extracted';
 }
 
-async function generateCategorySpecificSummary(text: string, category: string | null, supabaseClient: any): Promise<string> {
+async function generateCategorySpecificSummary(text: string, category: string | null, supabaseClient: any, apiKey: string): Promise<string> {
   // Get category-specific prompt
-  let promptText = "Create a comprehensive summary of this document, focusing on key points, important dates, and actionable information.";
+  let systemPrompt = "You are a document summarization expert. Create concise, comprehensive summaries that capture key points, important dates, and actionable information.";
   
   if (category) {
     const { data: prompts } = await supabaseClient
@@ -319,39 +280,50 @@ async function generateCategorySpecificSummary(text: string, category: string | 
       .limit(1);
       
     if (prompts && prompts.length > 0) {
-      promptText = prompts[0].prompt_text;
+      systemPrompt = prompts[0].prompt_text;
     }
   }
 
-  const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-  
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${OPENAI_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: promptText
-        },
-        {
-          role: 'user',
-          content: `Please create a summary of this document:\n\n${text.substring(0, 10000)}`
-        }
-      ],
-      max_tokens: 500,
-      temperature: 0.3
-    }),
-  });
+  try {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash',
+        messages: [
+          {
+            role: 'system',
+            content: systemPrompt
+          },
+          {
+            role: 'user',
+            content: `Please create a summary of this document:\n\n${text.substring(0, 10000)}`
+          }
+        ]
+      })
+    });
 
-  if (!response.ok) {
-    throw new Error(`OpenAI API error: ${response.statusText}`);
+    if (!response.ok) {
+      console.error(`Summary generation error: ${response.status}`);
+      
+      if (response.status === 429) {
+        return 'Summary could not be generated due to rate limits. Please try again later.';
+      }
+      if (response.status === 402) {
+        return 'Summary could not be generated. AI credits exhausted.';
+      }
+      
+      return 'Summary could not be generated.';
+    }
+
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content || 'Summary could not be generated.';
+    
+  } catch (error) {
+    console.error('Summary generation error:', error);
+    return 'Summary generation failed.';
   }
-
-  const data = await response.json();
-  return data.choices[0]?.message?.content || 'Summary could not be generated.';
 }

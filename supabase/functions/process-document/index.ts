@@ -7,8 +7,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// File size limit: 32 MB (OpenAI's limit)
-const MAX_FILE_SIZE = 32 * 1024 * 1024;
+const MAX_FILE_SIZE = 32 * 1024 * 1024; // 32 MB
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -16,9 +15,9 @@ serve(async (req) => {
   }
 
   try {
-    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-    if (!OPENAI_API_KEY) {
-      throw new Error('OPENAI_API_KEY is not configured');
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (!LOVABLE_API_KEY) {
+      throw new Error('LOVABLE_API_KEY is not configured');
     }
 
     const supabaseClient = createClient(
@@ -37,7 +36,7 @@ serve(async (req) => {
 
     console.log('Processing document:', documentId);
 
-    // First, validate the document with security checks
+    // Validate the document with security checks
     try {
       const { error: validationError } = await supabaseClient.functions.invoke('validate-document', {
         body: { documentId }
@@ -52,7 +51,6 @@ serve(async (req) => {
       }
     } catch (validationError) {
       console.error('Validation service error:', validationError);
-      // Continue with processing - validation is an extra security layer
     }
 
     // Get document from database
@@ -92,7 +90,7 @@ serve(async (req) => {
       
       // Check file size limit
       if (fileBuffer.byteLength > MAX_FILE_SIZE) {
-        throw new Error(`File size exceeds 25 MB limit. File size: ${Math.round(fileBuffer.byteLength / (1024 * 1024))} MB`);
+        throw new Error(`File size exceeds 32 MB limit. File size: ${Math.round(fileBuffer.byteLength / (1024 * 1024))} MB`);
       }
 
       const fileType = document.file_type?.toLowerCase() || '';
@@ -100,26 +98,33 @@ serve(async (req) => {
 
       console.log(`Processing file type: ${fileType}, MIME: ${mimeType}`);
 
-      // Route to appropriate processing method based on file type
-      const result = await routeAndProcess(fileBuffer, fileType, mimeType, OPENAI_API_KEY);
-      extractedText = result.text;
+      // Convert file to base64 for Gemini
+      const bytes = new Uint8Array(fileBuffer);
+      let binaryString = '';
+      for (let i = 0; i < bytes.length; i++) {
+        binaryString += String.fromCharCode(bytes[i]);
+      }
+      const base64File = btoa(binaryString);
+
+      // Extract text using Gemini (handles all file types natively)
+      extractedText = await extractTextWithGemini(base64File, mimeType, LOVABLE_API_KEY);
 
       // Truncate extremely long text (keep first 50,000 characters)
       if (extractedText.length > 50000) {
         extractedText = extractedText.substring(0, 50000) + '\n\n[Text truncated due to length...]';
       }
 
-      // Generate summary using Responses API
+      // Generate summary
       let summary = document.summary;
       if (!summary || summary.trim() === '') {
         if (extractedText.length > 0 && !extractedText.includes('No readable text found')) {
-          summary = await generateSummaryWithResponses(extractedText, OPENAI_API_KEY);
+          summary = await generateSummaryWithGemini(extractedText, LOVABLE_API_KEY);
         } else {
           throw new Error('No text content could be extracted from the document for summarization');
         }
       }
 
-      // Sanitize text to prevent Unicode escape sequence errors
+      // Sanitize text to prevent database errors
       const sanitizedText = sanitizeTextForDatabase(extractedText);
       const sanitizedSummary = sanitizeTextForDatabase(summary);
 
@@ -152,12 +157,11 @@ serve(async (req) => {
     } catch (processingError) {
       console.error('Processing error:', processingError);
       
-      // Update status to failed - don't put error in summary field
+      // Update status to failed
       await supabaseClient
         .from('documents')
         .update({ 
           processing_status: 'failed'
-          // Leave summary and full_text as null - don't store error messages there
         })
         .eq('id', documentId);
 
@@ -173,227 +177,106 @@ serve(async (req) => {
   }
 });
 
-async function routeAndProcess(fileBuffer: ArrayBuffer, fileType: string, mimeType: string, apiKey: string): Promise<{text: string}> {
-  console.log(`Routing file type: ${fileType}, MIME: ${mimeType}`);
-  
-  const fileSizeMB = fileBuffer.byteLength / (1024 * 1024);
-  console.log(`File size: ${fileSizeMB.toFixed(1)}MB`);
-  
-  if (fileSizeMB > 32) {
-    throw new Error('File size exceeds 32MB limit. Please use a smaller file.');
-  }
-
-  // PDF files - use input_file with Responses API
-  if (fileType.includes('pdf') || mimeType.includes('application/pdf')) {
-    console.log('Processing PDF with Responses API');
-    return await processPDFWithResponses(fileBuffer, apiKey);
-  }
-  
-  // Image files - use input_image with Responses API  
-  if (fileType.includes('image') || fileType.includes('png') || fileType.includes('jpg') || 
-      fileType.includes('jpeg') || fileType.includes('webp') || mimeType.startsWith('image/')) {
-    console.log('Processing image with Responses API');
-    return await processImageWithResponses(fileBuffer, mimeType, apiKey);
-  }
-  
-  // Text files - process as text
-  if (fileType.includes('text') || mimeType.includes('text/plain')) {
-    console.log('Processing text file');
-    const text = new TextDecoder('utf-8').decode(fileBuffer);
-    return { text };
-  }
-  
-  // Office files - use fallback approach (OpenAI doesn't support direct Office file processing)
-  if (fileType.includes('docx') || fileType.includes('pptx') || fileType.includes('xlsx') ||
-      mimeType.includes('officedocument') || mimeType.includes('ms-excel')) {
-    console.log('Processing Office file with fallback approach');
-    return await processOfficeFileWithResponses(fileBuffer, mimeType, apiKey);
-  }
-  
-  throw new Error(`Unsupported file type: ${fileType}. Supported types: PDF, DOCX, PPTX, XLSX, TXT, JPG, PNG, WebP`);
-}
-
-async function processPDFWithResponses(fileBuffer: ArrayBuffer, apiKey: string): Promise<{text: string}> {
+async function extractTextWithGemini(base64File: string, mimeType: string, apiKey: string): Promise<string> {
   try {
-    // Upload file to OpenAI
-    const fileId = await uploadFileToOpenAI(fileBuffer, 'application/pdf', 'file.pdf', apiKey);
-    
-    // Use Responses API with input_file (PDFs are supported)
-    const response = await fetch('https://api.openai.com/v1/responses', {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
-        input: [{
-          role: 'user',
-          content: [
-            { type: 'input_file', file_id: fileId },
-            { type: 'input_text', text: 'Extract all text content from this PDF document. Preserve formatting and structure where possible. Return all readable text content.' }
-          ]
-        }]
+        model: 'google/gemini-2.5-flash',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: 'Extract all text content from this document. Preserve formatting and structure where possible. Return all readable text content. If this is a PDF, image, or office document, carefully read and transcribe all visible text.'
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:${mimeType};base64,${base64File}`
+                }
+              }
+            ]
+          }
+        ]
       })
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`OpenAI Responses API error: ${response.status} - ${errorText}`);
+      console.error(`Lovable AI Gateway error: ${response.status} - ${errorText}`);
       
-      // Fallback to Chat Completions API if Responses API fails
-      console.log('Falling back to Chat Completions API for PDF processing');
-      return await processPDFWithChatAPI(fileBuffer, apiKey);
+      // Handle rate limits and payment errors
+      if (response.status === 429) {
+        throw new Error('Rate limit exceeded. Please try again later.');
+      }
+      if (response.status === 402) {
+        throw new Error('AI credits exhausted. Please add funds to your Lovable workspace.');
+      }
+      
+      throw new Error(`Text extraction failed: ${response.statusText}`);
     }
 
     const data = await response.json();
-    const text = data.output_text || '';
+    const text = data.choices?.[0]?.message?.content || '';
     
-    // If no text extracted, try fallback
     if (!text || text.trim().length === 0) {
-      console.log('No text extracted with Responses API, trying Chat API fallback');
-      return await processPDFWithChatAPI(fileBuffer, apiKey);
+      throw new Error('No text could be extracted from the document');
     }
     
-    console.log(`Extracted ${text.length} characters from PDF`);
-    return { text };
+    console.log(`Extracted ${text.length} characters using Gemini`);
+    return text;
     
   } catch (error) {
-    console.error('PDF processing error:', error);
-    console.log('Attempting Chat API fallback due to error');
-    return await processPDFWithChatAPI(fileBuffer, apiKey);
+    console.error('Gemini text extraction error:', error);
+    throw new Error(`Text extraction failed: ${error.message}`);
   }
 }
 
-async function processPDFWithChatAPI(fileBuffer: ArrayBuffer, apiKey: string): Promise<{text: string}> {
+async function generateSummaryWithGemini(text: string, apiKey: string): Promise<string> {
   try {
-    // Chat API doesn't process files by file ID - this is a fundamental API limitation
-    // Provide a descriptive fallback message
-    const fallbackText = "This PDF file could not be processed for text extraction. This may be because the PDF contains primarily images, is password-protected, or uses complex formatting that prevents automatic text extraction. Please try converting the PDF to a text file or image format for better results.";
-    
-    console.log(`PDF Chat API fallback: ${fallbackText.length} characters`);
-    return { text: fallbackText };
-  } catch (error) {
-    console.error('PDF Chat API fallback error:', error);
-    throw new Error(`PDF processing failed: ${error.message}`);
-  }
-}
-
-async function processImageWithResponses(fileBuffer: ArrayBuffer, mimeType: string, apiKey: string): Promise<{text: string}> {
-  try {
-    // Convert to base64
-    const bytes = new Uint8Array(fileBuffer);
-    let binaryString = '';
-    for (let i = 0; i < bytes.length; i++) {
-      binaryString += String.fromCharCode(bytes[i]);
-    }
-    const base64File = btoa(binaryString);
-    
-    // Use Responses API with input_image  
-    const response = await fetch('https://api.openai.com/v1/responses', {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
-        input: [{
-          role: 'user',
-          content: [
-            { type: 'input_text', text: 'Read all text content from this image and provide it as clean, readable text.' },
-            { type: 'input_image', image_url: `data:${mimeType};base64,${base64File}` }
-          ]
-        }]
-      })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`OpenAI Responses API error: ${response.status} - ${errorText}`);
-      throw new Error(`Image processing failed: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const text = data.output_text || '';
-    
-    console.log(`Extracted ${text.length} characters from image`);
-    return { text };
-    
-  } catch (error) {
-    console.error('Image processing error:', error);
-    throw new Error(`Image processing failed: ${error.message}`);
-  }
-}
-
-async function processOfficeFileWithResponses(fileBuffer: ArrayBuffer, mimeType: string, apiKey: string): Promise<{text: string}> {
-  try {
-    // Office files cannot be processed directly by OpenAI APIs
-    // Convert to base64 and try Vision API approach as a workaround
-    console.log('Office files are not directly supported by OpenAI APIs - using fallback text extraction');
-    
-    // For now, return a descriptive message about the file
-    const filename = mimeType.includes('word') ? 'Word document' : 
-                    mimeType.includes('presentation') ? 'PowerPoint presentation' : 'Excel spreadsheet';
-    
-    const fallbackText = `This is a ${filename} file that could not be processed for text extraction. The file appears to be a valid ${filename} but automatic text extraction is not currently supported for this file type. Please consider converting the document to PDF format for better text extraction results.`;
-    
-    console.log(`Office file processing fallback: ${fallbackText.length} characters`);
-    return { text: fallbackText };
-    
-  } catch (error) {
-    console.error('Office file processing error:', error);
-    throw new Error(`Office file processing failed: ${error.message}`);
-  }
-}
-
-async function uploadFileToOpenAI(fileBuffer: ArrayBuffer, mimeType: string, filename: string, apiKey: string): Promise<string> {
-  const formData = new FormData();
-  const blob = new Blob([fileBuffer], { type: mimeType });
-  formData.append('file', blob, filename);
-  formData.append('purpose', 'user_data');
-
-  const response = await fetch('https://api.openai.com/v1/files', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: formData
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`File upload error: ${response.status} - ${errorText}`);
-    throw new Error(`File upload failed: ${response.statusText}`);
-  }
-
-  const data = await response.json();
-  console.log(`File uploaded successfully: ${data.id}`);
-  return data.id;
-}
-
-async function generateSummaryWithResponses(text: string, apiKey: string): Promise<string> {
-  try {
-    const response = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        input: `Create a comprehensive summary of this document. Focus on key points, important dates, names, amounts, and actionable information:\n\n${text.substring(0, 10000)}`
+        model: 'google/gemini-2.5-flash',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a document summarization expert. Create concise, comprehensive summaries that capture key points, important dates, names, amounts, and actionable information.'
+          },
+          {
+            role: 'user',
+            content: `Create a comprehensive summary of this document:\n\n${text.substring(0, 10000)}`
+          }
+        ]
       })
     });
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Summary generation error: ${response.status} - ${errorText}`);
-      throw new Error(`Summary generation failed: ${response.statusText}`);
+      
+      if (response.status === 429) {
+        return 'Summary could not be generated due to rate limits. Please try again later.';
+      }
+      if (response.status === 402) {
+        return 'Summary could not be generated. AI credits exhausted.';
+      }
+      
+      return 'Summary could not be generated.';
     }
 
     const data = await response.json();
-    return data.output_text || 'Summary could not be generated.';
+    return data.choices?.[0]?.message?.content || 'Summary could not be generated.';
     
   } catch (error) {
     console.error('Summary generation error:', error);
@@ -405,55 +288,9 @@ function sanitizeTextForDatabase(text: string): string {
   if (!text) return '';
   
   return text
-    .replace(/\x00/g, '') // Remove null bytes
-    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '') // Remove control characters
-    .replace(/\\/g, '\\\\') // Escape backslashes
-    .replace(/'/g, "''") // Escape single quotes for SQL
+    .replace(/\x00/g, '')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "''")
     .trim();
 }
-
-// Helper function to detect garbled text with improved detection
-function isGarbledText(text: string): boolean {
-  if (!text || text.trim().length < 5) {
-    return true;
-  }
-  
-  const garbledPatterns = [
-    /^[^\w\s]{10,}/,  // Starts with many non-word characters
-    /[^\w\s]{20,}/,   // Contains long sequences of non-word characters
-    /^[\x00-\x08\x0E-\x1F\x7F-\x9F]{5,}/, // Contains control characters
-    // Check for common PDF error patterns
-    /^(The provided|appears to be|corrupted|encrypted|nonsensical)/i,
-    /unable to (extract|read|process)/i,
-    /binary data|encoded data|pdf (streams|objects)/i
-  ];
-  
-  const totalChars = text.length;
-  const readableChars = (text.match(/[a-zA-Z0-9\s.,!?-]/g) || []).length;
-  const readableRatio = readableChars / totalChars;
-  
-  // If less than 40% of characters are readable, consider it garbled
-  if (readableRatio < 0.4) {
-    return true;
-  }
-  
-  // Check for specific garbled patterns
-  if (garbledPatterns.some(pattern => pattern.test(text))) {
-    return true;
-  }
-  
-  // Check if text looks like error messages
-  const errorKeywords = ['corrupted', 'encrypted', 'binary', 'unable', 'cannot', 'failed'];
-  const lowerText = text.toLowerCase();
-  const errorCount = errorKeywords.filter(keyword => lowerText.includes(keyword)).length;
-  
-  if (errorCount >= 2) {
-    return true;
-  }
-  
-  return false;
-}
-
-
-// Export functions for testing
-export { isGarbledText };
