@@ -98,16 +98,23 @@ serve(async (req) => {
 
       console.log(`Processing file type: ${fileType}, MIME: ${mimeType}`);
 
-      // Convert file to base64 for Gemini
-      const bytes = new Uint8Array(fileBuffer);
-      let binaryString = '';
-      for (let i = 0; i < bytes.length; i++) {
-        binaryString += String.fromCharCode(bytes[i]);
-      }
-      const base64File = btoa(binaryString);
+      // Check if it's an Office document (DOCX, XLSX, PPTX)
+      if (mimeType.includes('officedocument') || mimeType.includes('ms-excel') || 
+          fileType.includes('docx') || fileType.includes('xlsx') || fileType.includes('pptx')) {
+        // For Office documents, extract basic text first
+        extractedText = await extractOfficeText(fileBuffer, mimeType);
+      } else {
+        // Convert file to base64 for Gemini (images, PDFs)
+        const bytes = new Uint8Array(fileBuffer);
+        let binaryString = '';
+        for (let i = 0; i < bytes.length; i++) {
+          binaryString += String.fromCharCode(bytes[i]);
+        }
+        const base64File = btoa(binaryString);
 
-      // Extract text using Gemini (handles all file types natively)
-      extractedText = await extractTextWithGemini(base64File, mimeType, LOVABLE_API_KEY);
+        // Extract text using Gemini (handles images and PDFs)
+        extractedText = await extractTextWithGemini(base64File, mimeType, LOVABLE_API_KEY);
+      }
 
       // Truncate extremely long text (keep first 50,000 characters)
       if (extractedText.length > 50000) {
@@ -281,6 +288,48 @@ async function generateSummaryWithGemini(text: string, apiKey: string): Promise<
   } catch (error) {
     console.error('Summary generation error:', error);
     return 'Summary generation failed.';
+  }
+}
+
+async function extractOfficeText(fileBuffer: ArrayBuffer, mimeType: string): Promise<string> {
+  try {
+    const decoder = new TextDecoder('utf-8', { fatal: false });
+    const text = decoder.decode(fileBuffer);
+    
+    // Try to extract text from XML-based Office formats
+    let extractedText = '';
+    
+    if (mimeType.includes('wordprocessingml')) {
+      // DOCX - extract from document.xml
+      const matches = text.match(/<w:t[^>]*>([^<]+)<\/w:t>/g);
+      if (matches) {
+        extractedText = matches.map(match => match.replace(/<[^>]+>/g, '')).join(' ');
+      }
+    } else if (mimeType.includes('spreadsheetml') || mimeType.includes('ms-excel')) {
+      // XLSX - extract from cell values
+      const matches = text.match(/<(?:t|v)[^>]*>([^<]+)<\/(?:t|v)>/g);
+      if (matches) {
+        extractedText = matches.map(match => match.replace(/<[^>]+>/g, '')).join(' ');
+      }
+    } else if (mimeType.includes('presentationml')) {
+      // PPTX - extract from slide text
+      const matches = text.match(/<a:t[^>]*>([^<]+)<\/a:t>/g);
+      if (matches) {
+        extractedText = matches.map(match => match.replace(/<[^>]+>/g, '')).join(' ');
+      }
+    }
+    
+    if (extractedText.trim().length > 0) {
+      console.log(`Extracted ${extractedText.length} characters from Office document`);
+      return extractedText;
+    }
+    
+    // If basic extraction didn't work, return a message
+    return `This is an Office document (${mimeType.split('/').pop()}) that contains content but requires more advanced processing. Please download and open with appropriate software for full access.`;
+    
+  } catch (error) {
+    console.error('Office text extraction error:', error);
+    return `Unable to extract text from this Office document. Error: ${error.message}`;
   }
 }
 
