@@ -46,15 +46,13 @@ serve(async (req) => {
       // Escape ampersands for proper XML parsing
       const escapedChatUrl = chatUrl.replace(/&/g, '&amp;');
       
-      const twimlResponse = `
-        <?xml version="1.0" encoding="UTF-8"?>
+      const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
         <Response>
           <Say voice="alice">I didn't understand your selection. Connecting you to ${selectedGroupName}'s care group. What would you like to know?</Say>
           <Connect>
             <Stream url="${escapedChatUrl}"/>
           </Connect>
-        </Response>
-      `;
+        </Response>`;
       
       return new Response(twimlResponse, {
         headers: {
@@ -76,15 +74,13 @@ serve(async (req) => {
     // Escape ampersands for proper XML parsing
     const escapedChatUrl = chatUrl.replace(/&/g, '&amp;');
     
-    const twimlResponse = `
-      <?xml version="1.0" encoding="UTF-8"?>
-      <Response>
-        <Say voice="alice">Welcome to ${selectedGroupName}'s care group, what would you like to know?</Say>
-        <Connect>
-          <Stream url="${escapedChatUrl}"/>
-        </Connect>
-      </Response>
-    `;
+      const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
+        <Response>
+          <Say voice="alice">Welcome to ${selectedGroupName}'s care group, what would you like to know?</Say>
+          <Connect>
+            <Stream url="${escapedChatUrl}"/>
+          </Connect>
+        </Response>`;
 
     console.log('Sending TwiML response for group selection');
 
