@@ -24,7 +24,7 @@ serve(async (req) => {
 
   try {
     const url = new URL(req.url);
-    const groupId = url.searchParams.get('group_id');
+    let groupId = url.searchParams.get('group_id');
     let userId = url.searchParams.get('user_id');
     let callerType = url.searchParams.get('type');
     const groupsParam = url.searchParams.get('groups');
@@ -65,33 +65,35 @@ serve(async (req) => {
       });
     }
 
-    if (!groupId) {
+    if (!groupId && (req.headers.get('upgrade') || '').toLowerCase() !== 'websocket') {
       throw new Error('No group ID provided');
     }
 
-    // Get care group details
-    const { data: careGroup, error: groupError } = await supabase
-      .from('care_groups')
-      .select(`
-        id,
-        name,
-        recipient_first_name,
-        profile_description,
-        chronic_conditions,
-        mental_health,
-        mobility,
-        memory,
-        hearing,
-        vision
-      `)
-      .eq('id', groupId)
-      .single();
+    if ((req.headers.get('upgrade') || '').toLowerCase() !== 'websocket') {
+      // Get care group details for non-WebSocket requests
+      const { data: careGroup, error: groupError } = await supabase
+        .from('care_groups')
+        .select(`
+          id,
+          name,
+          recipient_first_name,
+          profile_description,
+          chronic_conditions,
+          mental_health,
+          mobility,
+          memory,
+          hearing,
+          vision
+        `)
+        .eq('id', groupId)
+        .single();
 
-    if (groupError || !careGroup) {
-      throw new Error('Care group not found');
+      if (groupError || !careGroup) {
+        throw new Error('Care group not found');
+      }
+
+      console.log('Care group found:', careGroup.name);
     }
-
-    console.log('Care group found:', careGroup.name);
 
     // Check if this is a WebSocket upgrade for real-time communication
     const upgrade = req.headers.get('upgrade') || '';
@@ -106,6 +108,7 @@ serve(async (req) => {
         
         let openaiWs: WebSocket | null = null;
         let streamSid: string | null = null;
+        let currentGroupId: string | null = groupId;
 
         socket.onopen = () => {
           console.log('✓ Twilio WebSocket connection OPENED');
@@ -120,6 +123,33 @@ serve(async (req) => {
             streamSid = message.start.streamSid;
             console.log('✓ Twilio stream STARTED:', streamSid);
             console.log('Stream metadata:', message.start);
+            
+            // Extract custom parameters and fetch care group
+            const cp = message.start.customParameters || message.start.custom_parameters || {};
+            const effectiveGroupId = (cp.group_id ?? groupId) as string | null;
+            const effectiveUserId = (cp.user_id ?? userId) as string | null;
+            callerType = (cp.type ?? callerType) as string | null;
+            currentGroupId = effectiveGroupId;
+            console.log('Resolved parameters:', { effectiveGroupId, effectiveUserId, callerType });
+
+            if (!effectiveGroupId) {
+              console.error('✗ Missing group_id in custom parameters and URL');
+              socket.close(1011, 'Missing group_id');
+              return;
+            }
+
+            const { data: careGroup, error: groupError } = await supabase
+              .from('care_groups')
+              .select(`id,name,recipient_first_name,profile_description,chronic_conditions,mental_health,mobility,memory,hearing,vision`)
+              .eq('id', effectiveGroupId)
+              .single();
+
+            if (groupError || !careGroup) {
+              console.error('✗ Care group not found:', groupError);
+              socket.close(1011, 'Care group not found');
+              return;
+            }
+            console.log('Care group found for WS:', careGroup.name);
             
             // Initialize OpenAI connection when stream starts
             console.log('Connecting to OpenAI Realtime API...');
@@ -275,7 +305,7 @@ serve(async (req) => {
                   socket.send(JSON.stringify(audioMessage));
                 } else if (data.type === 'response.function_call_arguments.done') {
                   // Handle function calls for data retrieval
-                  await handleFunctionCall(data, groupId, openaiWs);
+                  await handleFunctionCall(data, currentGroupId as string, openaiWs);
                 }
               } catch (error) {
                 console.error('Error processing OpenAI message:', error);
