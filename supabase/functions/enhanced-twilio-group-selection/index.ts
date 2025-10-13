@@ -40,7 +40,7 @@ serve(async (req) => {
       const selectedGroupId = groupIds[0];
       const selectedGroupName = groupNames[0];
       
-      const baseUrl = `https://yfwgegapmggwywrnzqvg.functions.supabase.co`;
+      const baseUrl = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co`;
       const chatUrl = `${baseUrl}/enhanced-twilio-voice-chat?group_id=${selectedGroupId}&user_id=${userId}&type=user`;
       
       // Escape ampersands for proper XML parsing
@@ -70,7 +70,7 @@ serve(async (req) => {
     
     console.log('Valid selection:', { selectedGroupId, selectedGroupName });
     
-    const baseUrl = `https://yfwgegapmggwywrnzqvg.functions.supabase.co`;
+    const baseUrl = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co`;
     const chatUrl = `${baseUrl}/enhanced-twilio-voice-chat?group_id=${selectedGroupId}&user_id=${userId}&type=user`;
     
     // Escape ampersands for proper XML parsing
