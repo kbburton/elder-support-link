@@ -92,179 +92,212 @@ serve(async (req) => {
     // Check if this is a WebSocket upgrade for real-time communication
     const upgrade = req.headers.get('upgrade') || '';
     if (upgrade.toLowerCase() === 'websocket') {
-      console.log('WebSocket connection requested');
+      console.log('WebSocket connection requested for Twilio Stream');
       
       const { socket, response } = Deno.upgradeWebSocket(req);
+      let openaiWs: WebSocket | null = null;
+      let streamSid: string | null = null;
 
-      socket.onopen = async () => {
-        console.log('WebSocket connected for enhanced voice chat');
-        
-        // Set up OpenAI connection similar to the original implementation
-        const openaiWs = new WebSocket('wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01', {
-          headers: {
-            'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
-            'OpenAI-Beta': 'realtime=v1'
-          }
-        });
+      socket.onopen = () => {
+        console.log('Twilio WebSocket connected for enhanced voice chat');
+      };
 
-        openaiWs.onopen = () => {
-          console.log('Connected to OpenAI Realtime API');
+      socket.onmessage = async (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          console.log('Twilio message type:', message.event);
           
-          // Configure the session with read-only capabilities
-          const sessionConfig = {
-            type: 'session.update',
-            session: {
-              modalities: ['text', 'audio'],
-              instructions: `You are a helpful voice assistant for ${careGroup.recipient_first_name}'s care group. 
-                
-                The caller is ${callerType === 'user' ? 'a care team member' : 'the care recipient'}. 
-                You can provide READ-ONLY information about:
-                - Upcoming appointments
-                - Open tasks 
-                - Recent activities
-                - Document summaries
-                - Emergency contacts
-                
-                IMPORTANT: You can only provide information, you cannot create, modify, or delete anything.
-                
-                Care recipient profile:
-                ${careGroup.profile_description || 'No profile description available'}
-                
-                Health conditions: ${careGroup.chronic_conditions || 'None listed'}
-                Mental health: ${careGroup.mental_health || 'None listed'}
-                Mobility: ${careGroup.mobility || 'Not specified'}
-                Memory: ${careGroup.memory || 'Not specified'}
-                Hearing: ${careGroup.hearing || 'Not specified'}
-                Vision: ${careGroup.vision || 'Not specified'}
-                
-                Keep responses concise and helpful. If asked to make changes, politely explain that you can only provide information.`,
-              voice: 'alloy',
-              input_audio_format: 'g711_ulaw',
-              output_audio_format: 'g711_ulaw',
-              input_audio_transcription: {
-                model: 'whisper-1'
-              },
-              turn_detection: {
-                type: 'server_vad',
-                threshold: 0.5,
-                prefix_padding_ms: 300,
-                silence_duration_ms: 200
-              },
-              tools: [
-                {
-                  type: 'function',
-                  name: 'get_appointments',
-                  description: 'Get upcoming appointments',
-                  parameters: {
-                    type: 'object',
-                    properties: {
-                      timeframe: {
-                        type: 'string',
-                        enum: ['today', 'tomorrow', 'week'],
-                        description: 'Timeframe for appointments'
+          if (message.event === 'start') {
+            streamSid = message.start.streamSid;
+            console.log('Twilio stream started:', streamSid);
+            
+            // Initialize OpenAI connection when stream starts
+            openaiWs = new WebSocket('wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01', {
+              headers: {
+                'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
+                'OpenAI-Beta': 'realtime=v1'
+              }
+            });
+
+            openaiWs.onopen = () => {
+              console.log('Connected to OpenAI Realtime API');
+              
+              // Configure the session with read-only capabilities
+              const sessionConfig = {
+                type: 'session.update',
+                session: {
+                  modalities: ['text', 'audio'],
+                  instructions: `You are a helpful voice assistant for ${careGroup.recipient_first_name}'s care group.
+                  
+                  The caller is ${callerType === 'user' ? 'a care team member' : 'the care recipient'}. 
+                  You can provide READ-ONLY information about:
+                  - Upcoming appointments
+                  - Open tasks 
+                  - Recent activities
+                  - Document summaries
+                  - Emergency contacts
+                  
+                  IMPORTANT: You can only provide information, you cannot create, modify, or delete anything.
+                  
+                  Care recipient profile:
+                  ${careGroup.profile_description || 'No profile description available'}
+                  
+                  Health conditions: ${careGroup.chronic_conditions || 'None listed'}
+                  Mental health: ${careGroup.mental_health || 'None listed'}
+                  Mobility: ${careGroup.mobility || 'Not specified'}
+                  Memory: ${careGroup.memory || 'Not specified'}
+                  Hearing: ${careGroup.hearing || 'Not specified'}
+                  Vision: ${careGroup.vision || 'Not specified'}
+                  
+                  Keep responses concise and helpful. If asked to make changes, politely explain that you can only provide information.`,
+                  voice: 'alloy',
+                  input_audio_format: 'g711_ulaw',
+                  output_audio_format: 'g711_ulaw',
+                  input_audio_transcription: {
+                    model: 'whisper-1'
+                  },
+                  turn_detection: {
+                    type: 'server_vad',
+                    threshold: 0.5,
+                    prefix_padding_ms: 300,
+                    silence_duration_ms: 200
+                  },
+                  tools: [
+                    {
+                      type: 'function',
+                      name: 'get_appointments',
+                      description: 'Get upcoming appointments',
+                      parameters: {
+                        type: 'object',
+                        properties: {
+                          timeframe: {
+                            type: 'string',
+                            enum: ['today', 'tomorrow', 'week'],
+                            description: 'Timeframe for appointments'
+                          }
+                        }
+                      }
+                    },
+                    {
+                      type: 'function',
+                      name: 'get_tasks',
+                      description: 'Get open tasks',
+                      parameters: {
+                        type: 'object',
+                        properties: {
+                          status: {
+                            type: 'string',
+                            enum: ['open', 'all'],
+                            description: 'Task status filter'
+                          }
+                        }
+                      }
+                    },
+                    {
+                      type: 'function',
+                      name: 'get_documents',
+                      description: 'Get document summaries',
+                      parameters: {
+                        type: 'object',
+                        properties: {
+                          search_term: {
+                            type: 'string',
+                            description: 'Optional search term'
+                          }
+                        }
+                      }
+                    },
+                    {
+                      type: 'function',
+                      name: 'get_contacts',
+                      description: 'Get contact information',
+                      parameters: {
+                        type: 'object',
+                        properties: {
+                          type: {
+                            type: 'string',
+                            enum: ['medical', 'emergency', 'all'],
+                            description: 'Type of contacts to retrieve'
+                          }
+                        }
+                      }
+                    },
+                    {
+                      type: 'function',
+                      name: 'get_recent_activities',
+                      description: 'Get recent activities',
+                      parameters: {
+                        type: 'object',
+                        properties: {}
                       }
                     }
-                  }
-                },
-                {
-                  type: 'function',
-                  name: 'get_tasks',
-                  description: 'Get open tasks',
-                  parameters: {
-                    type: 'object',
-                    properties: {
-                      status: {
-                        type: 'string',
-                        enum: ['open', 'all'],
-                        description: 'Task status filter'
-                      }
-                    }
-                  }
-                },
-                {
-                  type: 'function',
-                  name: 'get_documents',
-                  description: 'Get document summaries',
-                  parameters: {
-                    type: 'object',
-                    properties: {
-                      search_term: {
-                        type: 'string',
-                        description: 'Optional search term'
-                      }
-                    }
-                  }
-                },
-                {
-                  type: 'function',
-                  name: 'get_contacts',
-                  description: 'Get contact information',
-                  parameters: {
-                    type: 'object',
-                    properties: {
-                      type: {
-                        type: 'string',
-                        enum: ['medical', 'emergency', 'all'],
-                        description: 'Type of contacts to retrieve'
-                      }
-                    }
-                  }
-                },
-                {
-                  type: 'function',
-                  name: 'get_recent_activities',
-                  description: 'Get recent activities',
-                  parameters: {
-                    type: 'object',
-                    properties: {}
-                  }
+                  ]
                 }
-              ]
-            }
-          };
-          
-          openaiWs.send(JSON.stringify(sessionConfig));
-        };
-
-        openaiWs.onmessage = async (event) => {
-          const data = JSON.parse(event.data);
-          
-          if (data.type === 'response.audio.delta') {
-            // Forward audio to Twilio
-            const audioMessage = {
-              event: 'media',
-              media: {
-                payload: data.delta
+              };
+              
+              if (openaiWs) {
+                openaiWs.send(JSON.stringify(sessionConfig));
               }
             };
-            socket.send(JSON.stringify(audioMessage));
-          } else if (data.type === 'response.function_call_delta') {
-            // Handle function calls for data retrieval
-            await handleFunctionCall(data, groupId, openaiWs);
-          }
-        };
 
-        socket.onmessage = (event) => {
-          const message = JSON.parse(event.data);
-          
-          if (message.event === 'media') {
+            openaiWs.onmessage = async (event) => {
+              try {
+                const data = JSON.parse(event.data);
+                console.log('OpenAI event:', data.type);
+                
+                if (data.type === 'response.audio.delta') {
+                  // Forward audio to Twilio
+                  const audioMessage = {
+                    event: 'media',
+                    streamSid: streamSid,
+                    media: {
+                      payload: data.delta
+                    }
+                  };
+                  socket.send(JSON.stringify(audioMessage));
+                } else if (data.type === 'response.function_call_arguments.done') {
+                  // Handle function calls for data retrieval
+                  await handleFunctionCall(data, groupId, openaiWs);
+                }
+              } catch (error) {
+                console.error('Error processing OpenAI message:', error);
+              }
+            };
+
+            openaiWs.onerror = (error) => {
+              console.error('OpenAI WebSocket error:', error);
+            };
+
+            openaiWs.onclose = () => {
+              console.log('OpenAI WebSocket closed');
+            };
+          } else if (message.event === 'media' && openaiWs) {
             // Forward audio from Twilio to OpenAI
             const audioMessage = {
               type: 'input_audio_buffer.append',
               audio: message.media.payload
             };
             openaiWs.send(JSON.stringify(audioMessage));
-          } else if (message.event === 'start') {
-            console.log('Twilio media stream started');
+          } else if (message.event === 'stop') {
+            console.log('Twilio stream stopped');
+            if (openaiWs) {
+              openaiWs.close();
+            }
           }
-        };
+        } catch (error) {
+          console.error('Error processing Twilio message:', error);
+        }
+      };
 
-        socket.onclose = () => {
-          console.log('WebSocket closed');
-          if (openaiWs.readyState === WebSocket.OPEN) {
-            openaiWs.close();
-          }
-        };
+      socket.onerror = (error) => {
+        console.error('Twilio WebSocket error:', error);
+      };
+
+      socket.onclose = () => {
+        console.log('Twilio WebSocket closed');
+        if (openaiWs && openaiWs.readyState === WebSocket.OPEN) {
+          openaiWs.close();
+        }
       };
 
       return response;
@@ -287,28 +320,42 @@ serve(async (req) => {
   }
 });
 
-// Function call handler (same as original but with read-only emphasis)
-async function handleFunctionCall(data: any, careGroupId: string, openaiWs: WebSocket) {
-  if (data.type !== 'response.function_call_delta' || !data.name) return;
+// Function call handler
+async function handleFunctionCall(data: any, careGroupId: string, openaiWs: WebSocket | null) {
+  if (!openaiWs || data.type !== 'response.function_call_arguments.done') return;
+  
+  console.log('Handling function call:', data.name);
 
   let result = '';
+  let args: any = {};
+  
+  try {
+    // Parse arguments if they're a string
+    if (typeof data.arguments === 'string') {
+      args = JSON.parse(data.arguments);
+    } else {
+      args = data.arguments || {};
+    }
+  } catch (error) {
+    console.error('Error parsing function arguments:', error);
+  }
   
   try {
     switch (data.name) {
       case 'get_appointments':
-        const timeframe = data.arguments?.timeframe || 'week';
+        const timeframe = args.timeframe || 'week';
         result = await getAppointments(careGroupId, timeframe);
         break;
       case 'get_tasks':
-        const status = data.arguments?.status || 'open';
+        const status = args.status || 'open';
         result = await getTasks(careGroupId, status);
         break;
       case 'get_documents':
-        const searchTerm = data.arguments?.search_term;
+        const searchTerm = args.search_term;
         result = await getDocuments(careGroupId, searchTerm);
         break;
       case 'get_contacts':
-        const type = data.arguments?.type || 'all';
+        const type = args.type || 'all';
         result = await getContacts(careGroupId, type);
         break;
       case 'get_recent_activities':
@@ -333,6 +380,9 @@ async function handleFunctionCall(data: any, careGroupId: string, openaiWs: WebS
   };
   
   openaiWs.send(JSON.stringify(functionResponse));
+  
+  // Request a new response after providing the function output
+  openaiWs.send(JSON.stringify({ type: 'response.create' }));
 }
 
 // Data access functions (read-only versions)
