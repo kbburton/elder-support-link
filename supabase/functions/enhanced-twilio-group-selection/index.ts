@@ -40,20 +40,20 @@ serve(async (req) => {
       const selectedGroupId = groupIds[0];
       const selectedGroupName = groupNames[0];
       
-      const baseUrl = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co`;
-      const streamUrl = `${baseUrl}/enhanced-twilio-voice-chat`;
-      
-      const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
-        <Response>
-          <Say voice="alice">I didn't understand your selection. Connecting you to ${selectedGroupName}'s care group. What would you like to know?</Say>
-          <Connect>
-            <Stream url="${streamUrl}">
-              <Parameter name="group_id" value="${selectedGroupId}"/>
-              <Parameter name="user_id" value="${userId}"/>
-              <Parameter name="type" value="user"/>
-            </Stream>
-          </Connect>
-        </Response>`;
+       const baseUrl = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1`;
+       const streamUrl = `${baseUrl}/enhanced-twilio-voice-chat?group_id=${encodeURIComponent(selectedGroupId || '')}&user_id=${encodeURIComponent(userId || '')}&type=user`;
+       
+       const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
+         <Response>
+           <Say voice="alice">I didn't understand your selection. Connecting you to ${selectedGroupName}'s care group. What would you like to know?</Say>
+           <Connect>
+             <Stream url="${streamUrl}">
+               <Parameter name="group_id" value="${selectedGroupId}"/>
+               <Parameter name="user_id" value="${userId}"/>
+               <Parameter name="type" value="user"/>
+             </Stream>
+           </Connect>
+         </Response>`;
       
       return new Response(twimlResponse, {
         headers: {
@@ -69,20 +69,20 @@ serve(async (req) => {
     
     console.log('Valid selection:', { selectedGroupId, selectedGroupName });
     
-    const baseUrl = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co`;
-    const streamUrl = `${baseUrl}/enhanced-twilio-voice-chat`;
-    
-    const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
-      <Response>
-        <Say voice="alice">Welcome to ${selectedGroupName}'s care group, what would you like to know?</Say>
-        <Connect>
-          <Stream url="${streamUrl}">
-            <Parameter name="group_id" value="${selectedGroupId}"/>
-            <Parameter name="user_id" value="${userId}"/>
-            <Parameter name="type" value="user"/>
-          </Stream>
-        </Connect>
-      </Response>`;
+     const baseUrl = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1`;
+     const streamUrl = `${baseUrl}/enhanced-twilio-voice-chat?group_id=${encodeURIComponent(selectedGroupId || '')}&user_id=${encodeURIComponent(userId || '')}&type=user`;
+     
+     const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
+       <Response>
+         <Say voice="alice">Welcome to ${selectedGroupName}'s care group, what would you like to know?</Say>
+         <Connect>
+           <Stream url="${streamUrl}">
+             <Parameter name="group_id" value="${selectedGroupId}"/>
+             <Parameter name="user_id" value="${userId}"/>
+             <Parameter name="type" value="user"/>
+           </Stream>
+         </Connect>
+       </Response>`;
 
     console.log('Generated TwiML length:', twimlResponse.length);
     console.log('TwiML preview:', twimlResponse.substring(0, 200));

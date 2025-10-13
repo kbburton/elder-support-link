@@ -109,6 +109,7 @@ serve(async (req) => {
         let openaiWs: WebSocket | null = null;
         let streamSid: string | null = null;
         let currentGroupId: string | null = groupId;
+        const pendingAudio: string[] = [];
 
         socket.onopen = () => {
           console.log('✓ Twilio WebSocket connection OPENED');
@@ -330,15 +331,91 @@ serve(async (req) => {
               });
             };
           } else if (message.event === 'media') {
+            // Capture streamSid if provided on media before start
+            if (!streamSid && message.streamSid) {
+              streamSid = message.streamSid;
+              console.log('Set streamSid from media event:', streamSid);
+            }
+
+            // If OpenAI not initialized yet, try initializing using URL/query fallback
+            if (!openaiWs) {
+              const effectiveGroupId = currentGroupId || groupId;
+              if (!effectiveGroupId) {
+                console.warn('No group_id available yet; buffering media until parameters arrive');
+                pendingAudio.push(message.media.payload);
+              } else {
+                console.log('Initializing OpenAI on first media with group:', effectiveGroupId);
+                const { data: careGroup, error: groupError } = await supabase
+                  .from('care_groups')
+                  .select(`id,name,recipient_first_name,profile_description,chronic_conditions,mental_health,mobility,memory,hearing,vision`)
+                  .eq('id', effectiveGroupId)
+                  .single();
+                if (groupError || !careGroup) {
+                  console.error('Care group not found during media-init:', groupError);
+                } else {
+                  const openaiKey = Deno.env.get('OPENAI_API_KEY');
+                  if (!openaiKey) {
+                    console.error('OPENAI_API_KEY not configured');
+                  } else {
+                    openaiWs = new WebSocket('wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01', {
+                      headers: {
+                        'Authorization': `Bearer ${openaiKey}`,
+                        'OpenAI-Beta': 'realtime=v1'
+                      }
+                    });
+
+                    openaiWs.onopen = () => {
+                      console.log('✓ OpenAI WS opened (media-init)');
+                      const sessionConfig = {
+                        type: 'session.update',
+                        session: {
+                          modalities: ['text', 'audio'],
+                          instructions: `You are a helpful voice assistant for ${careGroup.recipient_first_name}'s care group. READ-ONLY info only.`,
+                          voice: 'alloy',
+                          input_audio_format: 'g711_ulaw',
+                          output_audio_format: 'g711_ulaw',
+                          input_audio_transcription: { model: 'whisper-1' },
+                          turn_detection: { type: 'server_vad', threshold: 0.5, prefix_padding_ms: 300, silence_duration_ms: 200 }
+                        }
+                      };
+                      openaiWs!.send(JSON.stringify(sessionConfig));
+                      // Flush any buffered audio
+                      if (pendingAudio.length) {
+                        console.log('Flushing buffered media chunks:', pendingAudio.length);
+                        for (const payload of pendingAudio) {
+                          openaiWs!.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: payload }));
+                        }
+                        pendingAudio.length = 0;
+                      }
+                    };
+
+                    openaiWs.onmessage = async (event) => {
+                      try {
+                        const data = JSON.parse(event.data);
+                        console.log('OpenAI event:', data.type);
+                        if (data.type === 'response.audio.delta') {
+                          const audioMessage = { event: 'media', streamSid, media: { payload: data.delta } };
+                          socket.send(JSON.stringify(audioMessage));
+                        } else if (data.type === 'response.function_call_arguments.done') {
+                          await handleFunctionCall(data, effectiveGroupId as string, openaiWs!);
+                        }
+                      } catch (err) {
+                        console.error('Error processing OpenAI message (media-init):', err);
+                      }
+                    };
+
+                    openaiWs.onerror = (e) => console.error('OpenAI WS error (media-init):', e);
+                    openaiWs.onclose = (e) => console.log('OpenAI WS closed (media-init):', e.code, e.reason);
+                  }
+                }
+              }
+            }
+
+            // Send or buffer current media
             if (openaiWs && openaiWs.readyState === WebSocket.OPEN) {
-              // Forward audio from Twilio to OpenAI
-              const audioMessage = {
-                type: 'input_audio_buffer.append',
-                audio: message.media.payload
-              };
-              openaiWs.send(JSON.stringify(audioMessage));
-            } else if (!streamSid) {
-              console.warn('⚠️ Received media before start event - ignoring');
+              openaiWs.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: message.media.payload }));
+            } else {
+              pendingAudio.push(message.media.payload);
             }
           } else if (message.event === 'stop') {
             console.log('Twilio stream stopped');
