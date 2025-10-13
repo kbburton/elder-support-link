@@ -187,24 +187,35 @@ serve(async (req) => {
           const selectedGroup = careGroups[0];
           console.log('Selected group:', selectedGroup?.id, selectedGroup?.recipient_first_name);
           
-          const baseUrl = `https://yfwgegapmggwywrnzqvg.functions.supabase.co`;
-          let chatUrl = `${baseUrl}/enhanced-twilio-voice-chat?group_id=${selectedGroup.id}`;
+          const streamUrl = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/enhanced-twilio-voice-chat`;
           let greeting = '';
+          let userId = '';
+          let typeParam = '';
           
           if (callerType === 'user') {
-            chatUrl += `&user_id=${entity.user_id}&type=user`;
+            userId = entity.user_id;
+            typeParam = 'user';
             const firstName = selectedGroup.recipient_first_name || 'the care group';
             greeting = `Welcome to ${firstName} care group, what would you like to know?`;
           } else {
-            chatUrl += `&type=care_recipient`;
+            userId = '';
+            typeParam = 'care_recipient';
             const firstName = selectedGroup.recipient_first_name || 'your care group';
             greeting = `Welcome to ${firstName}, what would you like to know?`;
           }
           
-          console.log('Generated single group TwiML with greeting:', greeting);
-          // Escape ampersands for proper XML parsing
-          const escapedChatUrl = chatUrl.replace(/&/g, '&amp;');
-          twimlResponse = `<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="alice">${greeting}</Say><Redirect>${escapedChatUrl}</Redirect></Response>`;
+          console.log('Generated single group TwiML with Stream connection');
+          twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
+            <Response>
+              <Say voice="alice">${greeting}</Say>
+              <Connect>
+                <Stream url="${streamUrl}">
+                  <Parameter name="group_id" value="${selectedGroup.id}"/>
+                  <Parameter name="user_id" value="${userId}"/>
+                  <Parameter name="type" value="${typeParam}"/>
+                </Stream>
+              </Connect>
+            </Response>`;
         }
       }
     } else {

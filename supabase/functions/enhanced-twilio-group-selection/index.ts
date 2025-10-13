@@ -40,8 +40,7 @@ serve(async (req) => {
       const selectedGroupId = groupIds[0];
       const selectedGroupName = groupNames[0];
       
-       const baseUrl = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1`;
-       const streamUrl = `${baseUrl}/enhanced-twilio-voice-chat?group_id=${encodeURIComponent(selectedGroupId || '')}&user_id=${encodeURIComponent(userId || '')}&type=user`;
+       const streamUrl = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/enhanced-twilio-voice-chat`;
        
        const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
          <Response>
@@ -69,8 +68,7 @@ serve(async (req) => {
     
     console.log('Valid selection:', { selectedGroupId, selectedGroupName });
     
-     const baseUrl = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1`;
-     const streamUrl = `${baseUrl}/enhanced-twilio-voice-chat?group_id=${encodeURIComponent(selectedGroupId || '')}&user_id=${encodeURIComponent(userId || '')}&type=user`;
+     const streamUrl = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/enhanced-twilio-voice-chat`;
      
      const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
        <Response>
