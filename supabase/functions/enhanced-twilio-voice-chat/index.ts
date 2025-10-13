@@ -43,6 +43,8 @@ serve(async (req) => {
         const pendingAudio: string[] = [];
         let isInitializingOpenAI = false;
         let sessionConfigured = false;
+        let silenceTimer: number | null = null;
+        let receivedAudio = false;
 
         socket.onopen = () => {
           console.log('✓ Twilio WebSocket connection OPENED');
@@ -99,7 +101,7 @@ serve(async (req) => {
                 // Create WebSocket connection to OpenAI (use subprotocols for auth in Deno)
                 openaiWs = new WebSocket(
                   'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01',
-                  ['realtime', 'openai-insecure-api-key', openaiKey]
+                  ['realtime', `openai-insecure-api-key.${openaiKey}`, 'openai-beta.realtime-v1']
                 );
 
                 openaiWs.onopen = () => {
@@ -283,6 +285,7 @@ serve(async (req) => {
               }
             } else if (message.event === 'media') {
               // Buffer audio if OpenAI not ready yet, otherwise forward
+              receivedAudio = true;
               if (!sessionConfigured) {
                 pendingAudio.push(message.media.payload);
               } else if (openaiWs && openaiWs.readyState === WebSocket.OPEN) {
@@ -291,6 +294,21 @@ serve(async (req) => {
                   audio: message.media.payload
                 }));
               }
+
+              // Reset silence timer to detect end of speech and force a response
+              if (silenceTimer) clearTimeout(silenceTimer);
+              silenceTimer = setTimeout(() => {
+                try {
+                  if (openaiWs && openaiWs.readyState === WebSocket.OPEN && sessionConfigured && receivedAudio) {
+                    console.log('Silence detected: committing buffer and creating response');
+                    openaiWs.send(JSON.stringify({ type: 'input_audio_buffer.commit' }));
+                    openaiWs.send(JSON.stringify({ type: 'response.create' }));
+                    receivedAudio = false;
+                  }
+                } catch (err) {
+                  console.error('Error on silence commit/response:', err);
+                }
+              }, 900) as unknown as number;
             } else if (message.event === 'stop') {
               console.log('Twilio stream stopped');
               if (openaiWs) {
@@ -331,6 +349,7 @@ serve(async (req) => {
             reason: closeEvent.reason,
             wasClean: closeEvent.wasClean
           });
+          if (silenceTimer) clearTimeout(silenceTimer);
           if (openaiWs && openaiWs.readyState === WebSocket.OPEN) {
             openaiWs.close();
           }
