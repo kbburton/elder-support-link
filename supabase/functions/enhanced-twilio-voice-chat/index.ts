@@ -167,12 +167,10 @@ serve(async (req) => {
               throw new Error('OpenAI API key not configured');
             }
             
-            openaiWs = new WebSocket('wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01', {
-              headers: {
-                'Authorization': `Bearer ${openaiKey}`,
-                'OpenAI-Beta': 'realtime=v1'
-              }
-            });
+            openaiWs = new WebSocket(
+              'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01',
+              ['realtime', 'openai-insecure-api-key', openaiKey]
+            );
 
             openaiWs.onopen = () => {
               console.log('✓ Connected to OpenAI Realtime API');
@@ -357,12 +355,10 @@ serve(async (req) => {
                   if (!openaiKey) {
                     console.error('OPENAI_API_KEY not configured');
                   } else {
-                    openaiWs = new WebSocket('wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01', {
-                      headers: {
-                        'Authorization': `Bearer ${openaiKey}`,
-                        'OpenAI-Beta': 'realtime=v1'
-                      }
-                    });
+                    openaiWs = new WebSocket(
+                      'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01',
+                      ['realtime', 'openai-insecure-api-key', openaiKey]
+                    );
 
                     openaiWs.onopen = () => {
                       console.log('✓ OpenAI WS opened (media-init)');
