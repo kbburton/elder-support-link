@@ -43,13 +43,23 @@ const PinSchema = z.object({
   path: ["confirm_pin"],
 });
 
+const ResetPinSchema = z.object({
+  new_pin: z.string().regex(/^\d{4}$/, "PIN must be exactly 4 digits"),
+  confirm_pin: z.string().regex(/^\d{4}$/, "PIN must be exactly 4 digits"),
+}).refine((data) => data.new_pin === data.confirm_pin, {
+  message: "PINs do not match",
+  path: ["confirm_pin"],
+});
+
 type ProfileFormValues = z.infer<typeof ProfileSchema>;
 type PinFormValues = z.infer<typeof PinSchema>;
+type ResetPinFormValues = z.infer<typeof ResetPinSchema>;
 
 const ProfilePage = () => {
   const [careGroups, setCareGroups] = useState<any[]>([]);
   const [selectedCareGroup, setSelectedCareGroup] = useState<string>("");
   const [showPinForm, setShowPinForm] = useState(false);
+  const [showResetPinForm, setShowResetPinForm] = useState(false);
   const [hasPinSet, setHasPinSet] = useState(false);
 
   const form = useForm<ProfileFormValues>({
@@ -70,6 +80,14 @@ const ProfilePage = () => {
     resolver: zodResolver(PinSchema),
     defaultValues: {
       current_pin: "",
+      new_pin: "",
+      confirm_pin: "",
+    },
+  });
+
+  const resetPinForm = useForm<ResetPinFormValues>({
+    resolver: zodResolver(ResetPinSchema),
+    defaultValues: {
       new_pin: "",
       confirm_pin: "",
     },
@@ -221,12 +239,42 @@ const ProfilePage = () => {
     },
   });
 
+  // Handle PIN reset (without requiring current PIN)
+  const resetPinMutation = useMutation({
+    mutationFn: async (values: ResetPinFormValues) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No user found');
+
+      // Hash and save new PIN
+      const hashedPin = await bcrypt.hash(values.new_pin, 10);
+      const { error } = await supabase
+        .from('profiles')
+        .update({ voice_pin: hashedPin })
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Voice PIN reset successfully!");
+      resetPinForm.reset();
+      setShowResetPinForm(false);
+      setHasPinSet(true);
+    },
+    onError: (error) => {
+      toast.error("Failed to reset PIN: " + error.message);
+    },
+  });
+
   const onSubmit = (values: ProfileFormValues) => {
     saveMutation.mutate(values);
   };
 
   const onPinSubmit = (values: PinFormValues) => {
     pinMutation.mutate(values);
+  };
+
+  const onResetPinSubmit = (values: ResetPinFormValues) => {
+    resetPinMutation.mutate(values);
   };
 
   const handleCareGroupChange = (careGroupId: string) => {
@@ -400,14 +448,30 @@ const ProfilePage = () => {
                 {hasPinSet && (
                   <div className="space-y-2">
                     <p className="text-sm text-green-600">✓ Voice PIN is set for all your care groups</p>
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setShowPinForm(!showPinForm)}
-                    >
-                      Change PIN
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          setShowPinForm(!showPinForm);
+                          setShowResetPinForm(false);
+                        }}
+                      >
+                        Change PIN
+                      </Button>
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          setShowResetPinForm(!showResetPinForm);
+                          setShowPinForm(false);
+                        }}
+                      >
+                        Reset PIN
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -469,6 +533,57 @@ const ProfilePage = () => {
                     {pinMutation.isPending ? "Updating..." : "Update PIN"}
                   </Button>
                   <Button type="button" variant="outline" onClick={() => setShowPinForm(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          )}
+
+          {/* PIN Reset Form */}
+          {showResetPinForm && hasPinSet && (
+            <Form {...resetPinForm}>
+              <form onSubmit={resetPinForm.handleSubmit(onResetPinSubmit)} className="space-y-4">
+                <div className="bg-amber-50 border border-amber-200 rounded-md p-3 mb-4">
+                  <p className="text-sm text-amber-800">
+                    ⚠️ This will replace your existing PIN without requiring the current PIN. 
+                    Use this if you've forgotten your current PIN.
+                  </p>
+                </div>
+                
+                <FormField
+                  control={resetPinForm.control}
+                  name="new_pin"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>New PIN</FormLabel>
+                      <FormControl>
+                        <Input {...field} type="password" placeholder="Enter new 4-digit PIN" maxLength={4} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={resetPinForm.control}
+                  name="confirm_pin"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Confirm New PIN</FormLabel>
+                      <FormControl>
+                        <Input {...field} type="password" placeholder="Confirm new PIN" maxLength={4} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <div className="flex space-x-2">
+                  <Button type="submit" disabled={resetPinMutation.isPending}>
+                    {resetPinMutation.isPending ? "Resetting..." : "Reset PIN"}
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => setShowResetPinForm(false)}>
                     Cancel
                   </Button>
                 </div>
