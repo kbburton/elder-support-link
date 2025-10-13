@@ -96,15 +96,10 @@ serve(async (req) => {
                   throw new Error('OpenAI API key not configured');
                 }
                 
-                // Create WebSocket connection to OpenAI
+                // Create WebSocket connection to OpenAI (use subprotocols for auth in Deno)
                 openaiWs = new WebSocket(
                   'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01',
-                  {
-                    headers: {
-                      'Authorization': `Bearer ${openaiKey}`,
-                      'OpenAI-Beta': 'realtime=v1'
-                    }
-                  } as any
+                  ['realtime', 'openai-insecure-api-key', openaiKey]
                 );
 
                 openaiWs.onopen = () => {
