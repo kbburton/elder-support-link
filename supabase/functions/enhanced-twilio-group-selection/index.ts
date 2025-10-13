@@ -71,18 +71,22 @@ serve(async (req) => {
     const baseUrl = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co`;
     const chatUrl = `${baseUrl}/enhanced-twilio-voice-chat?group_id=${selectedGroupId}&user_id=${userId}&type=user`;
     
+    console.log('Generated WebSocket URL:', chatUrl);
+    
     // Escape ampersands for proper XML parsing
     const escapedChatUrl = chatUrl.replace(/&/g, '&amp;');
+    console.log('Escaped URL for XML:', escapedChatUrl);
     
-      const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
-        <Response>
-          <Say voice="alice">Welcome to ${selectedGroupName}'s care group, what would you like to know?</Say>
-          <Connect>
-            <Stream url="${escapedChatUrl}"/>
-          </Connect>
-        </Response>`;
+    const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
+      <Response>
+        <Say voice="alice">Welcome to ${selectedGroupName}'s care group, what would you like to know?</Say>
+        <Connect>
+          <Stream url="${escapedChatUrl}"/>
+        </Connect>
+      </Response>`;
 
-    console.log('Sending TwiML response for group selection');
+    console.log('Generated TwiML length:', twimlResponse.length);
+    console.log('TwiML preview:', twimlResponse.substring(0, 200));
 
     return new Response(twimlResponse, {
       headers: {

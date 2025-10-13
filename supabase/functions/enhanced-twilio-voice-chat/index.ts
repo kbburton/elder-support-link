@@ -12,17 +12,21 @@ const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 serve(async (req) => {
+  console.log('=== Enhanced Twilio Voice Chat Request Received ===');
+  console.log('Method:', req.method);
+  console.log('URL:', req.url);
+  console.log('Headers:', Object.fromEntries(req.headers.entries()));
+  
   if (req.method === 'OPTIONS') {
+    console.log('Handling CORS preflight');
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    console.log('Enhanced Twilio Voice Chat called');
-    
     const url = new URL(req.url);
     const groupId = url.searchParams.get('group_id');
     const userId = url.searchParams.get('user_id');
-    const callerType = url.searchParams.get('type'); // 'user' or 'care_recipient'
+    const callerType = url.searchParams.get('type');
     const groupsParam = url.searchParams.get('groups');
     const defaultGroup = url.searchParams.get('default_group');
 
@@ -91,16 +95,21 @@ serve(async (req) => {
 
     // Check if this is a WebSocket upgrade for real-time communication
     const upgrade = req.headers.get('upgrade') || '';
+    console.log('Upgrade header value:', upgrade);
+    
     if (upgrade.toLowerCase() === 'websocket') {
-      console.log('WebSocket connection requested for Twilio Stream');
+      console.log('=== INITIATING WEBSOCKET UPGRADE FOR TWILIO STREAM ===');
       
-      const { socket, response } = Deno.upgradeWebSocket(req);
-      let openaiWs: WebSocket | null = null;
-      let streamSid: string | null = null;
+      try {
+        const { socket, response } = Deno.upgradeWebSocket(req);
+        console.log('WebSocket upgrade successful');
+        
+        let openaiWs: WebSocket | null = null;
+        let streamSid: string | null = null;
 
-      socket.onopen = () => {
-        console.log('Twilio WebSocket connected for enhanced voice chat');
-      };
+        socket.onopen = () => {
+          console.log('✓ Twilio WebSocket connection OPENED');
+        };
 
       socket.onmessage = async (event) => {
         try {
@@ -109,18 +118,27 @@ serve(async (req) => {
           
           if (message.event === 'start') {
             streamSid = message.start.streamSid;
-            console.log('Twilio stream started:', streamSid);
+            console.log('✓ Twilio stream STARTED:', streamSid);
+            console.log('Stream metadata:', message.start);
             
             // Initialize OpenAI connection when stream starts
+            console.log('Connecting to OpenAI Realtime API...');
+            const openaiKey = Deno.env.get('OPENAI_API_KEY');
+            
+            if (!openaiKey) {
+              console.error('✗ OPENAI_API_KEY not found in environment!');
+              throw new Error('OpenAI API key not configured');
+            }
+            
             openaiWs = new WebSocket('wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01', {
               headers: {
-                'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
+                'Authorization': `Bearer ${openaiKey}`,
                 'OpenAI-Beta': 'realtime=v1'
               }
             });
 
             openaiWs.onopen = () => {
-              console.log('Connected to OpenAI Realtime API');
+              console.log('✓ Connected to OpenAI Realtime API');
               
               // Configure the session with read-only capabilities
               const sessionConfig = {
@@ -265,11 +283,15 @@ serve(async (req) => {
             };
 
             openaiWs.onerror = (error) => {
-              console.error('OpenAI WebSocket error:', error);
+              console.error('✗ OpenAI WebSocket ERROR:', error);
             };
 
-            openaiWs.onclose = () => {
-              console.log('OpenAI WebSocket closed');
+            openaiWs.onclose = (event) => {
+              console.log('✗ OpenAI WebSocket CLOSED:', {
+                code: event.code,
+                reason: event.reason,
+                wasClean: event.wasClean
+              });
             };
           } else if (message.event === 'media' && openaiWs) {
             // Forward audio from Twilio to OpenAI
@@ -290,21 +312,32 @@ serve(async (req) => {
       };
 
       socket.onerror = (error) => {
-        console.error('Twilio WebSocket error:', error);
+        console.error('✗ Twilio WebSocket ERROR:', error);
       };
 
-      socket.onclose = () => {
-        console.log('Twilio WebSocket closed');
+      socket.onclose = (event) => {
+        console.log('✗ Twilio WebSocket CLOSED:', {
+          code: event.code,
+          reason: event.reason,
+          wasClean: event.wasClean
+        });
         if (openaiWs && openaiWs.readyState === WebSocket.OPEN) {
+          console.log('Closing OpenAI WebSocket');
           openaiWs.close();
         }
       };
 
+      console.log('Returning WebSocket upgrade response');
       return response;
+      } catch (upgradeError) {
+        console.error('✗ WebSocket upgrade FAILED:', upgradeError);
+        throw upgradeError;
+      }
     }
 
     // If not WebSocket, return basic response
-    return new Response('Enhanced Voice Chat endpoint', {
+    console.log('Not a WebSocket request, returning basic response');
+    return new Response('Enhanced Voice Chat endpoint - Ready for WebSocket connections', {
       headers: corsHeaders
     });
 
