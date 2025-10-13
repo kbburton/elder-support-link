@@ -41,16 +41,17 @@ serve(async (req) => {
       const selectedGroupName = groupNames[0];
       
       const baseUrl = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co`;
-      const chatUrl = `${baseUrl}/enhanced-twilio-voice-chat?group_id=${selectedGroupId}&user_id=${userId}&type=user`;
-      
-      // Escape ampersands for proper XML parsing
-      const escapedChatUrl = chatUrl.replace(/&/g, '&amp;');
+      const streamUrl = `${baseUrl}/enhanced-twilio-voice-chat`;
       
       const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
         <Response>
           <Say voice="alice">I didn't understand your selection. Connecting you to ${selectedGroupName}'s care group. What would you like to know?</Say>
           <Connect>
-            <Stream url="${escapedChatUrl}"/>
+            <Stream url="${streamUrl}">
+              <Parameter name="group_id" value="${selectedGroupId}"/>
+              <Parameter name="user_id" value="${userId}"/>
+              <Parameter name="type" value="user"/>
+            </Stream>
           </Connect>
         </Response>`;
       
@@ -69,19 +70,17 @@ serve(async (req) => {
     console.log('Valid selection:', { selectedGroupId, selectedGroupName });
     
     const baseUrl = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co`;
-    const chatUrl = `${baseUrl}/enhanced-twilio-voice-chat?group_id=${selectedGroupId}&user_id=${userId}&type=user`;
-    
-    console.log('Generated WebSocket URL:', chatUrl);
-    
-    // Escape ampersands for proper XML parsing
-    const escapedChatUrl = chatUrl.replace(/&/g, '&amp;');
-    console.log('Escaped URL for XML:', escapedChatUrl);
+    const streamUrl = `${baseUrl}/enhanced-twilio-voice-chat`;
     
     const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
       <Response>
         <Say voice="alice">Welcome to ${selectedGroupName}'s care group, what would you like to know?</Say>
         <Connect>
-          <Stream url="${escapedChatUrl}"/>
+          <Stream url="${streamUrl}">
+            <Parameter name="group_id" value="${selectedGroupId}"/>
+            <Parameter name="user_id" value="${userId}"/>
+            <Parameter name="type" value="user"/>
+          </Stream>
         </Connect>
       </Response>`;
 

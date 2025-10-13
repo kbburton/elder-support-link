@@ -25,8 +25,8 @@ serve(async (req) => {
   try {
     const url = new URL(req.url);
     const groupId = url.searchParams.get('group_id');
-    const userId = url.searchParams.get('user_id');
-    const callerType = url.searchParams.get('type');
+    let userId = url.searchParams.get('user_id');
+    let callerType = url.searchParams.get('type');
     const groupsParam = url.searchParams.get('groups');
     const defaultGroup = url.searchParams.get('default_group');
 
