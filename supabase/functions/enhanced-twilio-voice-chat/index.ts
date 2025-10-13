@@ -345,6 +345,23 @@ serve(async (req) => {
             if (openaiWs) {
               openaiWs.close();
             }
+          } else if (message.event === 'dtmf') {
+            console.log('DTMF received:', JSON.stringify(message.dtmf || {}, null, 2));
+            if (openaiWs && openaiWs.readyState === WebSocket.OPEN) {
+              const digit = (message.dtmf && (message.dtmf.digit || message.dtmf.digits)) || '';
+              const userMsg = {
+                type: 'conversation.item.create',
+                item: {
+                  type: 'message',
+                  role: 'user',
+                  content: [
+                    { type: 'input_text', text: `User pressed ${digit}.` }
+                  ]
+                }
+              };
+              openaiWs.send(JSON.stringify(userMsg));
+              openaiWs.send(JSON.stringify({ type: 'response.create' }));
+            }
           } else {
             console.log('Unhandled Twilio event:', message.event, 'streamSid:', streamSid);
           }
