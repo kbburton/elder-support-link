@@ -117,7 +117,13 @@ serve(async (req) => {
       socket.onmessage = async (event) => {
         try {
           const message = JSON.parse(event.data);
-          console.log('Twilio message type:', message.event);
+          
+          // Log first few messages with full structure to debug
+          if (!streamSid || message.event === 'start') {
+            console.log('FULL Twilio message:', JSON.stringify(message, null, 2));
+          } else {
+            console.log('Twilio message type:', message.event);
+          }
           
           if (message.event === 'start') {
             streamSid = message.start.streamSid;
@@ -323,21 +329,29 @@ serve(async (req) => {
                 wasClean: event.wasClean
               });
             };
-          } else if (message.event === 'media' && openaiWs) {
-            // Forward audio from Twilio to OpenAI
-            const audioMessage = {
-              type: 'input_audio_buffer.append',
-              audio: message.media.payload
-            };
-            openaiWs.send(JSON.stringify(audioMessage));
+          } else if (message.event === 'media') {
+            if (openaiWs && openaiWs.readyState === WebSocket.OPEN) {
+              // Forward audio from Twilio to OpenAI
+              const audioMessage = {
+                type: 'input_audio_buffer.append',
+                audio: message.media.payload
+              };
+              openaiWs.send(JSON.stringify(audioMessage));
+            } else if (!streamSid) {
+              console.warn('⚠️ Received media before start event - ignoring');
+            }
           } else if (message.event === 'stop') {
             console.log('Twilio stream stopped');
             if (openaiWs) {
               openaiWs.close();
             }
+          } else {
+            console.log('Unhandled Twilio event:', message.event, 'streamSid:', streamSid);
           }
         } catch (error) {
-          console.error('Error processing Twilio message:', error);
+          console.error('✗ Error processing Twilio message:', error);
+          console.error('Error details:', error instanceof Error ? error.message : String(error));
+          console.error('Stack:', error instanceof Error ? error.stack : 'No stack');
         }
       };
 
