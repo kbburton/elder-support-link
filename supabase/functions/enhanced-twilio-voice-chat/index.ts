@@ -15,89 +15,20 @@ serve(async (req) => {
   console.log('=== Enhanced Twilio Voice Chat Request Received ===');
   console.log('Method:', req.method);
   console.log('URL:', req.url);
-  console.log('Headers:', Object.fromEntries(req.headers.entries()));
   
   if (req.method === 'OPTIONS') {
-    console.log('Handling CORS preflight');
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const url = new URL(req.url);
-    let groupId = url.searchParams.get('group_id');
-    let userId = url.searchParams.get('user_id');
-    let callerType = url.searchParams.get('type');
-    const groupsParam = url.searchParams.get('groups');
-    const defaultGroup = url.searchParams.get('default_group');
+    const groupId = url.searchParams.get('group_id');
+    const userId = url.searchParams.get('user_id');
+    const callerType = url.searchParams.get('type');
 
-    console.log('Voice chat parameters:', {
-      groupId,
-      userId,
-      callerType,
-      groupsParam,
-      defaultGroup
-    });
+    console.log('Voice chat parameters:', { groupId, userId, callerType });
 
-    // Handle care group selection for users with multiple groups
-    if (callerType === 'user' && groupsParam && !groupId) {
-      console.log('Processing care group selection for user');
-      
-      // Parse the recorded audio or use default group
-      let selectedGroupId = defaultGroup;
-      
-      if (!selectedGroupId) {
-        // In a real implementation, you would process the recorded audio
-        // to determine which care group the user mentioned
-        // For now, we'll use the first group
-        const groupIds = groupsParam.split(',');
-        selectedGroupId = groupIds[0];
-      }
-
-      // Redirect to the selected group's chat
-      const chatUrl = `${req.url.split('?')[0]}?group_id=${selectedGroupId}&user_id=${userId}&type=user`;
-      
-      return new Response('', {
-        status: 302,
-        headers: {
-          ...corsHeaders,
-          'Location': chatUrl
-        }
-      });
-    }
-
-    if (!groupId && (req.headers.get('upgrade') || '').toLowerCase() !== 'websocket') {
-      throw new Error('No group ID provided');
-    }
-
-    if ((req.headers.get('upgrade') || '').toLowerCase() !== 'websocket') {
-      // Get care group details for non-WebSocket requests
-      const { data: careGroup, error: groupError } = await supabase
-        .from('care_groups')
-        .select(`
-          id,
-          name,
-          recipient_first_name,
-          profile_description,
-          chronic_conditions,
-          mental_health,
-          mobility,
-          memory,
-          hearing,
-          vision
-        `)
-        .eq('id', groupId)
-        .single();
-
-      if (groupError || !careGroup) {
-        throw new Error('Care group not found');
-      }
-
-      console.log('Care group found:', careGroup.name);
-    }
-
-    // Check if this is a WebSocket upgrade for real-time communication
     const upgrade = req.headers.get('upgrade') || '';
-    console.log('Upgrade header value:', upgrade);
     
     if (upgrade.toLowerCase() === 'websocket') {
       console.log('=== INITIATING WEBSOCKET UPGRADE FOR TWILIO STREAM ===');
@@ -110,367 +41,314 @@ serve(async (req) => {
         let streamSid: string | null = null;
         let currentGroupId: string | null = groupId;
         const pendingAudio: string[] = [];
+        let isInitializingOpenAI = false;
+        let sessionConfigured = false;
 
         socket.onopen = () => {
           console.log('✓ Twilio WebSocket connection OPENED');
         };
 
-      socket.onmessage = async (event) => {
-        try {
-          const message = JSON.parse(event.data);
-          
-          // Log first few messages with full structure to debug
-          if (!streamSid || message.event === 'start') {
-            console.log('FULL Twilio message:', JSON.stringify(message, null, 2));
-          } else {
-            console.log('Twilio message type:', message.event);
-          }
-          
-          if (message.event === 'start') {
-            streamSid = message.start.streamSid;
-            console.log('✓ Twilio stream STARTED:', streamSid);
-            console.log('Stream metadata:', message.start);
+        socket.onmessage = async (event) => {
+          try {
+            const message = JSON.parse(event.data);
             
-            // Extract custom parameters and fetch care group
-            const cp = message.start.customParameters || message.start.custom_parameters || {};
-            const effectiveGroupId = (cp.group_id ?? groupId) as string | null;
-            const effectiveUserId = (cp.user_id ?? userId) as string | null;
-            callerType = (cp.type ?? callerType) as string | null;
-            currentGroupId = effectiveGroupId;
-            console.log('Resolved parameters:', { effectiveGroupId, effectiveUserId, callerType });
-
-            if (!effectiveGroupId) {
-              console.error('✗ Missing group_id in custom parameters and URL');
-              socket.close(1011, 'Missing group_id');
-              return;
-            }
-
-            const { data: careGroup, error: groupError } = await supabase
-              .from('care_groups')
-              .select(`id,name,recipient_first_name,profile_description,chronic_conditions,mental_health,mobility,memory,hearing,vision`)
-              .eq('id', effectiveGroupId)
-              .single();
-
-            if (groupError || !careGroup) {
-              console.error('✗ Care group not found:', groupError);
-              socket.close(1011, 'Care group not found');
-              return;
-            }
-            console.log('Care group found for WS:', careGroup.name);
-            
-            // Initialize OpenAI connection when stream starts
-            console.log('Connecting to OpenAI Realtime API...');
-            const openaiKey = Deno.env.get('OPENAI_API_KEY');
-            
-            if (!openaiKey) {
-              console.error('✗ OPENAI_API_KEY not found in environment!');
-              throw new Error('OpenAI API key not configured');
-            }
-            
-            openaiWs = new WebSocket(
-              'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01',
-              ['realtime', 'openai-insecure-api-key', openaiKey]
-            );
-
-            openaiWs.onopen = () => {
-              console.log('✓ Connected to OpenAI Realtime API');
+            if (message.event === 'start') {
+              streamSid = message.start.streamSid;
+              console.log('✓ Twilio stream STARTED:', streamSid);
               
-              // Configure the session with read-only capabilities
-              const sessionConfig = {
-                type: 'session.update',
-                session: {
-                  modalities: ['text', 'audio'],
-                  instructions: `You are a helpful voice assistant for ${careGroup.recipient_first_name}'s care group.
-                  
-                  The caller is ${callerType === 'user' ? 'a care team member' : 'the care recipient'}. 
-                  You can provide READ-ONLY information about:
-                  - Upcoming appointments
-                  - Open tasks 
-                  - Recent activities
-                  - Document summaries
-                  - Emergency contacts
-                  
-                  IMPORTANT: You can only provide information, you cannot create, modify, or delete anything.
-                  
-                  Care recipient profile:
-                  ${careGroup.profile_description || 'No profile description available'}
-                  
-                  Health conditions: ${careGroup.chronic_conditions || 'None listed'}
-                  Mental health: ${careGroup.mental_health || 'None listed'}
-                  Mobility: ${careGroup.mobility || 'Not specified'}
-                  Memory: ${careGroup.memory || 'Not specified'}
-                  Hearing: ${careGroup.hearing || 'Not specified'}
-                  Vision: ${careGroup.vision || 'Not specified'}
-                  
-                  Keep responses concise and helpful. If asked to make changes, politely explain that you can only provide information.`,
-                  voice: 'alloy',
-                  input_audio_format: 'g711_ulaw',
-                  output_audio_format: 'g711_ulaw',
-                  input_audio_transcription: {
-                    model: 'whisper-1'
-                  },
-                  turn_detection: {
-                    type: 'server_vad',
-                    threshold: 0.5,
-                    prefix_padding_ms: 300,
-                    silence_duration_ms: 200
-                  },
-                  tools: [
-                    {
-                      type: 'function',
-                      name: 'get_appointments',
-                      description: 'Get upcoming appointments',
-                      parameters: {
-                        type: 'object',
-                        properties: {
-                          timeframe: {
-                            type: 'string',
-                            enum: ['today', 'tomorrow', 'week'],
-                            description: 'Timeframe for appointments'
-                          }
-                        }
-                      }
-                    },
-                    {
-                      type: 'function',
-                      name: 'get_tasks',
-                      description: 'Get open tasks',
-                      parameters: {
-                        type: 'object',
-                        properties: {
-                          status: {
-                            type: 'string',
-                            enum: ['open', 'all'],
-                            description: 'Task status filter'
-                          }
-                        }
-                      }
-                    },
-                    {
-                      type: 'function',
-                      name: 'get_documents',
-                      description: 'Get document summaries',
-                      parameters: {
-                        type: 'object',
-                        properties: {
-                          search_term: {
-                            type: 'string',
-                            description: 'Optional search term'
-                          }
-                        }
-                      }
-                    },
-                    {
-                      type: 'function',
-                      name: 'get_contacts',
-                      description: 'Get contact information',
-                      parameters: {
-                        type: 'object',
-                        properties: {
-                          type: {
-                            type: 'string',
-                            enum: ['medical', 'emergency', 'all'],
-                            description: 'Type of contacts to retrieve'
-                          }
-                        }
-                      }
-                    },
-                    {
-                      type: 'function',
-                      name: 'get_recent_activities',
-                      description: 'Get recent activities',
-                      parameters: {
-                        type: 'object',
-                        properties: {}
-                      }
-                    }
-                  ]
-                }
-              };
+              // Extract custom parameters
+              const cp = message.start.customParameters || message.start.custom_parameters || {};
+              const effectiveGroupId = (cp.group_id ?? groupId) as string | null;
+              const effectiveUserId = (cp.user_id ?? userId) as string | null;
+              const effectiveCallerType = (cp.type ?? callerType) as string | null;
+              currentGroupId = effectiveGroupId;
               
-              if (openaiWs) {
-                openaiWs.send(JSON.stringify(sessionConfig));
-              }
-            };
+              console.log('Resolved parameters:', { effectiveGroupId, effectiveUserId, effectiveCallerType });
 
-            openaiWs.onmessage = async (event) => {
-              try {
-                const data = JSON.parse(event.data);
-                console.log('OpenAI event:', data.type);
-                
-                if (data.type === 'response.audio.delta') {
-                  // Forward audio to Twilio
-                  const audioMessage = {
-                    event: 'media',
-                    streamSid: streamSid,
-                    media: {
-                      payload: data.delta
-                    }
-                  };
-                  socket.send(JSON.stringify(audioMessage));
-                } else if (data.type === 'response.function_call_arguments.done') {
-                  // Handle function calls for data retrieval
-                  await handleFunctionCall(data, currentGroupId as string, openaiWs);
-                }
-              } catch (error) {
-                console.error('Error processing OpenAI message:', error);
-              }
-            };
-
-            openaiWs.onerror = (error) => {
-              console.error('✗ OpenAI WebSocket ERROR:', error);
-            };
-
-            openaiWs.onclose = (event) => {
-              console.log('✗ OpenAI WebSocket CLOSED:', {
-                code: event.code,
-                reason: event.reason,
-                wasClean: event.wasClean
-              });
-            };
-          } else if (message.event === 'media') {
-            // Capture streamSid if provided on media before start
-            if (!streamSid && message.streamSid) {
-              streamSid = message.streamSid;
-              console.log('Set streamSid from media event:', streamSid);
-            }
-
-            // If OpenAI not initialized yet, try initializing using URL/query fallback
-            if (!openaiWs) {
-              const effectiveGroupId = currentGroupId || groupId;
               if (!effectiveGroupId) {
-                console.warn('No group_id available yet; buffering media until parameters arrive');
-                pendingAudio.push(message.media.payload);
-              } else {
-                console.log('Initializing OpenAI on first media with group:', effectiveGroupId);
-                const { data: careGroup, error: groupError } = await supabase
-                  .from('care_groups')
-                  .select(`id,name,recipient_first_name,profile_description,chronic_conditions,mental_health,mobility,memory,hearing,vision`)
-                  .eq('id', effectiveGroupId)
-                  .single();
-                if (groupError || !careGroup) {
-                  console.error('Care group not found during media-init:', groupError);
-                } else {
-                  const openaiKey = Deno.env.get('OPENAI_API_KEY');
-                  if (!openaiKey) {
-                    console.error('OPENAI_API_KEY not configured');
-                  } else {
-                    openaiWs = new WebSocket(
-                      'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01',
-                      ['realtime', 'openai-insecure-api-key', openaiKey]
-                    );
+                console.error('✗ Missing group_id');
+                socket.close(1011, 'Missing group_id');
+                return;
+              }
 
-                    openaiWs.onopen = () => {
-                      console.log('✓ OpenAI WS opened (media-init)');
+              // Fetch care group details
+              const { data: careGroup, error: groupError } = await supabase
+                .from('care_groups')
+                .select(`id,name,recipient_first_name,profile_description,chronic_conditions,mental_health,mobility,memory,hearing,vision`)
+                .eq('id', effectiveGroupId)
+                .single();
+
+              if (groupError || !careGroup) {
+                console.error('✗ Care group not found:', groupError);
+                socket.close(1011, 'Care group not found');
+                return;
+              }
+              console.log('Care group found for WS:', careGroup.name);
+              
+              // Initialize OpenAI connection (only once)
+              if (!isInitializingOpenAI && !openaiWs) {
+                isInitializingOpenAI = true;
+                console.log('Connecting to OpenAI Realtime API...');
+                
+                const openaiKey = Deno.env.get('OPENAI_API_KEY');
+                if (!openaiKey) {
+                  console.error('✗ OPENAI_API_KEY not found!');
+                  throw new Error('OpenAI API key not configured');
+                }
+                
+                // Create WebSocket connection to OpenAI
+                openaiWs = new WebSocket(
+                  'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01',
+                  {
+                    headers: {
+                      'Authorization': `Bearer ${openaiKey}`,
+                      'OpenAI-Beta': 'realtime=v1'
+                    }
+                  } as any
+                );
+
+                openaiWs.onopen = () => {
+                  console.log('✓ OpenAI WebSocket opened - waiting for session.created');
+                };
+
+                openaiWs.onmessage = async (msgEvent: MessageEvent) => {
+                  try {
+                    const data = JSON.parse(msgEvent.data);
+                    console.log('OpenAI event:', data.type);
+
+                    // Wait for session.created before configuring
+                    if (data.type === 'session.created' && !sessionConfigured) {
+                      console.log('✓ OpenAI session created - sending configuration');
+                      sessionConfigured = true;
+                      
                       const sessionConfig = {
                         type: 'session.update',
                         session: {
                           modalities: ['text', 'audio'],
-                          instructions: `You are a helpful voice assistant for ${careGroup.recipient_first_name}'s care group. READ-ONLY info only.`,
+                          instructions: `You are a helpful voice assistant for ${careGroup.recipient_first_name}'s care group.
+                          
+                          The caller is ${effectiveCallerType === 'user' ? 'a care team member' : 'the care recipient'}. 
+                          You can provide READ-ONLY information about:
+                          - Upcoming appointments
+                          - Open tasks 
+                          - Recent activities
+                          - Document summaries
+                          - Emergency contacts
+                          
+                          IMPORTANT: You can only provide information, you cannot create, modify, or delete anything.
+                          
+                          Care recipient profile:
+                          ${careGroup.profile_description || 'No profile description available'}
+                          
+                          Health conditions: ${careGroup.chronic_conditions || 'None listed'}
+                          Mental health: ${careGroup.mental_health || 'None listed'}
+                          Mobility: ${careGroup.mobility || 'Not specified'}
+                          Memory: ${careGroup.memory || 'Not specified'}
+                          Hearing: ${careGroup.hearing || 'Not specified'}
+                          Vision: ${careGroup.vision || 'Not specified'}
+                          
+                          Keep responses concise and helpful. If asked to make changes, politely explain that you can only provide information.`,
                           voice: 'alloy',
                           input_audio_format: 'g711_ulaw',
                           output_audio_format: 'g711_ulaw',
-                          input_audio_transcription: { model: 'whisper-1' },
-                          turn_detection: { type: 'server_vad', threshold: 0.5, prefix_padding_ms: 300, silence_duration_ms: 200 }
+                          input_audio_transcription: {
+                            model: 'whisper-1'
+                          },
+                          turn_detection: {
+                            type: 'server_vad',
+                            threshold: 0.5,
+                            prefix_padding_ms: 300,
+                            silence_duration_ms: 200
+                          },
+                          tools: [
+                            {
+                              type: 'function',
+                              name: 'get_appointments',
+                              description: 'Get upcoming appointments',
+                              parameters: {
+                                type: 'object',
+                                properties: {
+                                  timeframe: {
+                                    type: 'string',
+                                    enum: ['today', 'tomorrow', 'week'],
+                                    description: 'Timeframe for appointments'
+                                  }
+                                }
+                              }
+                            },
+                            {
+                              type: 'function',
+                              name: 'get_tasks',
+                              description: 'Get open tasks',
+                              parameters: {
+                                type: 'object',
+                                properties: {
+                                  status: {
+                                    type: 'string',
+                                    enum: ['open', 'all'],
+                                    description: 'Task status filter'
+                                  }
+                                }
+                              }
+                            },
+                            {
+                              type: 'function',
+                              name: 'get_documents',
+                              description: 'Get document summaries',
+                              parameters: {
+                                type: 'object',
+                                properties: {
+                                  search_term: {
+                                    type: 'string',
+                                    description: 'Optional search term'
+                                  }
+                                }
+                              }
+                            },
+                            {
+                              type: 'function',
+                              name: 'get_contacts',
+                              description: 'Get contact information',
+                              parameters: {
+                                type: 'object',
+                                properties: {
+                                  type: {
+                                    type: 'string',
+                                    enum: ['medical', 'emergency', 'all'],
+                                    description: 'Type of contacts to retrieve'
+                                  }
+                                }
+                              }
+                            },
+                            {
+                              type: 'function',
+                              name: 'get_recent_activities',
+                              description: 'Get recent activities',
+                              parameters: {
+                                type: 'object',
+                                properties: {}
+                              }
+                            }
+                          ],
+                          tool_choice: 'auto',
+                          temperature: 0.8
                         }
                       };
-                      openaiWs!.send(JSON.stringify(sessionConfig));
-                      // Flush any buffered audio
-                      if (pendingAudio.length) {
-                        console.log('Flushing buffered media chunks:', pendingAudio.length);
-                        for (const payload of pendingAudio) {
-                          openaiWs!.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: payload }));
+                      
+                      if (openaiWs && openaiWs.readyState === WebSocket.OPEN) {
+                        openaiWs.send(JSON.stringify(sessionConfig));
+                        console.log('Session configuration sent');
+                        
+                        // Flush any buffered audio
+                        if (pendingAudio.length > 0) {
+                          console.log(`Flushing ${pendingAudio.length} buffered audio chunks`);
+                          for (const payload of pendingAudio) {
+                            openaiWs.send(JSON.stringify({
+                              type: 'input_audio_buffer.append',
+                              audio: payload
+                            }));
+                          }
+                          pendingAudio.length = 0;
                         }
-                        pendingAudio.length = 0;
                       }
-                    };
-
-                    openaiWs.onmessage = async (event) => {
-                      try {
-                        const data = JSON.parse(event.data);
-                        console.log('OpenAI event:', data.type);
-                        if (data.type === 'response.audio.delta') {
-                          const audioMessage = { event: 'media', streamSid, media: { payload: data.delta } };
-                          socket.send(JSON.stringify(audioMessage));
-                        } else if (data.type === 'response.function_call_arguments.done') {
-                          await handleFunctionCall(data, effectiveGroupId as string, openaiWs!);
-                        }
-                      } catch (err) {
-                        console.error('Error processing OpenAI message (media-init):', err);
+                    } else if (data.type === 'response.audio.delta' && data.delta) {
+                      // Forward audio from OpenAI to Twilio
+                      if (streamSid) {
+                        const audioMessage = {
+                          event: 'media',
+                          streamSid: streamSid,
+                          media: {
+                            payload: data.delta
+                          }
+                        };
+                        socket.send(JSON.stringify(audioMessage));
                       }
-                    };
-
-                    openaiWs.onerror = (e) => console.error('OpenAI WS error (media-init):', e);
-                    openaiWs.onclose = (e) => console.log('OpenAI WS closed (media-init):', e.code, e.reason);
+                    } else if (data.type === 'response.function_call_arguments.done') {
+                      // Handle function calls
+                      await handleFunctionCall(data, effectiveGroupId, openaiWs);
+                    } else if (data.type === 'error') {
+                      console.error('✗ OpenAI error:', data);
+                    }
+                  } catch (err) {
+                    console.error('Error processing OpenAI message:', err);
                   }
-                }
+                };
+
+                openaiWs.onerror = (error) => {
+                  console.error('✗ OpenAI WebSocket ERROR:', error);
+                };
+
+                openaiWs.onclose = (closeEvent) => {
+                  console.log('✗ OpenAI WebSocket CLOSED:', {
+                    code: closeEvent.code,
+                    reason: closeEvent.reason,
+                    wasClean: closeEvent.wasClean
+                  });
+                };
               }
-            }
-
-            // Send or buffer current media
-            if (openaiWs && openaiWs.readyState === WebSocket.OPEN) {
-              openaiWs.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: message.media.payload }));
+            } else if (message.event === 'media') {
+              // Buffer audio if OpenAI not ready yet, otherwise forward
+              if (!sessionConfigured) {
+                pendingAudio.push(message.media.payload);
+              } else if (openaiWs && openaiWs.readyState === WebSocket.OPEN) {
+                openaiWs.send(JSON.stringify({
+                  type: 'input_audio_buffer.append',
+                  audio: message.media.payload
+                }));
+              }
+            } else if (message.event === 'stop') {
+              console.log('Twilio stream stopped');
+              if (openaiWs) {
+                openaiWs.close();
+              }
+            } else if (message.event === 'dtmf') {
+              console.log('DTMF received:', message.dtmf);
+              if (openaiWs && openaiWs.readyState === WebSocket.OPEN && sessionConfigured) {
+                const digit = message.dtmf?.digit || message.dtmf?.digits || '';
+                const userMsg = {
+                  type: 'conversation.item.create',
+                  item: {
+                    type: 'message',
+                    role: 'user',
+                    content: [
+                      { type: 'input_text', text: `User pressed ${digit}.` }
+                    ]
+                  }
+                };
+                openaiWs.send(JSON.stringify(userMsg));
+                openaiWs.send(JSON.stringify({ type: 'response.create' }));
+              }
             } else {
-              pendingAudio.push(message.media.payload);
+              console.log('Unhandled Twilio event:', message.event);
             }
-          } else if (message.event === 'stop') {
-            console.log('Twilio stream stopped');
-            if (openaiWs) {
-              openaiWs.close();
-            }
-          } else if (message.event === 'dtmf') {
-            console.log('DTMF received:', JSON.stringify(message.dtmf || {}, null, 2));
-            if (openaiWs && openaiWs.readyState === WebSocket.OPEN) {
-              const digit = (message.dtmf && (message.dtmf.digit || message.dtmf.digits)) || '';
-              const userMsg = {
-                type: 'conversation.item.create',
-                item: {
-                  type: 'message',
-                  role: 'user',
-                  content: [
-                    { type: 'input_text', text: `User pressed ${digit}.` }
-                  ]
-                }
-              };
-              openaiWs.send(JSON.stringify(userMsg));
-              openaiWs.send(JSON.stringify({ type: 'response.create' }));
-            }
-          } else {
-            console.log('Unhandled Twilio event:', message.event, 'streamSid:', streamSid);
+          } catch (error) {
+            console.error('Error handling Twilio message:', error);
           }
-        } catch (error) {
-          console.error('✗ Error processing Twilio message:', error);
-          console.error('Error details:', error instanceof Error ? error.message : String(error));
-          console.error('Stack:', error instanceof Error ? error.stack : 'No stack');
-        }
-      };
+        };
 
-      socket.onerror = (error) => {
-        console.error('✗ Twilio WebSocket ERROR:', error);
-      };
+        socket.onerror = (error) => {
+          console.error('✗ Twilio WebSocket ERROR:', error);
+        };
 
-      socket.onclose = (event) => {
-        console.log('✗ Twilio WebSocket CLOSED:', {
-          code: event.code,
-          reason: event.reason,
-          wasClean: event.wasClean
-        });
-        if (openaiWs && openaiWs.readyState === WebSocket.OPEN) {
-          console.log('Closing OpenAI WebSocket');
-          openaiWs.close();
-        }
-      };
+        socket.onclose = (closeEvent) => {
+          console.log('✗ Twilio WebSocket CLOSED:', {
+            code: closeEvent.code,
+            reason: closeEvent.reason,
+            wasClean: closeEvent.wasClean
+          });
+          if (openaiWs && openaiWs.readyState === WebSocket.OPEN) {
+            openaiWs.close();
+          }
+        };
 
-      console.log('Returning WebSocket upgrade response');
-      return response;
+        return response;
       } catch (upgradeError) {
         console.error('✗ WebSocket upgrade FAILED:', upgradeError);
-        throw upgradeError;
+        return new Response('WebSocket upgrade failed', { status: 500 });
       }
     }
 
     // If not WebSocket, return basic response
-    console.log('Not a WebSocket request, returning basic response');
     return new Response('Enhanced Voice Chat endpoint - Ready for WebSocket connections', {
       headers: corsHeaders
     });
@@ -497,7 +375,6 @@ async function handleFunctionCall(data: any, careGroupId: string, openaiWs: WebS
   let args: any = {};
   
   try {
-    // Parse arguments if they're a string
     if (typeof data.arguments === 'string') {
       args = JSON.parse(data.arguments);
     } else {
@@ -547,12 +424,11 @@ async function handleFunctionCall(data: any, careGroupId: string, openaiWs: WebS
   };
   
   openaiWs.send(JSON.stringify(functionResponse));
-  
-  // Request a new response after providing the function output
   openaiWs.send(JSON.stringify({ type: 'response.create' }));
 }
 
 // Data access functions (read-only versions)
+
 async function getAppointments(careGroupId: string, timeframe: string): Promise<string> {
   try {
     const startDate = startOfDay(new Date());
