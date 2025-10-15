@@ -133,7 +133,7 @@ serve(async (req) => {
 
           // Extract with Gemini
           const geminiExtractResp = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -141,7 +141,7 @@ serve(async (req) => {
                 contents: [{
                   parts: [
                     { text: 'Extract all text content from this document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.' },
-                    { fileData: { fileUri: fileUri, mimeType: document.mime_type } }
+                    { file_data: { file_uri: fileUri, mime_type: document.mime_type || 'application/octet-stream' } }
                   ]
                 }]
               })
@@ -153,7 +153,8 @@ serve(async (req) => {
             console.error('Gemini text extraction failed', geminiExtractResp.status, errorText);
           } else {
             const extractData = await geminiExtractResp.json();
-            extractedText = extractData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            const parts = extractData.candidates?.[0]?.content?.parts || [];
+            extractedText = parts.map((p: any) => p.text).filter(Boolean).join('\n').trim();
           }
 
           // Cleanup Google temporary file

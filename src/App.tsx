@@ -33,6 +33,7 @@ import ActivityLogsCrud from "./pages/crud/ActivityLogsCrud";
 import SearchJobsPage from "./pages/app/SearchJobsPage";
 import AdminEmailPage from "./pages/app/AdminEmailPage";
 import SystemAdminPage from "./pages/app/SystemAdminPage";
+import ExtractionTester from "./pages/app/ExtractionTester";
 import ContactDetailPage from "./pages/app/ContactDetailPage";
 import ContactFormPage from "./pages/app/ContactFormPage";
 import ContactsImportPage from "./pages/app/ContactsImportPage";

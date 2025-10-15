@@ -71,3 +71,6 @@ verify_jwt = true
 
 [functions.upload-and-process-document-v2]
 verify_jwt = true
+
+[functions.debug-extract-text]
+verify_jwt = false
