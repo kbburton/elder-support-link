@@ -73,6 +73,7 @@ serve(async (req) => {
 
     // Extract text using Gemini or fallback parsers
     let fullText = '';
+    let usedGemini = false;
     
     if (document.mime_type?.includes('pdf') || document.mime_type?.includes('image')) {
       console.log('Extracting text with Gemini AI');
@@ -116,6 +117,7 @@ serve(async (req) => {
 
       const extractData = await extractResponse.json();
       fullText = extractData.choices?.[0]?.message?.content || '';
+      usedGemini = true;
       console.log(`Extracted ${fullText.length} characters`);
     } else if (document.mime_type?.includes('text')) {
       fullText = new TextDecoder().decode(arrayBuffer);
@@ -125,7 +127,7 @@ serve(async (req) => {
       document.mime_type?.includes('ms-excel') ||
       document.mime_type?.includes('presentationml')
     ) {
-      // Office formats: best-effort XML text extraction
+      // Office formats: try XML text extraction first
       const decoder = new TextDecoder('utf-8', { fatal: false } as any);
       const xml = decoder.decode(arrayBuffer);
       const pieces: string[] = [];
@@ -167,7 +169,57 @@ serve(async (req) => {
         .replace(/\s+/g, ' ')
         .trim();
 
-      console.log(`Extracted ${fullText.length} characters from Office document`);
+      console.log(`Extracted ${fullText.length} characters from Office document using XML parsing`);
+      
+      // If XML extraction failed, fallback to Gemini vision API
+      if (fullText.length < 50) {
+        console.log('XML extraction yielded minimal text, trying Gemini vision API');
+        try {
+          const extractResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: 'google/gemini-2.5-flash',
+              messages: [
+                {
+                  role: 'system',
+                  content: 'You are a document text extraction expert. Extract ALL text content from this Office document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.'
+                },
+                {
+                  role: 'user',
+                  content: [
+                    {
+                      type: 'text',
+                      text: 'Extract all text from this document:'
+                    },
+                    {
+                      type: 'image_url',
+                      image_url: {
+                        url: `data:${document.mime_type};base64,${base64File}`
+                      }
+                    }
+                  ]
+                }
+              ]
+            })
+          });
+
+          if (extractResponse.ok) {
+            const extractData = await extractResponse.json();
+            const geminiText = extractData.choices?.[0]?.message?.content || '';
+            if (geminiText.length > fullText.length) {
+              fullText = geminiText;
+              usedGemini = true;
+              console.log(`Gemini extracted ${fullText.length} characters (better than XML)`);
+            }
+          }
+        } catch (geminiError) {
+          console.error('Gemini fallback failed:', geminiError);
+        }
+      }
     }
 
     // Generate summary using category-specific prompt if available
