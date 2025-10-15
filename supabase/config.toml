@@ -65,3 +65,6 @@ verify_jwt = false
 
 [functions.enhanced-twilio-webhook]
 verify_jwt = false
+
+[functions.sign-document-download]
+verify_jwt = true

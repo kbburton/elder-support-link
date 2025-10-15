@@ -224,19 +224,20 @@ const updateDocument = useMutation({
   };
 
 const handleDownload = async () => {
-    if (!document?.file_url) return;
+    if (!document?.id) return;
     try {
-      const { data } = await supabase.storage
-        .from('documents')
-        .createSignedUrl(document.file_url, 600);
-      if (data?.signedUrl) {
-        window.open(data.signedUrl, '_blank');
+      const { data, error } = await supabase.functions.invoke('sign-document-download', {
+        body: { documentId: document.id },
+      });
+      if (error) throw error;
+      if (data?.url) {
+        window.open(data.url, '_blank');
       } else {
-        toast({ title: "Error", description: "Failed to generate download link.", variant: "destructive" });
+        toast({ title: 'Error', description: 'Failed to generate download link.', variant: 'destructive' });
       }
     } catch (error) {
       console.error('Download error:', error);
-      toast({ title: "Error", description: "Failed to download document.", variant: "destructive" });
+      toast({ title: 'Error', description: 'Failed to download document.', variant: 'destructive' });
     }
   };
   const handleShareLink = async () => {
