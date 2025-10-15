@@ -126,12 +126,9 @@ serve(async (req) => {
       document.mime_type?.includes('ms-excel') ||
       document.mime_type?.includes('presentationml')
     ) {
-      console.log('Extracting Office document text with Gemini AI');
-      // Fetch file bytes and send as base64 to Gemini for extraction
+      console.log('Extracting Office document text with Gemini AI (office via signed URL)');
+      // Use a signed URL so the AI gateway can fetch the file directly
       const signedUrl = await signPath();
-      const officeResp = await fetch(signedUrl);
-      const officeArrayBuffer = await officeResp.arrayBuffer();
-      const base64File = btoa(String.fromCharCode(...new Uint8Array(officeArrayBuffer)));
 
       const extractResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
         method: 'POST',
@@ -150,7 +147,7 @@ serve(async (req) => {
               role: 'user',
               content: [
                 { type: 'text', text: 'Extract all text from this document:' },
-                { type: 'image_url', image_url: { url: `data:${document.mime_type};base64,${base64File}` } }
+                { type: 'image_url', image_url: { url: signedUrl } }
               ]
             }
           ]
