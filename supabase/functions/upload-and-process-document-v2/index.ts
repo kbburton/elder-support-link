@@ -67,67 +67,69 @@ serve(async (req) => {
       throw new Error(`Failed to upload file: ${uploadError.message}`);
     }
 
-    // Step 2: Process the file with Lovable AI using storage URL
+    // Step 2: Process the file with Lovable AI (only for PDFs and images)
     let fullText = '';
     let summary = '';
     let usedGemini = false;
 
-    if (file.type?.includes('pdf') || file.type?.includes('image') || 
-        file.type?.includes('officedocument') || file.type?.includes('ms-excel') || 
-        file.type?.includes('presentationml')) {
+    // Note: Gemini's vision API can't process Office documents (DOCX, XLSX, PPTX)
+    // We'll store them without AI extraction for now
+    const isOfficeDoc = file.type?.includes('officedocument') || 
+                        file.type?.includes('ms-excel') || 
+                        file.type?.includes('presentationml');
+
+    if ((file.type?.includes('pdf') || file.type?.includes('image')) && !isOfficeDoc) {
+      console.log('Extracting text with Gemini AI from PDF/image');
       
-      console.log('Extracting text with Gemini AI using storage URL');
-      
-      // Create a signed URL that Gemini can download from (expires in 1 hour)
+      // Create a signed URL that Gemini can access (expires in 1 hour)
       const { data: signedUrlData, error: signError } = await supabaseClient.storage
         .from('documents')
         .createSignedUrl(fileName, 3600);
 
       if (signError || !signedUrlData?.signedUrl) {
-        // Clean up uploaded file
-        await supabaseClient.storage.from('documents').remove([fileName]);
-        throw new Error('Failed to create signed URL for processing');
-      }
-
-      const extractResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a document text extraction expert. Extract ALL text content from the document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.'
-            },
-            {
-              role: 'user',
-              content: [
-                { type: 'text', text: 'Extract all text from this document:' },
-                { type: 'image_url', image_url: { url: signedUrlData.signedUrl } }
-              ]
-            }
-          ]
-        })
-      });
-
-      if (!extractResponse.ok) {
-        const errorText = await extractResponse.text();
-        console.error(`Gemini error: ${extractResponse.status} - ${errorText}`);
-        // Don't delete file on extraction error - we still want to store it
-        fullText = '';
+        console.warn('Failed to create signed URL, skipping AI extraction');
       } else {
-        const extractData = await extractResponse.json();
-        fullText = extractData.choices?.[0]?.message?.content || '';
-        usedGemini = true;
-        console.log(`Extracted ${fullText.length} characters`);
+        const extractResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'google/gemini-2.5-flash',
+            messages: [
+              {
+                role: 'system',
+                content: 'You are a document text extraction expert. Extract ALL text content from the document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.'
+              },
+              {
+                role: 'user',
+                content: [
+                  { type: 'text', text: 'Extract all text from this document:' },
+                  { type: 'image_url', image_url: { url: signedUrlData.signedUrl } }
+                ]
+              }
+            ]
+          })
+        });
+
+        if (!extractResponse.ok) {
+          const errorText = await extractResponse.text();
+          console.error(`Gemini extraction failed: ${extractResponse.status} - ${errorText}`);
+          console.log('Document will be stored without AI extraction');
+        } else {
+          const extractData = await extractResponse.json();
+          fullText = extractData.choices?.[0]?.message?.content || '';
+          usedGemini = true;
+          console.log(`Successfully extracted ${fullText.length} characters`);
+        }
       }
     } else if (file.type?.includes('text')) {
-      console.log('Text file processed directly');
+      console.log('Text file - reading directly');
       const decoder = new TextDecoder();
       fullText = decoder.decode(uint8Array);
+    } else if (isOfficeDoc) {
+      console.log('Office document - stored without AI extraction (not supported by vision API)');
     }
 
     // Generate summary if we have enough text
