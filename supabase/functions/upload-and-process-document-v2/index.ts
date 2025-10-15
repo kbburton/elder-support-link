@@ -228,7 +228,7 @@ serve(async (req) => {
           // Step 3: Extract text using Gemini
           log('DEBUG', 'Extracting text with Gemini', { requestId });
           const extractResponse = await fetch(
-            `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -236,7 +236,7 @@ serve(async (req) => {
                 contents: [{
                   parts: [
                     { text: 'Extract all text content from this document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.' },
-                    { file_data: { file_uri: fileUri, mime_type: file.type } }
+                    { fileData: { fileUri: fileUri, mimeType: file.type } }
                   ]
                 }]
               })
@@ -260,7 +260,7 @@ serve(async (req) => {
           // Step 4: Clean up - delete file from Google's servers
           log('DEBUG', 'Deleting file from Google servers', { requestId, fileUri });
           const deleteResponse = await fetch(
-            `https://generativelanguage.googleapis.com/v1/${googleFileName}?key=${GOOGLE_GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1beta/${googleFileName}?key=${GOOGLE_GEMINI_API_KEY}`,
             { method: 'DELETE' }
           );
           
