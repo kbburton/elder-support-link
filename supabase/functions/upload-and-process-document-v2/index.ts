@@ -9,6 +9,34 @@ const corsHeaders = {
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
+// Helper function to upload file to Gemini File API
+async function uploadToGeminiFileAPI(
+  fileBuffer: Uint8Array, 
+  mimeType: string, 
+  displayName: string, 
+  apiKey: string
+): Promise<string> {
+  const formData = new FormData();
+  const blob = new Blob([fileBuffer], { type: mimeType });
+  formData.append('file', blob, displayName);
+  
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
+    {
+      method: 'POST',
+      body: formData
+    }
+  );
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Gemini File API upload failed: ${response.status} - ${errorText}`);
+  }
+  
+  const data = await response.json();
+  return data.file.uri; // Returns something like "files/abc123"
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -67,18 +95,68 @@ serve(async (req) => {
       throw new Error(`Failed to upload file: ${uploadError.message}`);
     }
 
-    // Step 2: Process the file with Lovable AI (only for PDFs and images)
+    // Step 2: Process the file with Lovable AI
     let fullText = '';
     let summary = '';
     let usedGemini = false;
 
-    // Note: Gemini's vision API can't process Office documents (DOCX, XLSX, PPTX)
-    // We'll store them without AI extraction for now
     const isOfficeDoc = file.type?.includes('officedocument') || 
                         file.type?.includes('ms-excel') || 
                         file.type?.includes('presentationml');
+    const isPdfOrImage = file.type?.includes('pdf') || file.type?.includes('image');
+    const isTextFile = file.type?.includes('text');
 
-    if ((file.type?.includes('pdf') || file.type?.includes('image')) && !isOfficeDoc) {
+    // Process Office documents with Gemini File API
+    if (isOfficeDoc) {
+      console.log('Processing Office document with Gemini File API');
+      
+      try {
+        // Upload to Gemini File API
+        const fileUri = await uploadToGeminiFileAPI(uint8Array, file.type, file.name, LOVABLE_API_KEY);
+        console.log('File uploaded to Gemini, URI:', fileUri);
+        
+        // Extract text using file_data reference
+        const extractResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'google/gemini-2.5-flash',
+            messages: [
+              {
+                role: 'system',
+                content: 'You are a document text extraction expert. Extract ALL text content from this document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.'
+              },
+              {
+                role: 'user',
+                content: [
+                  { type: 'text', text: 'Extract all text from this document:' },
+                  { type: 'file_data', file_data: { file_uri: fileUri, mime_type: file.type } }
+                ]
+              }
+            ]
+          })
+        });
+
+        if (!extractResponse.ok) {
+          const errorText = await extractResponse.text();
+          console.error(`Gemini extraction failed: ${extractResponse.status} - ${errorText}`);
+          console.log('Document will be stored without AI extraction');
+        } else {
+          const extractData = await extractResponse.json();
+          fullText = extractData.choices?.[0]?.message?.content || '';
+          usedGemini = true;
+          console.log(`Successfully extracted ${fullText.length} characters from Office document`);
+        }
+      } catch (error) {
+        console.error('Failed to process Office document with File API:', error);
+        console.log('Document will be stored without AI extraction');
+      }
+    } 
+    // Process PDFs and images with vision API
+    else if (isPdfOrImage) {
       console.log('Extracting text with Gemini AI from PDF/image');
       
       // Create a signed URL that Gemini can access (expires in 1 hour)
@@ -121,15 +199,15 @@ serve(async (req) => {
           const extractData = await extractResponse.json();
           fullText = extractData.choices?.[0]?.message?.content || '';
           usedGemini = true;
-          console.log(`Successfully extracted ${fullText.length} characters`);
+          console.log(`Successfully extracted ${fullText.length} characters from PDF/image`);
         }
       }
-    } else if (file.type?.includes('text')) {
+    } 
+    // Process text files directly
+    else if (isTextFile) {
       console.log('Text file - reading directly');
       const decoder = new TextDecoder();
       fullText = decoder.decode(uint8Array);
-    } else if (isOfficeDoc) {
-      console.log('Office document - stored without AI extraction (not supported by vision API)');
     }
 
     // Generate summary if we have enough text
