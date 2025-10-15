@@ -1504,6 +1504,7 @@ export type Database = {
           is_deleted: boolean | null
           is_shared_with_group: boolean | null
           mime_type: string | null
+          notes: string | null
           original_filename: string
           processing_error: string | null
           processing_status: string | null
@@ -1528,6 +1529,7 @@ export type Database = {
           is_deleted?: boolean | null
           is_shared_with_group?: boolean | null
           mime_type?: string | null
+          notes?: string | null
           original_filename: string
           processing_error?: string | null
           processing_status?: string | null
@@ -1552,6 +1554,7 @@ export type Database = {
           is_deleted?: boolean | null
           is_shared_with_group?: boolean | null
           mime_type?: string | null
+          notes?: string | null
           original_filename?: string
           processing_error?: string | null
           processing_status?: string | null

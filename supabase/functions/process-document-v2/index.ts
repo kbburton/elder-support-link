@@ -71,7 +71,7 @@ serve(async (req) => {
     const arrayBuffer = await fileData.arrayBuffer();
     const base64File = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
 
-    // Extract text using Gemini
+    // Extract text using Gemini or fallback parsers
     let fullText = '';
     
     if (document.mime_type?.includes('pdf') || document.mime_type?.includes('image')) {
@@ -120,6 +120,54 @@ serve(async (req) => {
     } else if (document.mime_type?.includes('text')) {
       fullText = new TextDecoder().decode(arrayBuffer);
       console.log('Text file processed directly');
+    } else if (
+      document.mime_type?.includes('officedocument') ||
+      document.mime_type?.includes('ms-excel') ||
+      document.mime_type?.includes('presentationml')
+    ) {
+      // Office formats: best-effort XML text extraction
+      const decoder = new TextDecoder('utf-8', { fatal: false } as any);
+      const xml = decoder.decode(arrayBuffer);
+      const pieces: string[] = [];
+
+      if (document.mime_type.includes('wordprocessingml')) {
+        const patterns = [
+          /<w:t[^>]*>([^<]+)<\/w:t>/g,
+          /<w:t>([^<]+)<\/w:t>/g,
+          /<text[^>]*>([^<]+)<\/text>/g,
+        ];
+        for (const pattern of patterns) {
+          const matches = xml.match(pattern);
+          if (matches) pieces.push(...matches.map(m => m.replace(/<[^>]+>/g, '').trim()));
+        }
+      } else if (document.mime_type.includes('spreadsheetml') || document.mime_type.includes('ms-excel')) {
+        const patterns = [
+          /<t[^>]*>([^<]+)<\/t>/g,
+          /<v>([^<]+)<\/v>/g,
+          /<si><t>([^<]+)<\/t><\/si>/g,
+        ];
+        for (const pattern of patterns) {
+          const matches = xml.match(pattern);
+          if (matches) pieces.push(...matches.map(m => m.replace(/<[^>]+>/g, '').trim()));
+        }
+      } else if (document.mime_type.includes('presentationml')) {
+        const patterns = [
+          /<a:t[^>]*>([^<]+)<\/a:t>/g,
+          /<a:t>([^<]+)<\/a:t>/g,
+        ];
+        for (const pattern of patterns) {
+          const matches = xml.match(pattern);
+          if (matches) pieces.push(...matches.map(m => m.replace(/<[^>]+>/g, '').trim()));
+        }
+      }
+
+      fullText = pieces
+        .filter(t => t.length > 0 && !t.match(/^[\s\n\r]*$/))
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      console.log(`Extracted ${fullText.length} characters from Office document`);
     }
 
     // Generate summary using category-specific prompt if available
