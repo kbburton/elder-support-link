@@ -210,13 +210,14 @@ serve(async (req) => {
           
           const uploadData = await uploadResponse.json();
           const fileUri = uploadData.file?.uri;
+          const googleFileName = uploadData.file?.name;
           
-          if (!fileUri) {
-            log('ERROR', 'No file URI returned from Google', { requestId, uploadData });
-            throw new Error('No file URI returned from Google');
+          if (!fileUri || !googleFileName) {
+            log('ERROR', 'No file URI or name returned from Google', { requestId, uploadData });
+            throw new Error('No file URI or name returned from Google');
           }
           
-          log('INFO', 'File uploaded to Google successfully', { requestId, fileUri });
+          log('INFO', 'File uploaded to Google successfully', { requestId, fileUri, googleFileName });
           
           // Step 2: Wait for file to be processed (Google needs time to process the file)
           log('DEBUG', 'Waiting for Google to process file', { requestId });
@@ -225,7 +226,7 @@ serve(async (req) => {
           // Step 3: Extract text using Gemini
           log('DEBUG', 'Extracting text with Gemini', { requestId });
           const extractResponse = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -233,7 +234,7 @@ serve(async (req) => {
                 contents: [{
                   parts: [
                     { text: 'Extract all text content from this document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.' },
-                    { fileData: { fileUri, mimeType: file.type } }
+                    { file_data: { file_uri: fileUri } }
                   ]
                 }]
               })
@@ -257,7 +258,7 @@ serve(async (req) => {
           // Step 4: Clean up - delete file from Google's servers
           log('DEBUG', 'Deleting file from Google servers', { requestId, fileUri });
           const deleteResponse = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/${fileUri.split('/v1beta/')[1]}?key=${GOOGLE_GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1beta/${googleFileName}?key=${GOOGLE_GEMINI_API_KEY}`,
             { method: 'DELETE' }
           );
           
