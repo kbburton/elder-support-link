@@ -9,23 +9,38 @@ const corsHeaders = {
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
+// Logging utility
+function log(level: string, message: string, context?: any) {
+  const timestamp = new Date().toISOString();
+  const contextStr = context ? ` | ${JSON.stringify(context)}` : '';
+  console.log(`[${timestamp}] [${level}] [upload-and-process-document-v2] ${message}${contextStr}`);
+}
+
 serve(async (req) => {
+  const requestId = crypto.randomUUID().substring(0, 8);
+  log('INFO', 'Request received', { requestId, method: req.method });
+  
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    log('DEBUG', 'Checking environment variables', { requestId });
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
+      log('ERROR', 'LOVABLE_API_KEY not configured', { requestId });
       throw new Error('LOVABLE_API_KEY is not configured');
     }
+    log('DEBUG', 'Environment variables validated', { requestId });
 
+    log('DEBUG', 'Creating Supabase client', { requestId });
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
     // Parse multipart form data
+    log('DEBUG', 'Parsing form data', { requestId });
     const formData = await req.formData();
     const file = formData.get('file') as File;
     const groupId = formData.get('groupId') as string;
@@ -37,24 +52,35 @@ serve(async (req) => {
     const isSharedWithGroup = formData.get('isSharedWithGroup') === 'true';
 
     if (!file || !groupId || !uploadedByUserId || !uploadedByEmail) {
+      log('ERROR', 'Missing required fields', { requestId, hasFile: !!file, hasGroupId: !!groupId });
       throw new Error('Missing required fields');
     }
 
-    console.log(`Processing upload: ${file.name}, size: ${file.size}, type: ${file.type}`);
+    log('INFO', 'Processing upload', { 
+      requestId,
+      fileName: file.name, 
+      fileSize: file.size, 
+      mimeType: file.type,
+      groupId,
+      categoryId,
+      isSharedWithGroup 
+    });
 
     // Check file size
     if (file.size > MAX_FILE_SIZE) {
+      log('ERROR', 'File size exceeds limit', { requestId, fileSize: file.size, maxSize: MAX_FILE_SIZE });
       throw new Error(`File size exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit`);
     }
 
     // Step 1: Upload file to storage FIRST to get a URL
+    log('DEBUG', 'Converting file to buffer', { requestId });
     const arrayBuffer = await file.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
     
     const fileExt = file.name.split('.').pop();
     const fileName = `${uploadedByUserId}/${crypto.randomUUID()}.${fileExt}`;
     
-    console.log('Uploading file to storage:', fileName);
+    log('INFO', 'Uploading file to storage', { requestId, fileName, bucketPath: fileName });
     
     const { error: uploadError } = await supabaseClient.storage
       .from('documents')
@@ -64,8 +90,11 @@ serve(async (req) => {
       });
 
     if (uploadError) {
+      log('ERROR', 'Storage upload failed', { requestId, error: uploadError.message });
       throw new Error(`Failed to upload file: ${uploadError.message}`);
     }
+    
+    log('INFO', 'File uploaded to storage successfully', { requestId, fileName });
 
     // Step 2: Process the file with Lovable AI
     let fullText = '';
@@ -78,18 +107,28 @@ serve(async (req) => {
     const isPdfOrImage = file.type?.includes('pdf') || file.type?.includes('image');
     const isTextFile = file.type?.includes('text');
 
-    // Process Office documents, PDFs, and images with Lovable AI
-    if (isOfficeDoc || isPdfOrImage) {
-      console.log('Extracting text with Lovable AI from document');
+    log('DEBUG', 'File type classification', { 
+      requestId, 
+      mimeType: file.type,
+      isOfficeDoc, 
+      isPdfOrImage, 
+      isTextFile 
+    });
+
+    // Process PDFs and images with Lovable AI (vision API)
+    if (isPdfOrImage) {
+      log('INFO', 'Processing PDF/Image with Lovable AI vision', { requestId, mimeType: file.type });
       
       // Create a signed URL that Gemini can access (expires in 1 hour)
+      log('DEBUG', 'Creating signed URL for vision processing', { requestId });
       const { data: signedUrlData, error: signError } = await supabaseClient.storage
         .from('documents')
         .createSignedUrl(fileName, 3600);
 
       if (signError || !signedUrlData?.signedUrl) {
-        console.warn('Failed to create signed URL, skipping AI extraction');
+        log('WARN', 'Failed to create signed URL', { requestId, error: signError?.message });
       } else {
+        log('DEBUG', 'Signed URL created, calling Lovable AI', { requestId, urlLength: signedUrlData.signedUrl.length });
         const extractResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
           method: 'POST',
           headers: {
@@ -114,33 +153,53 @@ serve(async (req) => {
           })
         });
 
+        log('DEBUG', 'Lovable AI response received', { requestId, status: extractResponse.status });
+
         if (!extractResponse.ok) {
           const errorText = await extractResponse.text();
-          console.error(`Lovable AI extraction failed: ${extractResponse.status} - ${errorText}`);
-          console.log('Document will be stored without AI extraction');
+          log('ERROR', 'Lovable AI extraction failed', { 
+            requestId, 
+            status: extractResponse.status, 
+            error: errorText 
+          });
         } else {
           const extractData = await extractResponse.json();
           fullText = extractData.choices?.[0]?.message?.content || '';
           usedGemini = true;
-          console.log(`Successfully extracted ${fullText.length} characters`);
+          log('INFO', 'Text extraction successful', { 
+            requestId, 
+            textLength: fullText.length,
+            hasContent: fullText.length > 0
+          });
         }
       }
     }
+    // Office documents cannot be processed via vision API - skip AI extraction
+    else if (isOfficeDoc) {
+      log('WARN', 'Office document detected - AI extraction not available', { 
+        requestId, 
+        mimeType: file.type,
+        reason: 'Office documents require file upload API which needs separate Google API key'
+      });
+      log('INFO', 'Document will be stored without AI summary', { requestId });
+    }
     // Process text files directly
     else if (isTextFile) {
-      console.log('Text file - reading directly');
+      log('INFO', 'Reading text file directly', { requestId });
       const decoder = new TextDecoder();
       fullText = decoder.decode(uint8Array);
+      log('DEBUG', 'Text file read', { requestId, textLength: fullText.length });
     }
 
     // Generate summary if we have enough text
     if (fullText && fullText.length > 50) {
-      console.log('Generating summary with Gemini AI');
+      log('INFO', 'Generating AI summary', { requestId, textLength: fullText.length });
 
       let systemPrompt = 'You are a document summarization expert. Create a concise, comprehensive summary that captures key points, important dates, names, amounts, and actionable information.';
 
       // Get category-specific prompt if available
       if (categoryId) {
+        log('DEBUG', 'Fetching category-specific prompt', { requestId, categoryId });
         const { data: category } = await supabaseClient
           .from('document_categories')
           .select('name')
@@ -148,6 +207,7 @@ serve(async (req) => {
           .single();
 
         if (category) {
+          log('DEBUG', 'Category found', { requestId, categoryName: category.name });
           const { data: aiPrompt } = await supabaseClient
             .from('ai_prompts')
             .select('prompt_text')
@@ -158,11 +218,14 @@ serve(async (req) => {
 
           if (aiPrompt) {
             systemPrompt = aiPrompt.prompt_text;
-            console.log('Using category-specific prompt');
+            log('INFO', 'Using category-specific prompt', { requestId, categoryName: category.name });
+          } else {
+            log('DEBUG', 'No custom prompt for category', { requestId, categoryName: category.name });
           }
         }
       }
 
+      log('DEBUG', 'Calling Lovable AI for summary generation', { requestId, textPreview: fullText.substring(0, 100) });
       const summaryResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -178,16 +241,28 @@ serve(async (req) => {
         })
       });
 
+      log('DEBUG', 'Summary response received', { requestId, status: summaryResponse.status });
+
       if (!summaryResponse.ok) {
-        console.error(`Summary generation failed: ${summaryResponse.statusText}`);
+        const errorText = await summaryResponse.text();
+        log('ERROR', 'Summary generation failed', { requestId, status: summaryResponse.status, error: errorText });
       } else {
         const summaryData = await summaryResponse.json();
         summary = summaryData.choices?.[0]?.message?.content || 'Summary could not be generated.';
-        console.log('Summary generated successfully');
+        log('INFO', 'Summary generated successfully', { requestId, summaryLength: summary.length });
       }
+    } else {
+      log('INFO', 'Skipping summary generation', { requestId, reason: fullText.length === 0 ? 'No text extracted' : 'Text too short', textLength: fullText.length });
     }
 
     // Step 3: Insert document record with summary already populated
+    log('INFO', 'Inserting document record', { 
+      requestId,
+      hasText: !!fullText,
+      hasSummary: !!summary,
+      processingStatus: 'completed'
+    });
+    
     const { data: insertedDoc, error: insertError } = await supabaseClient
       .from('documents_v2')
       .insert({
@@ -211,12 +286,19 @@ serve(async (req) => {
       .single();
 
     if (insertError) {
+      log('ERROR', 'Database insert failed', { requestId, error: insertError.message });
       // Clean up uploaded file if database insert fails
       await supabaseClient.storage.from('documents').remove([fileName]);
       throw new Error(`Failed to create document record: ${insertError.message}`);
     }
 
-    console.log('Document upload and processing completed successfully');
+    log('INFO', 'Document processing completed successfully', { 
+      requestId,
+      documentId: insertedDoc.id,
+      textLength: fullText.length,
+      summaryLength: summary.length,
+      usedGemini
+    });
 
     return new Response(
       JSON.stringify({ 
@@ -230,7 +312,11 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error in upload-and-process-document-v2:', error);
+    log('ERROR', 'Request failed', { 
+      requestId,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
 
     return new Response(
       JSON.stringify({ 

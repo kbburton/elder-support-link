@@ -12,7 +12,9 @@ import { useToast } from "@/hooks/use-toast";
 import ContactChips from "@/components/contacts/ContactChips";
 import { useDemo } from "@/hooks/useDemo";
 import { useDemoAppointments, useDemoTasks, useDemoContacts, useDemoDocuments, useDemoActivities } from "@/hooks/useDemoData";
-import { logger } from "@/utils/logger";
+import { createLogger } from "@/utils/logger";
+
+const logger = createLogger('SearchPage');
 
 interface SearchResult {
   entity_type: string;

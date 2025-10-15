@@ -1,235 +1,118 @@
-export enum LogLevel {
-  DEBUG = 0,
-  INFO = 1,
-  WARN = 2,
-  ERROR = 3,
-}
+type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
-export interface LogContext {
-  userId?: string;
-  groupId?: string;
-  documentId?: string;
-  filename?: string;
-  fileSize?: number;
-  operation?: string;
-  component?: string;
+interface LogContext {
   [key: string]: any;
 }
 
-export interface LogEntry {
-  level: LogLevel;
-  message: string;
-  context?: LogContext;
-  timestamp: string;
-  error?: Error;
-}
-
 class Logger {
-  private logLevel: LogLevel = LogLevel.INFO;
+  private context: LogContext = {};
+  private component: string;
 
-  setLogLevel(level: LogLevel) {
-    this.logLevel = level;
+  constructor(component: string, initialContext: LogContext = {}) {
+    this.component = component;
+    this.context = initialContext;
   }
 
-  private formatLog(entry: LogEntry): string {
-    const levelNames = ['DEBUG', 'INFO', 'WARN', 'ERROR'];
-    const levelName = levelNames[entry.level];
-    
-    let logMessage = `[${entry.timestamp}] ${levelName}: ${entry.message}`;
-    
-    if (entry.context) {
-      logMessage += `\nContext: ${JSON.stringify(entry.context, null, 2)}`;
-    }
-    
-    if (entry.error) {
-      logMessage += `\nError: ${entry.error.message}`;
-      logMessage += `\nStack: ${entry.error.stack}`;
-    }
-    
-    return logMessage;
-  }
-
-  private log(level: LogLevel, message: string, context?: LogContext, error?: Error) {
-    if (level < this.logLevel) return;
-
-    const entry: LogEntry = {
-      level,
-      message,
-      context,
-      timestamp: new Date().toISOString(),
-      error,
-    };
-
-    const formattedLog = this.formatLog(entry);
-
-    switch (level) {
-      case LogLevel.DEBUG:
-        console.debug(formattedLog);
-        break;
-      case LogLevel.INFO:
-        console.info(formattedLog);
-        break;
-      case LogLevel.WARN:
-        console.warn(formattedLog);
-        break;
-      case LogLevel.ERROR:
-        console.error(formattedLog);
-        break;
-    }
+  private formatMessage(level: LogLevel, message: string, context?: LogContext): string {
+    const timestamp = new Date().toISOString();
+    const ctx = { ...this.context, ...context };
+    const contextStr = Object.keys(ctx).length > 0 ? ` | ${JSON.stringify(ctx)}` : '';
+    return `[${timestamp}] [${level.toUpperCase()}] [${this.component}] ${message}${contextStr}`;
   }
 
   debug(message: string, context?: LogContext) {
-    this.log(LogLevel.DEBUG, message, context);
+    console.debug(this.formatMessage('debug', message, context));
   }
 
   info(message: string, context?: LogContext) {
-    this.log(LogLevel.INFO, message, context);
+    console.info(this.formatMessage('info', message, context));
   }
 
-  warn(message: string, context?: LogContext, error?: Error) {
-    this.log(LogLevel.WARN, message, context, error);
+  warn(message: string, contextOrError?: LogContext | Error, error?: Error) {
+    // Support both signatures: (message, context, error) and (message, context)
+    let ctx: LogContext = {};
+    let err: Error | undefined;
+    
+    if (contextOrError instanceof Error) {
+      err = contextOrError;
+    } else if (contextOrError) {
+      ctx = contextOrError;
+      err = error;
+    }
+    
+    const errorContext = err 
+      ? { error: err.message, stack: err.stack, ...ctx }
+      : ctx;
+    console.warn(this.formatMessage('warn', message, errorContext));
   }
 
-  error(message: string, context?: LogContext, error?: Error) {
-    this.log(LogLevel.ERROR, message, context, error);
+  error(message: string, contextOrError?: LogContext | Error, error?: Error) {
+    // Support both signatures: (message, context, error) and (message, error, context)
+    let ctx: LogContext = {};
+    let err: Error | undefined;
+    
+    if (contextOrError instanceof Error) {
+      err = contextOrError;
+      ctx = error as any || {};
+    } else if (contextOrError) {
+      ctx = contextOrError;
+      err = error;
+    }
+    
+    const errorContext = err 
+      ? { error: err.message, stack: err.stack, ...ctx }
+      : ctx;
+    console.error(this.formatMessage('error', message, errorContext));
   }
 
-  // Specialized methods for document operations
-  documentUploadStart(filename: string, fileSize: number, groupId: string, userId: string) {
-    this.info('Document upload started', {
-      operation: 'upload_start',
-      component: 'DocumentUpload',
-      filename,
-      fileSize,
-      groupId,
-      userId,
-    });
+  setContext(context: LogContext) {
+    this.context = { ...this.context, ...context };
   }
 
-  documentUploadSuccess(documentId: string, filename: string, processingStatus: string) {
-    this.info('Document upload completed successfully', {
-      operation: 'upload_success',
-      component: 'DocumentUpload',
-      documentId,
-      filename,
-      processingStatus,
-    });
+  child(childComponent: string, additionalContext?: LogContext): Logger {
+    return new Logger(
+      `${this.component}:${childComponent}`,
+      { ...this.context, ...additionalContext }
+    );
   }
 
-  documentUploadError(filename: string, error: Error, context?: LogContext) {
-    this.error('Document upload failed', {
-      operation: 'upload_error',
-      component: 'DocumentUpload',
-      filename,
-      ...context,
-    }, error);
+  // Custom methods for backward compatibility with DocumentUpload
+  documentUploadStart(fileName: string, fileSize: number, groupId: string, userId: string) {
+    this.info('Document upload started', { fileName, fileSize, groupId, userId });
   }
 
-  storageValidationStart(filename: string, storagePath: string) {
-    this.info('Storage validation started', {
-      operation: 'storage_validation',
-      component: 'DocumentUpload',
-      filename,
-      storagePath,
-    });
+  documentUploadSuccess(documentId: string, fileName: string, status: string) {
+    this.info('Document upload successful', { documentId, fileName, status });
   }
 
-  storageValidationSuccess(filename: string, storagePath: string, fileSize: number) {
-    this.info('Storage validation successful', {
-      operation: 'storage_validation_success',
-      component: 'DocumentUpload',
-      filename,
-      storagePath,
-      fileSize,
-    });
+  documentUploadError(fileName: string, error: Error, context: LogContext) {
+    this.error('Document upload failed', { fileName, ...context }, error);
   }
 
-  storageValidationError(filename: string, storagePath: string, error: Error) {
-    this.error('Storage validation failed', {
-      operation: 'storage_validation_error',
-      component: 'DocumentUpload',
-      filename,
-      storagePath,
-    }, error);
+  // Custom methods for backward compatibility with SearchPage
+  searchQueryStarted(query: string, groupId: string) {
+    this.info('Search query started', { query, groupId });
   }
 
-  rollbackStart(filename: string, storagePath: string, attempt: number) {
-    this.warn('Rollback initiated', {
-      operation: 'rollback_start',
-      component: 'DocumentUpload',
-      filename,
-      storagePath,
-      attempt,
-    });
-  }
-
-  rollbackSuccess(filename: string, storagePath: string) {
-    this.info('Rollback completed successfully', {
-      operation: 'rollback_success',
-      component: 'DocumentUpload',
-      filename,
-      storagePath,
-    });
-  }
-
-  // Search operation logging methods
-  searchQueryStarted(query: string, groupId: string, userId?: string) {
-    this.info('Search query initiated', {
-      operation: 'search_query_started',
-      component: 'SearchPage',
-      query: query.length > 100 ? query.substring(0, 100) + '...' : query,
-      queryLength: query.length,
-      groupId,
-      userId,
-    });
-  }
-
-  searchQueryCompleted(query: string, resultCount: number, executionTime: number, groupId: string) {
-    this.info('Search query completed', {
-      operation: 'search_query_completed',
-      component: 'SearchPage',
-      query: query.length > 100 ? query.substring(0, 100) + '...' : query,
-      resultCount,
-      executionTime,
-      groupId,
-    });
-  }
-
-  searchResultClicked(entityType: string, entityId: string, query: string, resultRank: number, groupId: string) {
-    this.info('Search result clicked', {
-      operation: 'search_result_clicked',
-      component: 'SearchPage',
-      entityType,
-      entityId,
-      query: query.length > 100 ? query.substring(0, 100) + '...' : query,
-      resultRank,
-      groupId,
-    });
-  }
-
-  searchFilterToggled(filterType: string, isActive: boolean, groupId: string) {
-    this.info('Search filter toggled', {
-      operation: 'search_filter_toggled',
-      component: 'SearchPage',
-      filterType,
-      isActive,
-      groupId,
-    });
+  searchQueryCompleted(query: string, resultCount: number, duration: number, groupId: string) {
+    this.info('Search query completed', { query, resultCount, duration, groupId });
   }
 
   searchError(query: string, error: Error, groupId: string) {
-    this.error('Search query failed', {
-      operation: 'search_error',
-      component: 'SearchPage',
-      query: query.length > 100 ? query.substring(0, 100) + '...' : query,
-      groupId,
-    }, error);
+    this.error('Search error', { query, groupId }, error);
+  }
+
+  searchFilterToggled(entityType: string, isActive: boolean, groupId: string) {
+    this.info('Search filter toggled', { entityType, isActive, groupId });
+  }
+
+  searchResultClicked(entityType: string, entityId: string, query: string, rank: number, groupId: string) {
+    this.info('Search result clicked', { entityType, entityId, query, rank, groupId });
   }
 }
 
-export const logger = new Logger();
-
-// Set debug level in development
-if (import.meta.env.DEV) {
-  logger.setLogLevel(LogLevel.DEBUG);
+export function createLogger(component: string, context?: LogContext): Logger {
+  return new Logger(component, context);
 }
+
+export default Logger;

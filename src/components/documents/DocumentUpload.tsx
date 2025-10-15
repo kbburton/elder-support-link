@@ -12,8 +12,10 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from '@/integrations/supabase/client';
 import { Progress } from '@/components/ui/progress';
 import { validateFile, validateBatch, FILE_LIMITS } from '@/utils/file-limits';
-import { logger } from '@/utils/logger';
+import { createLogger } from '@/utils/logger';
 import { DuplicateConfirmDialog } from './DuplicateConfirmDialog';
+
+const logger = createLogger('DocumentUpload');
 import { DocumentProcessingModal } from './DocumentProcessingModal';
 import { DocumentProcessingErrorModal } from './DocumentProcessingErrorModal';
 
