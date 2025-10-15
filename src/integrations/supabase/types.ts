@@ -1261,18 +1261,21 @@ export type Database = {
         Row: {
           created_at: string
           document_id: string
+          document_v2_id: string | null
           id: string
           tag_id: string
         }
         Insert: {
           created_at?: string
           document_id: string
+          document_v2_id?: string | null
           id?: string
           tag_id: string
         }
         Update: {
           created_at?: string
           document_id?: string
+          document_v2_id?: string | null
           id?: string
           tag_id?: string
         }
@@ -1282,6 +1285,13 @@ export type Database = {
             columns: ["document_id"]
             isOneToOne: false
             referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_tag_assignments_document_v2_id_fkey"
+            columns: ["document_v2_id"]
+            isOneToOne: false
+            referencedRelation: "documents_v2"
             referencedColumns: ["id"]
           },
           {
@@ -1333,6 +1343,7 @@ export type Database = {
           created_at: string
           created_by_user_id: string
           document_id: string
+          document_v2_id: string | null
           file_size: number | null
           file_type: string | null
           file_url: string
@@ -1344,6 +1355,7 @@ export type Database = {
           created_at?: string
           created_by_user_id: string
           document_id: string
+          document_v2_id?: string | null
           file_size?: number | null
           file_type?: string | null
           file_url: string
@@ -1355,6 +1367,7 @@ export type Database = {
           created_at?: string
           created_by_user_id?: string
           document_id?: string
+          document_v2_id?: string | null
           file_size?: number | null
           file_type?: string | null
           file_url?: string
@@ -1368,6 +1381,13 @@ export type Database = {
             columns: ["document_id"]
             isOneToOne: false
             referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_versions_document_v2_id_fkey"
+            columns: ["document_v2_id"]
+            isOneToOne: false
+            referencedRelation: "documents_v2"
             referencedColumns: ["id"]
           },
         ]
@@ -1461,6 +1481,96 @@ export type Database = {
           },
           {
             foreignKeyName: "documents_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "care_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      documents_v2: {
+        Row: {
+          ai_metadata: Json | null
+          category_id: string | null
+          created_at: string
+          deleted_at: string | null
+          deleted_by_email: string | null
+          deleted_by_user_id: string | null
+          file_size: number | null
+          file_url: string
+          full_text: string | null
+          group_id: string | null
+          id: string
+          is_deleted: boolean | null
+          is_shared_with_group: boolean | null
+          mime_type: string | null
+          original_filename: string
+          processing_error: string | null
+          processing_status: string | null
+          summary: string | null
+          title: string | null
+          updated_at: string
+          uploaded_by_email: string | null
+          uploaded_by_user_id: string
+        }
+        Insert: {
+          ai_metadata?: Json | null
+          category_id?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by_email?: string | null
+          deleted_by_user_id?: string | null
+          file_size?: number | null
+          file_url: string
+          full_text?: string | null
+          group_id?: string | null
+          id?: string
+          is_deleted?: boolean | null
+          is_shared_with_group?: boolean | null
+          mime_type?: string | null
+          original_filename: string
+          processing_error?: string | null
+          processing_status?: string | null
+          summary?: string | null
+          title?: string | null
+          updated_at?: string
+          uploaded_by_email?: string | null
+          uploaded_by_user_id: string
+        }
+        Update: {
+          ai_metadata?: Json | null
+          category_id?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by_email?: string | null
+          deleted_by_user_id?: string | null
+          file_size?: number | null
+          file_url?: string
+          full_text?: string | null
+          group_id?: string | null
+          id?: string
+          is_deleted?: boolean | null
+          is_shared_with_group?: boolean | null
+          mime_type?: string | null
+          original_filename?: string
+          processing_error?: string | null
+          processing_status?: string | null
+          summary?: string | null
+          title?: string | null
+          updated_at?: string
+          uploaded_by_email?: string | null
+          uploaded_by_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documents_v2_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "document_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_v2_group_id_fkey"
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "care_groups"

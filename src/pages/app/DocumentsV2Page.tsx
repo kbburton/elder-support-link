@@ -1,15 +1,12 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Plus, FileText, FolderOpen, Tag, Settings } from "lucide-react";
+import { Plus, FileText, FolderOpen, Settings, Upload, Loader2 } from "lucide-react";
 import SEO from "@/components/layout/SEO";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DocumentV2Modal } from "@/components/documents/DocumentV2Modal";
 import { DocumentCategoryManager } from "@/components/documents/DocumentCategoryManager";
-import { DocumentUpload } from "@/components/documents/DocumentUpload";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { UnifiedTableView, TableColumn } from "@/components/shared/UnifiedTableView";
 import { Badge } from "@/components/ui/badge";
@@ -17,8 +14,8 @@ import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useDemo } from "@/hooks/useDemo";
 import { useDocumentsV2Access } from "@/hooks/useDocumentsV2Access";
-import { softDeleteEntity, bulkSoftDelete } from "@/lib/delete/rpc";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useDocumentsV2 } from "@/hooks/useDocumentsV2";
+import { useQueryClient } from "@tanstack/react-query";
 
 const formatFileSize = (bytes?: number) => {
   if (!bytes) return 'Unknown';
@@ -30,10 +27,10 @@ const formatFileSize = (bytes?: number) => {
 export default function DocumentsV2Page() {
   const { groupId } = useParams();
   const [activeTab, setActiveTab] = useState("care-group");
-  const [showUpload, setShowUpload] = useState(false);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<any>(null);
   const [showDocumentModal, setShowDocumentModal] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -41,55 +38,23 @@ export default function DocumentsV2Page() {
   const { data: accessData, isLoading: accessLoading } = useDocumentsV2Access();
   const hasAccess = accessData?.hasAccess || false;
 
-  // Get current user
-  const { data: currentUser } = useQuery({
-    queryKey: ["current-user"],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      return user;
-    },
-  });
+  // Use the new hook for care group documents
+  const { 
+    documents: careGroupDocuments, 
+    isLoading: careGroupLoading, 
+    uploadDocument: uploadToGroup,
+    deleteDocument: deleteGroupDoc,
+    isUploading: isUploadingToGroup
+  } = useDocumentsV2(groupId, false);
 
-  // Fetch care group documents (shared with group)
-  const { data: careGroupDocuments = [], isLoading: careGroupLoading, refetch: refetchCareGroup } = useQuery({
-    queryKey: ["documents-v2-care-group", groupId],
-    queryFn: async () => {
-      if (!groupId) return [];
-      
-      const { data, error } = await supabase
-        .from("documents")
-        .select("*, document_categories(name)")
-        .eq("group_id", groupId)
-        .eq("is_deleted", false)
-        .eq("is_shared_with_group", true)
-        .order("created_at", { ascending: false });
-      
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!groupId && hasAccess && !isDemo,
-  });
-
-  // Fetch personal documents (not shared)
-  const { data: personalDocuments = [], isLoading: personalLoading, refetch: refetchPersonal } = useQuery({
-    queryKey: ["documents-v2-personal", groupId, currentUser?.id],
-    queryFn: async () => {
-      if (!groupId || !currentUser) return [];
-      
-      const { data, error } = await supabase
-        .from("documents")
-        .select("*, document_categories(name)")
-        .eq("group_id", groupId)
-        .eq("is_deleted", false)
-        .eq("uploaded_by_user_id", currentUser.id)
-        .eq("is_shared_with_group", false)
-        .order("created_at", { ascending: false });
-      
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!groupId && !!currentUser && hasAccess && !isDemo,
-  });
+  // Use the new hook for personal documents
+  const { 
+    documents: personalDocuments, 
+    isLoading: personalLoading,
+    uploadDocument: uploadToPersonal,
+    deleteDocument: deletePersonalDoc,
+    isUploading: isUploadingToPersonal
+  } = useDocumentsV2(groupId, true);
 
   const blockOperation = () => {
     if (isDemo) {
@@ -103,54 +68,27 @@ export default function DocumentsV2Page() {
     return false;
   };
 
-  // Delete mutations
-  const deleteDocumentMutation = useMutation({
-    mutationFn: async (documentId: string) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-      
-      await softDeleteEntity("document", documentId, user.id, user.email || "");
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["documents-v2-care-group"] });
-      queryClient.invalidateQueries({ queryKey: ["documents-v2-personal"] });
-      toast({
-        title: "Document deleted",
-        description: "Document has been moved to trash.",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: "Failed to delete document.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const bulkDeleteMutation = useMutation({
-    mutationFn: async (documentIds: string[]) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-      
-      await bulkSoftDelete("document", documentIds, user.id, user.email || "");
-    },
-    onSuccess: (_, documentIds) => {
-      queryClient.invalidateQueries({ queryKey: ["documents-v2-care-group"] });
-      queryClient.invalidateQueries({ queryKey: ["documents-v2-personal"] });
-      toast({
-        title: "Documents deleted",
-        description: `${documentIds.length} document(s) moved to trash.`,
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: "Failed to delete documents.",
-        variant: "destructive",
-      });
-    },
-  });
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, isPersonal: boolean) => {
+    const file = e.target.files?.[0];
+    if (file && !blockOperation()) {
+      setSelectedFile(file);
+      if (isPersonal) {
+        uploadToPersonal({
+          file,
+          groupId: null,
+          isShared: false
+        });
+      } else {
+        uploadToGroup({
+          file,
+          groupId: groupId!,
+          isShared: true
+        });
+      }
+      setSelectedFile(null);
+      e.target.value = '';
+    }
+  };
 
   const handleEditDocument = (document: any) => {
     if (blockOperation()) return;
@@ -158,16 +96,26 @@ export default function DocumentsV2Page() {
     setShowDocumentModal(true);
   };
 
-  const handleDeleteDocument = (documentId: string) => {
+  const handleDeleteDocument = (documentId: string, isPersonal: boolean) => {
     if (blockOperation()) return;
     if (confirm("Delete this document?")) {
-      deleteDocumentMutation.mutate(documentId);
+      if (isPersonal) {
+        deletePersonalDoc(documentId);
+      } else {
+        deleteGroupDoc(documentId);
+      }
     }
   };
 
-  const handleBulkDelete = (documentIds: string[]) => {
+  const handleBulkDelete = (documentIds: string[], isPersonal: boolean) => {
     if (blockOperation()) return;
-    bulkDeleteMutation.mutate(documentIds);
+    documentIds.forEach(id => {
+      if (isPersonal) {
+        deletePersonalDoc(id);
+      } else {
+        deleteGroupDoc(id);
+      }
+    });
   };
 
   // Define table columns
@@ -295,10 +243,6 @@ export default function DocumentsV2Page() {
               <Settings className="mr-2 h-4 w-4" />
               Manage Categories
             </Button>
-            <Button onClick={() => setShowUpload(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Upload Document
-            </Button>
           </div>
         </div>
 
@@ -315,11 +259,25 @@ export default function DocumentsV2Page() {
           </TabsList>
 
           <TabsContent value="care-group" className="space-y-4">
+            <div className="flex justify-end mb-4">
+              <Button asChild disabled={isUploadingToGroup}>
+                <label className="cursor-pointer">
+                  {isUploadingToGroup ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                  {isUploadingToGroup ? 'Uploading & Processing...' : 'Upload Document'}
+                  <input
+                    type="file"
+                    className="hidden"
+                    onChange={(e) => handleFileSelect(e, false)}
+                    disabled={isUploadingToGroup}
+                  />
+                </label>
+              </Button>
+            </div>
             <Card>
               <CardHeader>
                 <CardTitle>Care Group Documents</CardTitle>
                 <CardDescription>
-                  Documents shared with all members of this care group
+                  Documents shared with all members - AI processing with Lovable Cloud
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -329,8 +287,8 @@ export default function DocumentsV2Page() {
                   columns={columns}
                   loading={careGroupLoading}
                   onEdit={handleEditDocument}
-                  onDelete={handleDeleteDocument}
-                  onBulkDelete={handleBulkDelete}
+                  onDelete={(id) => handleDeleteDocument(id, false)}
+                  onBulkDelete={(ids) => handleBulkDelete(ids, false)}
                   searchable={true}
                   searchPlaceholder="Search documents..."
                   defaultSortBy="created_at"
@@ -345,11 +303,25 @@ export default function DocumentsV2Page() {
           </TabsContent>
 
           <TabsContent value="personal" className="space-y-4">
+            <div className="flex justify-end mb-4">
+              <Button asChild disabled={isUploadingToPersonal}>
+                <label className="cursor-pointer">
+                  {isUploadingToPersonal ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                  {isUploadingToPersonal ? 'Uploading & Processing...' : 'Upload Document'}
+                  <input
+                    type="file"
+                    className="hidden"
+                    onChange={(e) => handleFileSelect(e, true)}
+                    disabled={isUploadingToPersonal}
+                  />
+                </label>
+              </Button>
+            </div>
             <Card>
               <CardHeader>
                 <CardTitle>My Personal Documents</CardTitle>
                 <CardDescription>
-                  Private documents visible only to you
+                  Private documents visible only to you - AI processing with Lovable Cloud
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -359,8 +331,8 @@ export default function DocumentsV2Page() {
                   columns={columns}
                   loading={personalLoading}
                   onEdit={handleEditDocument}
-                  onDelete={handleDeleteDocument}
-                  onBulkDelete={handleBulkDelete}
+                  onDelete={(id) => handleDeleteDocument(id, true)}
+                  onBulkDelete={(ids) => handleBulkDelete(ids, true)}
                   searchable={true}
                   searchPlaceholder="Search documents..."
                   defaultSortBy="created_at"
@@ -374,26 +346,6 @@ export default function DocumentsV2Page() {
             </Card>
           </TabsContent>
         </Tabs>
-
-        {/* Upload Dialog */}
-        <Dialog open={showUpload} onOpenChange={setShowUpload}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Upload Documents</DialogTitle>
-            </DialogHeader>
-            <DocumentUpload
-              onUploadComplete={() => {
-                refetchCareGroup();
-                refetchPersonal();
-                toast({
-                  title: "Upload Complete",
-                  description: "Document uploaded successfully.",
-                });
-              }}
-              onClose={() => setShowUpload(false)}
-            />
-          </DialogContent>
-        </Dialog>
 
         {/* Category Manager Dialog */}
         <Dialog open={showCategoryManager} onOpenChange={setShowCategoryManager}>

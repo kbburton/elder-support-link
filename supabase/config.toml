@@ -1,5 +1,11 @@
 project_id = "yfwgegapmggwywrnzqvg"
 
+[functions.process-document-v2]
+verify_jwt = true
+
+[functions.regenerate-summary-v2]
+verify_jwt = true
+
 [functions.admin-rebuild-search]
 verify_jwt = true
 
