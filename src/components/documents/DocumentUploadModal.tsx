@@ -29,7 +29,7 @@ export function DocumentUploadModal({
 }: DocumentUploadModalProps) {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
-  const [categoryId, setCategoryId] = useState("");
+  const [categoryId, setCategoryId] = useState("none");
   const [notes, setNotes] = useState("");
 
   const { data: categories = [] } = useDocumentCategories(groupId);
@@ -51,21 +51,21 @@ export function DocumentUploadModal({
 
     onUpload(file, {
       title: title || file.name,
-      categoryId: categoryId || undefined,
+      categoryId: categoryId && categoryId !== "none" ? categoryId : undefined,
       notes: notes || undefined,
     });
 
     // Reset form
     setFile(null);
     setTitle("");
-    setCategoryId("");
+    setCategoryId("none");
     setNotes("");
   };
 
   const handleCancel = () => {
     setFile(null);
     setTitle("");
-    setCategoryId("");
+    setCategoryId("none");
     setNotes("");
     onClose();
   };
@@ -75,7 +75,7 @@ export function DocumentUploadModal({
   const getSubgroups = (parentId: string) => categories.filter(c => c.parent_id === parentId);
 
   const getCategoryDisplay = () => {
-    if (!categoryId) return "Select category (optional)";
+    if (!categoryId || categoryId === "none") return "Select category (optional)";
     const category = categories.find(c => c.id === categoryId);
     if (!category) return "Select category (optional)";
     
@@ -151,7 +151,7 @@ export function DocumentUploadModal({
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">No category</SelectItem>
+                <SelectItem value="none">No category</SelectItem>
                 {parentCategories.map((parent) => (
                   <div key={parent.id}>
                     <SelectItem value={parent.id}>{parent.name}</SelectItem>
@@ -185,7 +185,7 @@ export function DocumentUploadModal({
           <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md p-3">
             <p className="text-sm text-blue-900 dark:text-blue-100">
               <strong>AI Processing:</strong> After upload, Lovable AI will automatically extract text and generate a summary. 
-              {categoryId && " The selected category will help create a more accurate summary."}
+              {categoryId && categoryId !== "none" && " The selected category will help create a more accurate summary."}
             </p>
           </div>
 
