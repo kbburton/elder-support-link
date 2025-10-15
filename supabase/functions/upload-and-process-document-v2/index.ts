@@ -47,20 +47,47 @@ serve(async (req) => {
       throw new Error(`File size exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit`);
     }
 
-    // Step 1: Process the file with Lovable AI BEFORE uploading
+    // Step 1: Upload file to storage FIRST to get a URL
+    const arrayBuffer = await file.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+    
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${uploadedByUserId}/${crypto.randomUUID()}.${fileExt}`;
+    
+    console.log('Uploading file to storage:', fileName);
+    
+    const { error: uploadError } = await supabaseClient.storage
+      .from('documents')
+      .upload(fileName, uint8Array, {
+        contentType: file.type,
+        cacheControl: '3600',
+      });
+
+    if (uploadError) {
+      throw new Error(`Failed to upload file: ${uploadError.message}`);
+    }
+
+    // Step 2: Process the file with Lovable AI using storage URL
     let fullText = '';
     let summary = '';
     let usedGemini = false;
 
-    const arrayBuffer = await file.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-
-    if (file.type?.includes('pdf') || file.type?.includes('image')) {
-      console.log('Extracting text with Gemini AI (pdf/image)');
+    if (file.type?.includes('pdf') || file.type?.includes('image') || 
+        file.type?.includes('officedocument') || file.type?.includes('ms-excel') || 
+        file.type?.includes('presentationml')) {
       
-      // Convert to base64 for Gemini
-      const base64File = btoa(String.fromCharCode(...uint8Array));
-      const dataUrl = `data:${file.type};base64,${base64File}`;
+      console.log('Extracting text with Gemini AI using storage URL');
+      
+      // Create a signed URL that Gemini can download from (expires in 1 hour)
+      const { data: signedUrlData, error: signError } = await supabaseClient.storage
+        .from('documents')
+        .createSignedUrl(fileName, 3600);
+
+      if (signError || !signedUrlData?.signedUrl) {
+        // Clean up uploaded file
+        await supabaseClient.storage.from('documents').remove([fileName]);
+        throw new Error('Failed to create signed URL for processing');
+      }
 
       const extractResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
         method: 'POST',
@@ -79,7 +106,7 @@ serve(async (req) => {
               role: 'user',
               content: [
                 { type: 'text', text: 'Extract all text from this document:' },
-                { type: 'image_url', image_url: { url: dataUrl } }
+                { type: 'image_url', image_url: { url: signedUrlData.signedUrl } }
               ]
             }
           ]
@@ -89,60 +116,18 @@ serve(async (req) => {
       if (!extractResponse.ok) {
         const errorText = await extractResponse.text();
         console.error(`Gemini error: ${extractResponse.status} - ${errorText}`);
-        throw new Error(`Text extraction failed: ${extractResponse.statusText}`);
+        // Don't delete file on extraction error - we still want to store it
+        fullText = '';
+      } else {
+        const extractData = await extractResponse.json();
+        fullText = extractData.choices?.[0]?.message?.content || '';
+        usedGemini = true;
+        console.log(`Extracted ${fullText.length} characters`);
       }
-
-      const extractData = await extractResponse.json();
-      fullText = extractData.choices?.[0]?.message?.content || '';
-      usedGemini = true;
-      console.log(`Extracted ${fullText.length} characters`);
     } else if (file.type?.includes('text')) {
       console.log('Text file processed directly');
       const decoder = new TextDecoder();
       fullText = decoder.decode(uint8Array);
-    } else if (
-      file.type?.includes('officedocument') ||
-      file.type?.includes('ms-excel') ||
-      file.type?.includes('presentationml')
-    ) {
-      console.log('Extracting Office document text with Gemini AI');
-      const base64File = btoa(String.fromCharCode(...uint8Array));
-      const dataUrl = `data:${file.type};base64,${base64File}`;
-
-      const extractResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a document text extraction expert. Extract ALL text content from this Office document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.'
-            },
-            {
-              role: 'user',
-              content: [
-                { type: 'text', text: 'Extract all text from this document:' },
-                { type: 'image_url', image_url: { url: dataUrl } }
-              ]
-            }
-          ]
-        })
-      });
-
-      if (!extractResponse.ok) {
-        const errorText = await extractResponse.text();
-        console.error(`Gemini error (office): ${extractResponse.status} - ${errorText}`);
-        throw new Error(`Text extraction failed for Office document: ${extractResponse.statusText}`);
-      }
-
-      const extractData = await extractResponse.json();
-      fullText = extractData.choices?.[0]?.message?.content || '';
-      usedGemini = true;
-      console.log(`Extracted ${fullText.length} characters from Office document`);
     }
 
     // Generate summary if we have enough text
@@ -197,23 +182,6 @@ serve(async (req) => {
         summary = summaryData.choices?.[0]?.message?.content || 'Summary could not be generated.';
         console.log('Summary generated successfully');
       }
-    }
-
-    // Step 2: Upload file to Supabase Storage
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${uploadedByUserId}/${crypto.randomUUID()}.${fileExt}`;
-    
-    console.log('Uploading file to storage:', fileName);
-    
-    const { error: uploadError } = await supabaseClient.storage
-      .from('documents')
-      .upload(fileName, uint8Array, {
-        contentType: file.type,
-        cacheControl: '3600',
-      });
-
-    if (uploadError) {
-      throw new Error(`Failed to upload file: ${uploadError.message}`);
     }
 
     // Step 3: Insert document record with summary already populated
