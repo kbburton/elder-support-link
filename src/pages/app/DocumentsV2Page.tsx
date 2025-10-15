@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Plus, FileText, FolderOpen, Settings, Upload, Loader2 } from "lucide-react";
+import { Plus, FileText, FolderOpen, Settings, Upload, Loader2, CheckCircle, XCircle, Clock } from "lucide-react";
 import SEO from "@/components/layout/SEO";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DocumentV2Modal } from "@/components/documents/DocumentV2Modal";
+import { DocumentUploadModal } from "@/components/documents/DocumentUploadModal";
 import { DocumentCategoryManager } from "@/components/documents/DocumentCategoryManager";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { UnifiedTableView, TableColumn } from "@/components/shared/UnifiedTableView";
@@ -16,6 +17,7 @@ import { useDemo } from "@/hooks/useDemo";
 import { useDocumentsV2Access } from "@/hooks/useDocumentsV2Access";
 import { useDocumentsV2 } from "@/hooks/useDocumentsV2";
 import { useQueryClient } from "@tanstack/react-query";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const formatFileSize = (bytes?: number) => {
   if (!bytes) return 'Unknown';
@@ -30,7 +32,8 @@ export default function DocumentsV2Page() {
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<any>(null);
   const [showDocumentModal, setShowDocumentModal] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadIsPersonal, setUploadIsPersonal] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -68,26 +71,37 @@ export default function DocumentsV2Page() {
     return false;
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, isPersonal: boolean) => {
-    const file = e.target.files?.[0];
-    if (file && !blockOperation()) {
-      setSelectedFile(file);
-      if (isPersonal) {
-        uploadToPersonal({
-          file,
-          groupId: null,
-          isShared: false
-        });
-      } else {
-        uploadToGroup({
-          file,
-          groupId: groupId!,
-          isShared: true
-        });
-      }
-      setSelectedFile(null);
-      e.target.value = '';
+  const handleUploadClick = (isPersonal: boolean) => {
+    if (blockOperation()) return;
+    setUploadIsPersonal(isPersonal);
+    setShowUploadModal(true);
+  };
+
+  const handleUploadSubmit = (file: File, metadata: {
+    title?: string;
+    categoryId?: string;
+    notes?: string;
+  }) => {
+    if (uploadIsPersonal) {
+      uploadToPersonal({
+        file,
+        groupId: null,
+        title: metadata.title,
+        categoryId: metadata.categoryId,
+        notes: metadata.notes,
+        isShared: false
+      });
+    } else {
+      uploadToGroup({
+        file,
+        groupId: groupId!,
+        title: metadata.title,
+        categoryId: metadata.categoryId,
+        notes: metadata.notes,
+        isShared: true
+      });
     }
+    setShowUploadModal(false);
   };
 
   const handleEditDocument = (document: any) => {
@@ -125,10 +139,63 @@ export default function DocumentsV2Page() {
       label: "Title",
       sortable: true,
       render: (value, row) => (
-        <div className="font-medium">
-          {value || row.original_filename || "Untitled Document"}
+        <div>
+          <div className="font-medium">
+            {value || row.original_filename || "Untitled Document"}
+          </div>
+          {row.summary && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <p className="text-xs text-muted-foreground truncate max-w-[300px] cursor-help">
+                    {row.summary}
+                  </p>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-md">
+                  <p className="text-sm">{row.summary}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </div>
       ),
+    },
+    {
+      key: "processing_status",
+      label: "Status",
+      sortable: true,
+      render: (value) => {
+        if (value === 'completed') {
+          return (
+            <Badge variant="default" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">
+              <CheckCircle className="h-3 w-3 mr-1" />
+              Processed
+            </Badge>
+          );
+        }
+        if (value === 'processing') {
+          return (
+            <Badge variant="default" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100">
+              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+              Processing
+            </Badge>
+          );
+        }
+        if (value === 'failed') {
+          return (
+            <Badge variant="destructive">
+              <XCircle className="h-3 w-3 mr-1" />
+              Failed
+            </Badge>
+          );
+        }
+        return (
+          <Badge variant="secondary">
+            <Clock className="h-3 w-3 mr-1" />
+            Pending
+          </Badge>
+        );
+      },
     },
     {
       key: "category_id",
@@ -158,16 +225,6 @@ export default function DocumentsV2Page() {
       label: "Size",
       sortable: true,
       render: (value) => <span className="text-sm">{formatFileSize(value)}</span>,
-    },
-    {
-      key: "current_version",
-      label: "Version",
-      sortable: true,
-      render: (value) => value ? (
-        <Badge variant="outline">v{value}</Badge>
-      ) : (
-        <Badge variant="outline">v1</Badge>
-      ),
     },
     {
       key: "created_at",
@@ -260,17 +317,12 @@ export default function DocumentsV2Page() {
 
           <TabsContent value="care-group" className="space-y-4">
             <div className="flex justify-end mb-4">
-              <Button asChild disabled={isUploadingToGroup}>
-                <label className="cursor-pointer">
-                  {isUploadingToGroup ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                  {isUploadingToGroup ? 'Uploading & Processing...' : 'Upload Document'}
-                  <input
-                    type="file"
-                    className="hidden"
-                    onChange={(e) => handleFileSelect(e, false)}
-                    disabled={isUploadingToGroup}
-                  />
-                </label>
+              <Button 
+                onClick={() => handleUploadClick(false)} 
+                disabled={isUploadingToGroup}
+              >
+                {isUploadingToGroup ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                {isUploadingToGroup ? 'Uploading & Processing...' : 'Upload Document'}
               </Button>
             </div>
             <Card>
@@ -304,17 +356,12 @@ export default function DocumentsV2Page() {
 
           <TabsContent value="personal" className="space-y-4">
             <div className="flex justify-end mb-4">
-              <Button asChild disabled={isUploadingToPersonal}>
-                <label className="cursor-pointer">
-                  {isUploadingToPersonal ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                  {isUploadingToPersonal ? 'Uploading & Processing...' : 'Upload Document'}
-                  <input
-                    type="file"
-                    className="hidden"
-                    onChange={(e) => handleFileSelect(e, true)}
-                    disabled={isUploadingToPersonal}
-                  />
-                </label>
+              <Button 
+                onClick={() => handleUploadClick(true)} 
+                disabled={isUploadingToPersonal}
+              >
+                {isUploadingToPersonal ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                {isUploadingToPersonal ? 'Uploading & Processing...' : 'Upload Document'}
               </Button>
             </div>
             <Card>
@@ -346,6 +393,15 @@ export default function DocumentsV2Page() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Upload Modal */}
+        <DocumentUploadModal
+          isOpen={showUploadModal}
+          onClose={() => setShowUploadModal(false)}
+          onUpload={handleUploadSubmit}
+          groupId={groupId}
+          isUploading={uploadIsPersonal ? isUploadingToPersonal : isUploadingToGroup}
+        />
 
         {/* Category Manager Dialog */}
         <Dialog open={showCategoryManager} onOpenChange={setShowCategoryManager}>

@@ -63,12 +63,14 @@ export const useDocumentsV2 = (groupId: string | undefined, showPersonal: boolea
       groupId, 
       title, 
       categoryId,
+      notes,
       isShared 
     }: { 
       file: File; 
       groupId: string | null; 
       title?: string;
       categoryId?: string;
+      notes?: string;
       isShared?: boolean;
     }) => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -98,6 +100,7 @@ export const useDocumentsV2 = (groupId: string | undefined, showPersonal: boolea
           file_size: file.size,
           mime_type: file.type,
           category_id: categoryId || null,
+          notes: notes || null,
           is_shared_with_group: isShared !== false,
           processing_status: 'pending'
         })
