@@ -50,26 +50,12 @@ serve(async (req) => {
       .update({ processing_status: 'processing' })
       .eq('id', documentId);
 
-    // Download file
-    const { data: fileData, error: downloadError } = await supabaseClient
-      .storage
-      .from('documents')
-      .download(document.file_url);
-
-    if (downloadError) {
-      throw new Error(`Failed to download file: ${downloadError.message}`);
-    }
-
-    // Check file size
-    if (fileData.size > MAX_FILE_SIZE) {
+    // File size check using stored metadata to avoid heavy downloads
+    if (document.file_size && document.file_size > MAX_FILE_SIZE) {
       throw new Error(`File size exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit`);
     }
 
     console.log(`Processing file type: ${document.mime_type}`);
-
-    // Convert file to base64
-    const arrayBuffer = await fileData.arrayBuffer();
-    const base64File = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
 
     // Extract text using Gemini or fallback parsers
     let fullText = '';
@@ -77,6 +63,13 @@ serve(async (req) => {
     
     if (document.mime_type?.includes('pdf') || document.mime_type?.includes('image')) {
       console.log('Extracting text with Gemini AI');
+      const { data: signed, error: sErr } = await supabaseClient
+        .storage
+        .from('documents')
+        .createSignedUrl(document.file_url, 600);
+      if (sErr || !signed?.signedUrl) {
+        throw new Error(`Failed to generate signed URL: ${sErr?.message || 'unknown'}`);
+      }
       const extractResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -100,7 +93,7 @@ serve(async (req) => {
                 {
                   type: 'image_url',
                   image_url: {
-                    url: `data:${document.mime_type};base64,${base64File}`
+                    url: signed.signedUrl
                   }
                 }
               ]

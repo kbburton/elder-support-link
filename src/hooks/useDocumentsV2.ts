@@ -36,7 +36,7 @@ export const useDocumentsV2 = (groupId: string | undefined, showPersonal: boolea
     queryFn: async () => {
       let query = supabase
         .from('documents_v2')
-        .select('*')
+        .select('*, document_categories(name)')
         .eq('is_deleted', false)
         .order('created_at', { ascending: false });
 

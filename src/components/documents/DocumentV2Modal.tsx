@@ -45,7 +45,7 @@ interface Document {
   file_type?: string;
   file_size?: number;
   file_url?: string;
-  upload_date: string;
+  created_at?: string;
   uploaded_by_user_id?: string;
   processing_status?: string;
   is_shared_with_group?: boolean;
@@ -125,17 +125,17 @@ export function DocumentV2Modal({ document, isOpen, onClose, groupId }: Document
     }
   }, [document]);
 
-  const updateDocument = useMutation({
+const updateDocument = useMutation({
     mutationFn: async (data: any) => {
       const { error } = await supabase
-        .from("documents")
+        .from("documents_v2")
         .update(data)
         .eq("id", document!.id);
 
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      queryClient.invalidateQueries({ queryKey: ["documents-v2"] });
       toast({
         title: "Document updated",
         description: "Document has been updated successfully.",
@@ -223,34 +223,22 @@ export function DocumentV2Modal({ document, isOpen, onClose, groupId }: Document
     }
   };
 
-  const handleDownload = async () => {
+const handleDownload = async () => {
     if (!document?.file_url) return;
-    
     try {
-      const fileName = document.file_url.split('/').pop() || document.original_filename;
       const { data } = await supabase.storage
         .from('documents')
-        .createSignedUrl(fileName, 600);
-        
+        .createSignedUrl(document.file_url, 600);
       if (data?.signedUrl) {
         window.open(data.signedUrl, '_blank');
       } else {
-        toast({
-          title: "Error",
-          description: "Failed to generate download link.",
-          variant: "destructive",
-        });
+        toast({ title: "Error", description: "Failed to generate download link.", variant: "destructive" });
       }
     } catch (error) {
       console.error('Download error:', error);
-      toast({
-        title: "Error", 
-        description: "Failed to download document.",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to download document.", variant: "destructive" });
     }
   };
-
   const handleShareLink = async () => {
     if (!document?.id) return;
     
@@ -293,12 +281,13 @@ export function DocumentV2Modal({ document, isOpen, onClose, groupId }: Document
     }
   };
 
-  const getUploadDate = () => {
-    if (document?.upload_date) {
-      return format(new Date(document.upload_date), 'MM/dd/yy');
-    }
-    return 'Unknown';
-  };
+const getUploadDate = () => {
+  const dt = (document as any)?.created_at;
+  if (dt) {
+    return format(new Date(dt), 'MM/dd/yy');
+  }
+  return 'Unknown';
+};
 
   // Get category hierarchy display
   const getCategoryDisplay = () => {
