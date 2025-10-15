@@ -81,6 +81,7 @@ export function DocumentV2Modal({ document, isOpen, onClose, groupId }: Document
   const [activeTab, setActiveTab] = useState("details");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewSummary, setPreviewSummary] = useState("");
+  const [previewIsError, setPreviewIsError] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -187,17 +188,28 @@ const updateDocument = useMutation({
       const { data, error } = await supabase.functions.invoke('regenerate-summary-v2', {
         body: { documentId: document.id }
       });
-      if (error) throw error;
-      const generated = data?.summary as string | undefined;
-      if (!generated || !generated.trim()) {
-        toast({ title: 'No summary returned', description: 'The AI did not return any summary text.', variant: 'destructive' });
+      if (error) {
+        const errMsg = (error as any)?.message || 'Unknown error';
+        setPreviewIsError(true);
+        setPreviewSummary(typeof errMsg === 'string' ? errMsg : JSON.stringify(error, null, 2));
+        setPreviewOpen(true);
         return;
       }
+      const generated = data?.summary as string | undefined;
+      if (!generated || !generated.trim()) {
+        setPreviewIsError(true);
+        setPreviewSummary('No summary returned by the AI function.');
+        setPreviewOpen(true);
+        return;
+      }
+      setPreviewIsError(false);
       setPreviewSummary(generated.trim());
       setPreviewOpen(true);
     } catch (error) {
       console.error('Error regenerating summary:', error);
-      toast({ title: 'Error', description: 'Failed to regenerate summary.', variant: 'destructive' });
+      setPreviewIsError(true);
+      setPreviewSummary(error instanceof Error ? error.message : String(error));
+      setPreviewOpen(true);
     } finally {
       setIsRegenerating(false);
     }
@@ -539,23 +551,27 @@ const getUploadDate = () => {
     <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>AI Summary Preview</DialogTitle>
+          <DialogTitle>{previewIsError ? 'AI Summary Debug' : 'AI Summary Preview'}</DialogTitle>
           <DialogDescription>
-            Review the generated summary. Click Save to update the document.
+            {previewIsError
+              ? 'The function did not return a summary. Inspect the details below.'
+              : 'Review the generated summary. Click Save to update the document.'}
           </DialogDescription>
         </DialogHeader>
         <Textarea value={previewSummary} readOnly rows={8} />
         <DialogFooter>
           <Button variant="outline" onClick={() => setPreviewOpen(false)}>
-            Cancel
+            {previewIsError ? 'Close' : 'Cancel'}
           </Button>
-          <Button onClick={() => {
-            setFormData(prev => ({ ...prev, summary: previewSummary }));
-            updateDocument.mutate({ summary: previewSummary });
-            setPreviewOpen(false);
-          }}>
-            Save Summary
-          </Button>
+          {!previewIsError && (
+            <Button onClick={() => {
+              setFormData(prev => ({ ...prev, summary: previewSummary }));
+              updateDocument.mutate({ summary: previewSummary });
+              setPreviewOpen(false);
+            }}>
+              Save Summary
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

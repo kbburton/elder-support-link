@@ -120,7 +120,7 @@ serve(async (req) => {
 
     // Process PDFs and images with Lovable AI (vision API)
     if (isImage) {
-      log('INFO', 'Processing PDF/Image with Lovable AI vision', { requestId, mimeType: file.type });
+      log('INFO', 'Processing Image with Lovable AI vision', { requestId, mimeType: file.type });
       
       // Create a signed URL that Gemini can access (expires in 1 hour)
       log('DEBUG', 'Creating signed URL for vision processing', { requestId });
@@ -143,12 +143,12 @@ serve(async (req) => {
             messages: [
               {
                 role: 'system',
-                content: 'You are a document text extraction expert. Extract ALL text content from the document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.'
+                content: 'You are a document text extraction expert. Extract ALL text content from the image. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.'
               },
               {
                 role: 'user',
                 content: [
-                  { type: 'text', text: 'Extract all text from this document:' },
+                  { type: 'text', text: 'Extract all text from this image:' },
                   { type: 'image_url', image_url: { url: signedUrlData.signedUrl } }
                 ]
               }
@@ -177,7 +177,7 @@ serve(async (req) => {
         }
       }
     }
-    // Office documents require Google Gemini File API
+    // Office documents and PDFs require Google Gemini File API
     else if (isOfficeDoc || isPdf) {
       if (!GOOGLE_GEMINI_API_KEY) {
         log('WARN', 'Office document detected but no Google API key', { 
@@ -236,7 +236,7 @@ serve(async (req) => {
                 contents: [{
                   parts: [
                     { text: 'Extract all text content from this document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.' },
-                    { fileData: { fileUri, mimeType: file.type } }
+                    { file_data: { file_uri: fileUri, mime_type: file.type } }
                   ]
                 }]
               })
