@@ -76,60 +76,32 @@ export const useDocumentsV2 = (groupId: string | undefined, showPersonal: boolea
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      // Upload file to storage
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${crypto.randomUUID()}.${fileExt}`;
-      const filePath = `${user.id}/${fileName}`;
+      // Create FormData for the new upload-and-process function
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('groupId', groupId || '');
+      formData.append('uploadedByUserId', user.id);
+      formData.append('uploadedByEmail', user.email || '');
+      formData.append('title', title || file.name);
+      if (categoryId) formData.append('categoryId', categoryId);
+      if (notes) formData.append('notes', notes);
+      formData.append('isSharedWithGroup', String(isShared !== false));
 
-      const { error: uploadError } = await supabase.storage
-        .from('documents')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      // Create document record
-      const { data: document, error: insertError } = await supabase
-        .from('documents_v2')
-        .insert({
-          group_id: groupId,
-          uploaded_by_user_id: user.id,
-          uploaded_by_email: user.email,
-          title: title || file.name,
-          original_filename: file.name,
-          file_url: filePath,
-          file_size: file.size,
-          mime_type: file.type,
-          category_id: categoryId || null,
-          notes: notes || null,
-          is_shared_with_group: isShared !== false,
-          processing_status: 'pending'
-        })
-        .select()
-        .single();
-
-      if (insertError) throw insertError;
-
-      // Trigger AI processing
-      const { error: processError } = await supabase.functions.invoke('process-document-v2', {
-        body: { documentId: document.id }
+      // Call the new upload-and-process function that processes BEFORE storing
+      const { data, error } = await supabase.functions.invoke('upload-and-process-document-v2', {
+        body: formData
       });
 
-      if (processError) {
-        console.error('Processing error:', processError);
-        toast({
-          title: "Processing Started",
-          description: "Document uploaded but AI processing encountered an issue. You can retry later.",
-          variant: "destructive"
-        });
-      }
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Upload failed');
 
-      return document;
+      return data.document;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documents-v2'] });
       toast({
         title: "Success",
-        description: "Document uploaded and processing started",
+        description: "Document uploaded and processed successfully",
       });
     },
     onError: (error: Error) => {

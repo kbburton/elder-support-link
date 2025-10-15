@@ -68,3 +68,6 @@ verify_jwt = false
 
 [functions.sign-document-download]
 verify_jwt = true
+
+[functions.upload-and-process-document-v2]
+verify_jwt = true
