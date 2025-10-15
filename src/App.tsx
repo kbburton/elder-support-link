@@ -14,6 +14,7 @@ import CalendarPage from "./pages/app/CalendarPage";
 import TasksPage from "./pages/app/TasksPage";
 import ContactsPage from "./pages/app/ContactsPage";
 import DocumentsPage from "./pages/app/DocumentsPage";
+import DocumentsV2Page from "./pages/app/DocumentsV2Page";
 import ActivityPage from "./pages/app/ActivityPage";
 import SearchPage from "./pages/app/SearchPage";
 import ProfilePage from "./pages/app/ProfilePage";
@@ -76,6 +77,7 @@ const App = () => (
                 <Route path="contacts/import" element={<ContactsImportPage />} />
                 <Route path="contacts/new" element={<ContactFormPage />} />
                 <Route path="documents" element={<DocumentsPage />} />
+                <Route path="documents-v2" element={<DocumentsV2Page />} />
                 <Route path="activity" element={<ActivityPage />} />
                 <Route path="search" element={<SearchPage />} />
                 <Route path="profile" element={<ProfilePage />} />

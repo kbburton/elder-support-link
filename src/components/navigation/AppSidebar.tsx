@@ -1,7 +1,7 @@
 // File: src/components/navigation/AppSidebar.tsx
 import { NavLink, useParams } from "react-router-dom";
 import { useMemo } from "react";
-import { LayoutDashboard, Calendar, FileText, ListTodo, NotebookPen, Search, MessageSquare, User, Users, Settings, UserPlus, Heart } from "lucide-react";
+import { LayoutDashboard, Calendar, FileText, ListTodo, NotebookPen, Search, MessageSquare, User, Users, Settings, UserPlus, Heart, Sparkles } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -102,6 +102,9 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              {!isDemo && (
+                <AdminOnlyNavItem base={base} groupId={groupId || ""} />
+              )}
               {!isDemo && isPlatformAdmin && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
@@ -125,5 +128,48 @@ export function AppSidebar() {
         <UserMenu variant="mobile" className="border-t" />
       </SidebarFooter>
     </Sidebar>
+  );
+}
+
+// Separate component to check admin status for Documents V2
+function AdminOnlyNavItem({ base, groupId }: { base: string; groupId: string }) {
+  // Check if user is admin of the care group
+  const { data: isAdmin } = useQuery({
+    queryKey: ["is-admin", groupId],
+    queryFn: async () => {
+      if (!groupId) return false;
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return false;
+
+      const { data, error } = await supabase
+        .from("care_group_members")
+        .select("is_admin")
+        .eq("group_id", groupId)
+        .eq("user_id", user.id)
+        .single();
+
+      if (error) return false;
+      return data?.is_admin || false;
+    },
+    enabled: !!groupId,
+  });
+
+  if (!isAdmin) return null;
+
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton asChild>
+        <NavLink
+          to={`${base}/documents-v2`}
+          className={({ isActive }) =>
+            isActive ? "bg-muted text-primary font-medium" : "hover:bg-muted/50"
+          }
+        >
+          <Sparkles className="mr-2 h-4 w-4" />
+          <span>Documents (new)</span>
+        </NavLink>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
   );
 }
