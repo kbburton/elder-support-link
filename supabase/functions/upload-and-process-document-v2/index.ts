@@ -27,11 +27,12 @@ serve(async (req) => {
   try {
     log('DEBUG', 'Checking environment variables', { requestId });
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const GOOGLE_GEMINI_API_KEY = Deno.env.get('GOOGLE_GEMINI_API_KEY');
     if (!LOVABLE_API_KEY) {
       log('ERROR', 'LOVABLE_API_KEY not configured', { requestId });
       throw new Error('LOVABLE_API_KEY is not configured');
     }
-    log('DEBUG', 'Environment variables validated', { requestId });
+    log('DEBUG', 'Environment variables validated', { requestId, hasGoogleKey: !!GOOGLE_GEMINI_API_KEY });
 
     log('DEBUG', 'Creating Supabase client', { requestId });
     const supabaseClient = createClient(
@@ -174,14 +175,106 @@ serve(async (req) => {
         }
       }
     }
-    // Office documents cannot be processed via vision API - skip AI extraction
+    // Office documents require Google Gemini File API
     else if (isOfficeDoc) {
-      log('WARN', 'Office document detected - AI extraction not available', { 
-        requestId, 
-        mimeType: file.type,
-        reason: 'Office documents require file upload API which needs separate Google API key'
-      });
-      log('INFO', 'Document will be stored without AI summary', { requestId });
+      if (!GOOGLE_GEMINI_API_KEY) {
+        log('WARN', 'Office document detected but no Google API key', { 
+          requestId, 
+          mimeType: file.type,
+          reason: 'GOOGLE_GEMINI_API_KEY not configured'
+        });
+        log('INFO', 'Document will be stored without AI summary', { requestId });
+      } else {
+        log('INFO', 'Processing Office document with Google Gemini File API', { requestId, mimeType: file.type });
+        
+        try {
+          // Step 1: Upload file to Google Gemini
+          log('DEBUG', 'Uploading file to Google Gemini', { requestId, fileSize: file.size });
+          
+          const uploadFormData = new FormData();
+          uploadFormData.append('file', new Blob([uint8Array], { type: file.type }), file.name);
+          
+          const uploadResponse = await fetch(
+            `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${GOOGLE_GEMINI_API_KEY}`,
+            {
+              method: 'POST',
+              body: uploadFormData,
+            }
+          );
+          
+          if (!uploadResponse.ok) {
+            const errorText = await uploadResponse.text();
+            log('ERROR', 'Google File API upload failed', { requestId, status: uploadResponse.status, error: errorText });
+            throw new Error('Failed to upload to Google File API');
+          }
+          
+          const uploadData = await uploadResponse.json();
+          const fileUri = uploadData.file?.uri;
+          
+          if (!fileUri) {
+            log('ERROR', 'No file URI returned from Google', { requestId, uploadData });
+            throw new Error('No file URI returned from Google');
+          }
+          
+          log('INFO', 'File uploaded to Google successfully', { requestId, fileUri });
+          
+          // Step 2: Wait for file to be processed (Google needs time to process the file)
+          log('DEBUG', 'Waiting for Google to process file', { requestId });
+          await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds
+          
+          // Step 3: Extract text using Gemini
+          log('DEBUG', 'Extracting text with Gemini', { requestId });
+          const extractResponse = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{
+                  parts: [
+                    { text: 'Extract all text content from this document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.' },
+                    { fileData: { fileUri, mimeType: file.type } }
+                  ]
+                }]
+              })
+            }
+          );
+          
+          if (!extractResponse.ok) {
+            const errorText = await extractResponse.text();
+            log('ERROR', 'Gemini text extraction failed', { requestId, status: extractResponse.status, error: errorText });
+          } else {
+            const extractData = await extractResponse.json();
+            fullText = extractData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            usedGemini = true;
+            log('INFO', 'Text extraction successful with Google Gemini', { 
+              requestId, 
+              textLength: fullText.length,
+              hasContent: fullText.length > 0
+            });
+          }
+          
+          // Step 4: Clean up - delete file from Google's servers
+          log('DEBUG', 'Deleting file from Google servers', { requestId, fileUri });
+          const deleteResponse = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/${fileUri.split('/v1beta/')[1]}?key=${GOOGLE_GEMINI_API_KEY}`,
+            { method: 'DELETE' }
+          );
+          
+          if (!deleteResponse.ok) {
+            log('WARN', 'Failed to delete file from Google', { requestId, status: deleteResponse.status });
+          } else {
+            log('DEBUG', 'File deleted from Google successfully', { requestId });
+          }
+          
+        } catch (error) {
+          log('ERROR', 'Office document processing failed', { 
+            requestId, 
+            error: error instanceof Error ? error.message : String(error)
+          });
+          log('INFO', 'Document will be stored without AI summary', { requestId });
+        }
+      }
     }
     // Process text files directly
     else if (isTextFile) {
