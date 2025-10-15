@@ -679,11 +679,11 @@ Financial Category Prompt:
 ### Week 1: Foundation
 
 **Day 1-2: Database & Backend**
-- [ ] Create all database tables (schema above)
-- [ ] Implement RLS policies
-- [ ] Create database functions (has_role, is_user_admin_of_group)
-- [ ] Set up feature flag in app_settings table
-- [ ] Create Supabase Storage bucket: documents-v2
+- [x] Create all database tables (schema above) (✓ Completed: 2025-10-15)
+- [x] Implement RLS policies (✓ Completed: 2025-10-15)
+- [x] Create database functions (has_role, is_user_admin_of_group) (✓ Completed: 2025-10-15)
+- [x] Set up feature flag in app_settings table (✓ Completed: 2025-10-15)
+- [ ] Create Supabase Storage bucket: documents-v2 (In Progress)
 
 **Day 3-4: Core UI Components**
 - [ ] Create `/app/${groupId}/documents-v2` page structure
@@ -825,10 +825,10 @@ When ready to switch from old documents to Documents V2:
 This section is updated as features are completed. Format: `[x] Feature Name (✓ Completed: YYYY-MM-DD)`
 
 ### Phase 1 (MVP)
-- [ ] 1.1 Hierarchical Subgroups
+- [ ] 1.1 Hierarchical Subgroups (In Progress: TypeScript hooks created)
 - [ ] 1.2 AI Document Processing
 - [ ] 1.3 Document Upload & Storage
-- [ ] 1.4 Version Control
+- [ ] 1.4 Version Control (In Progress: Database tables and hooks created)
 - [ ] 1.5 Full-Text Search
 - [ ] 1.6 Bulk Operations
 - [ ] 1.7 Admin-Only Permissions
@@ -838,7 +838,7 @@ This section is updated as features are completed. Format: `[x] Feature Name (�
 - [ ] 1.11 Responsive Design
 - [ ] 1.12 Storage Usage Display
 - [ ] 1.13 Two-Tab UI
-- [ ] 1.14 Feature Flag System
+- [x] 1.14 Feature Flag System (✓ Completed: 2025-10-15)
 - [ ] 1.15 Soft Delete Model
 
 ### Phase 2

@@ -1203,10 +1203,181 @@ export type Database = {
         }
         Relationships: []
       }
+      document_categories: {
+        Row: {
+          care_group_id: string | null
+          created_at: string
+          created_by_user_id: string
+          description: string | null
+          display_order: number
+          id: string
+          is_default: boolean
+          name: string
+          parent_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          care_group_id?: string | null
+          created_at?: string
+          created_by_user_id: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_default?: boolean
+          name: string
+          parent_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          care_group_id?: string | null
+          created_at?: string
+          created_by_user_id?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_default?: boolean
+          name?: string
+          parent_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_categories_care_group_id_fkey"
+            columns: ["care_group_id"]
+            isOneToOne: false
+            referencedRelation: "care_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_categories_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "document_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_tag_assignments: {
+        Row: {
+          created_at: string
+          document_id: string
+          id: string
+          tag_id: string
+        }
+        Insert: {
+          created_at?: string
+          document_id: string
+          id?: string
+          tag_id: string
+        }
+        Update: {
+          created_at?: string
+          document_id?: string
+          id?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_tag_assignments_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_tag_assignments_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "document_tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_tags: {
+        Row: {
+          care_group_id: string
+          color: string | null
+          created_at: string
+          created_by_user_id: string
+          id: string
+          name: string
+        }
+        Insert: {
+          care_group_id: string
+          color?: string | null
+          created_at?: string
+          created_by_user_id: string
+          id?: string
+          name: string
+        }
+        Update: {
+          care_group_id?: string
+          color?: string | null
+          created_at?: string
+          created_by_user_id?: string
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_tags_care_group_id_fkey"
+            columns: ["care_group_id"]
+            isOneToOne: false
+            referencedRelation: "care_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_versions: {
+        Row: {
+          created_at: string
+          created_by_user_id: string
+          document_id: string
+          file_size: number | null
+          file_type: string | null
+          file_url: string
+          id: string
+          notes: string | null
+          version_number: number
+        }
+        Insert: {
+          created_at?: string
+          created_by_user_id: string
+          document_id: string
+          file_size?: number | null
+          file_type?: string | null
+          file_url: string
+          id?: string
+          notes?: string | null
+          version_number: number
+        }
+        Update: {
+          created_at?: string
+          created_by_user_id?: string
+          document_id?: string
+          file_size?: number | null
+          file_type?: string | null
+          file_url?: string
+          id?: string
+          notes?: string | null
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_versions_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
           category: string | null
+          category_id: string | null
           created_at: string
+          current_version: number
           deleted_at: string | null
           deleted_by_email: string | null
           deleted_by_user_id: string | null
@@ -1218,6 +1389,7 @@ export type Database = {
           group_id: string | null
           id: string
           is_deleted: boolean
+          is_shared_with_group: boolean
           notes: string | null
           original_filename: string | null
           processing_status: string | null
@@ -1229,7 +1401,9 @@ export type Database = {
         }
         Insert: {
           category?: string | null
+          category_id?: string | null
           created_at?: string
+          current_version?: number
           deleted_at?: string | null
           deleted_by_email?: string | null
           deleted_by_user_id?: string | null
@@ -1241,6 +1415,7 @@ export type Database = {
           group_id?: string | null
           id?: string
           is_deleted?: boolean
+          is_shared_with_group?: boolean
           notes?: string | null
           original_filename?: string | null
           processing_status?: string | null
@@ -1252,7 +1427,9 @@ export type Database = {
         }
         Update: {
           category?: string | null
+          category_id?: string | null
           created_at?: string
+          current_version?: number
           deleted_at?: string | null
           deleted_by_email?: string | null
           deleted_by_user_id?: string | null
@@ -1264,6 +1441,7 @@ export type Database = {
           group_id?: string | null
           id?: string
           is_deleted?: boolean
+          is_shared_with_group?: boolean
           notes?: string | null
           original_filename?: string | null
           processing_status?: string | null
@@ -1274,6 +1452,13 @@ export type Database = {
           uploaded_by_user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "documents_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "document_categories"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "documents_group_id_fkey"
             columns: ["group_id"]
