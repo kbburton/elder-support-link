@@ -729,28 +729,676 @@ Financial Category Prompt:
 
 ---
 
-## 🎨 UI/UX Design Principles
+## 🎨 UI/UX Design Standards & Component Patterns
 
-### Visual Design
-- Use semantic tokens from `index.css` and `tailwind.config.ts`
-- All colors must be HSL format
-- Consistent with existing Elder Care design system
-- Accessibility: WCAG 2.1 AA compliant
+**Goal:** Ensure Documents V2 maintains visual and functional consistency with the existing Elder Care platform, particularly matching the patterns used in Appointments and Tasks.
 
-### Mobile-First Considerations
-- Mobile: View-only, camera upload, swipe gestures
-- Tablet: Full features with responsive layout
-- Desktop: Full power-user features
+---
 
-### Loading States
-- Skeleton loaders for document lists
-- Progress indicators for uploads
-- Optimistic UI updates where possible
+### Modal Structure & Layout
+
+**Standard Modal Pattern** (Reference: `EnhancedAppointmentModal.tsx`, `EnhancedTaskModal.tsx`)
+
+```tsx
+<Dialog>
+  <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+    <DialogHeader>
+      <DialogTitle className="flex items-center gap-2">
+        <FileIcon className="h-5 w-5" />
+        {document.title || "Document Details"}
+      </DialogTitle>
+    </DialogHeader>
+
+    {/* Two-Column Layout */}
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* LEFT COLUMN: Document Form */}
+      <div className="space-y-4">
+        {/* Form fields here */}
+      </div>
+
+      {/* RIGHT COLUMN: Associations */}
+      <div className="space-y-4">
+        <UnifiedAssociationManager
+          entityType="documents_v2"
+          entityId={document.id}
+          groupId={groupId}
+          onNavigate={handleNavigate}
+        />
+      </div>
+    </div>
+
+    {/* ACTION BUTTONS */}
+    <DialogFooter className="flex justify-between">
+      <Button variant="destructive" onClick={handleDelete}>
+        Delete
+      </Button>
+      <div className="flex gap-2">
+        <Button variant="outline" onClick={onClose}>Cancel</Button>
+        <Button onClick={handleSubmit} disabled={isLoading}>
+          {isLoading ? "Saving..." : "Save Changes"}
+        </Button>
+      </div>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+```
+
+**Modal Behavior:**
+- Maximum width: `max-w-4xl` (consistent with appointments/tasks)
+- Maximum height: `max-h-[90vh]` with `overflow-y-auto`
+- Two-column layout on desktop (`lg:grid-cols-2`)
+- Single column on mobile/tablet
+- Left column: Form fields for document metadata
+- Right column: `UnifiedAssociationManager` for related entities
+
+---
+
+### Page Layout Pattern
+
+**Standard Page Structure** (Reference: `AppointmentsPage.tsx`, `TasksPage.tsx`)
+
+```tsx
+function DocumentsV2Page() {
+  return (
+    <div className="container mx-auto p-4 space-y-6">
+      {/* HEADER SECTION */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <FileText className="h-8 w-8 text-primary" />
+          <div>
+            <h1 className="text-3xl font-bold">Documents</h1>
+            <p className="text-muted-foreground">
+              Organize and manage care documents with AI assistance
+            </p>
+          </div>
+        </div>
+        <Button onClick={() => setShowUploadModal(true)}>
+          <Upload className="mr-2 h-4 w-4" />
+          Upload Document
+        </Button>
+      </div>
+
+      {/* TAB NAVIGATION */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="care-group">Care Group Documents</TabsTrigger>
+          <TabsTrigger value="my-documents">My Documents</TabsTrigger>
+        </TabsList>
+
+        {/* TAB CONTENT */}
+        <TabsContent value="care-group">
+          <UnifiedTableView {...tableConfig} />
+        </TabsContent>
+        <TabsContent value="my-documents">
+          <UnifiedTableView {...tableConfig} />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+```
+
+**Page Requirements:**
+- Container: `container mx-auto p-4`
+- Icon + title + description header
+- Action button in top-right (Upload Document)
+- Two-tab interface using shadcn `Tabs` component
+- `UnifiedTableView` for document listing in each tab
+- Consistent spacing with `space-y-6`
+
+---
+
+### Form Components & Inputs
+
+**Consistent Input Patterns:**
+
+```tsx
+{/* TEXT INPUT */}
+<div className="space-y-2">
+  <Label htmlFor="title">Document Title</Label>
+  <Input
+    id="title"
+    value={formData.title}
+    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+    placeholder="Enter document title"
+  />
+</div>
+
+{/* SELECT DROPDOWN */}
+<div className="space-y-2">
+  <Label htmlFor="category">Category</Label>
+  <Select value={formData.categoryId} onValueChange={(value) => setFormData({ ...formData, categoryId: value })}>
+    <SelectTrigger>
+      <SelectValue placeholder="Select category" />
+    </SelectTrigger>
+    <SelectContent>
+      {categories.map((cat) => (
+        <SelectItem key={cat.id} value={cat.id}>
+          {cat.name}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+</div>
+
+{/* TEXTAREA */}
+<div className="space-y-2">
+  <Label htmlFor="notes">Notes</Label>
+  <Textarea
+    id="notes"
+    value={formData.notes}
+    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+    placeholder="Add notes about this document"
+    rows={3}
+  />
+</div>
+
+{/* DATE PICKER */}
+<div className="space-y-2">
+  <Label>Upload Date</Label>
+  <Popover>
+    <PopoverTrigger asChild>
+      <Button variant="outline" className="w-full justify-start">
+        <CalendarIcon className="mr-2 h-4 w-4" />
+        {formData.date ? format(formData.date, "PPP") : "Pick a date"}
+      </Button>
+    </PopoverTrigger>
+    <PopoverContent className="w-auto p-0">
+      <Calendar mode="single" selected={formData.date} onSelect={(date) => setFormData({ ...formData, date })} />
+    </PopoverContent>
+  </Popover>
+</div>
+
+{/* TAGS (Multi-Select Badges) */}
+<div className="space-y-2">
+  <Label>Tags</Label>
+  <div className="flex flex-wrap gap-2">
+    {selectedTags.map((tag) => (
+      <Badge key={tag.id} variant="secondary" className="gap-1">
+        {tag.name}
+        <X className="h-3 w-3 cursor-pointer" onClick={() => removeTag(tag.id)} />
+      </Badge>
+    ))}
+    <Button variant="outline" size="sm" onClick={() => setShowTagModal(true)}>
+      <Plus className="h-3 w-3 mr-1" /> Add Tag
+    </Button>
+  </div>
+</div>
+
+{/* FILE UPLOAD (Drag & Drop) */}
+<div className="space-y-2">
+  <Label>Upload File</Label>
+  <div className="border-2 border-dashed rounded-lg p-8 text-center hover:border-primary transition-colors cursor-pointer">
+    <Upload className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+    <p className="text-sm text-muted-foreground">
+      Drag and drop files here, or click to browse
+    </p>
+    <p className="text-xs text-muted-foreground mt-2">
+      Supported formats: PDF, DOCX, Excel, Images, Audio (Max 25MB)
+    </p>
+  </div>
+</div>
+```
+
+**Form Validation:**
+- Use `zod` schema validation
+- Display errors inline with red text below inputs
+- Disable submit button while validating
+- Show loading spinner on submit button during mutation
+
+---
+
+### UnifiedTableView Configuration
+
+**Document Table Setup:**
+
+```tsx
+const tableConfig: UnifiedTableViewProps = {
+  entityType: "documents_v2",
+  title: "Documents",
+  columns: [
+    {
+      key: "title",
+      label: "Title",
+      sortable: true,
+      render: (doc) => (
+        <div>
+          <p className="font-medium">{doc.title}</p>
+          <p className="text-xs text-muted-foreground">{doc.original_filename}</p>
+        </div>
+      )
+    },
+    {
+      key: "category",
+      label: "Category",
+      sortable: true,
+      render: (doc) => (
+        <Badge variant="outline">{doc.category?.name}</Badge>
+      )
+    },
+    {
+      key: "file_size",
+      label: "Size",
+      render: (doc) => formatFileSize(doc.file_size)
+    },
+    {
+      key: "created_at",
+      label: "Uploaded",
+      sortable: true,
+      render: (doc) => format(new Date(doc.created_at), "MMM d, yyyy")
+    },
+    {
+      key: "actions",
+      label: "Actions",
+      render: (doc) => (
+        <div className="flex gap-2">
+          <Button variant="ghost" size="sm" onClick={() => handleDownload(doc)}>
+            <Download className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => openAssociationsModal(doc)}>
+            <Link className="h-4 w-4" />
+          </Button>
+        </div>
+      )
+    }
+  ],
+  searchPlaceholder: "Search documents...",
+  bulkActions: [
+    { label: "Download Selected", onClick: handleBulkDownload },
+    { label: "Add Tags", onClick: handleBulkTag },
+    { label: "Delete", onClick: handleBulkDelete, variant: "destructive" }
+  ],
+  onRowClick: (doc) => setSelectedDocument(doc),
+  filterOptions: [
+    {
+      key: "category_id",
+      label: "Category",
+      options: categories.map(cat => ({ value: cat.id, label: cat.name }))
+    }
+  ]
+};
+```
+
+**Table Features:**
+- Search bar with debounced input
+- Sortable columns (title, date, size)
+- Badge components for categories and status
+- Custom actions column (download, associations)
+- Bulk selection with checkbox column
+- Pagination at bottom
+- Loading skeleton states
+
+---
+
+### Consistent Patterns & Best Practices
+
+#### 1. **Data Mutations** (TanStack Query)
+
+```tsx
+const updateDocumentMutation = useMutation({
+  mutationFn: async (data: DocumentUpdate) => {
+    const { error } = await supabase
+      .from("documents_v2")
+      .update(data)
+      .eq("id", documentId);
+    
+    if (error) throw error;
+  },
+  onSuccess: () => {
+    toast({
+      title: "Document updated",
+      description: "Your changes have been saved successfully."
+    });
+    queryClient.invalidateQueries({ queryKey: ["documents_v2"] });
+    onClose();
+  },
+  onError: (error) => {
+    toast({
+      title: "Error updating document",
+      description: error.message,
+      variant: "destructive"
+    });
+  }
+});
+```
+
+**Mutation Requirements:**
+- Always use `useMutation` from TanStack Query
+- Show success toast on completion
+- Show error toast on failure
+- Invalidate relevant queries after success
+- Close modal/dialog after success
+- Check for demo mode with `blockOperation()` before executing
+
+#### 2. **Toast Notifications** (Sonner)
+
+```tsx
+import { toast } from "sonner";
+
+// Success
+toast.success("Document uploaded successfully");
+
+// Error
+toast.error("Failed to upload document", {
+  description: "File size exceeds 25MB limit"
+});
+
+// Loading (with promise)
+toast.promise(uploadPromise, {
+  loading: "Uploading document...",
+  success: "Document uploaded successfully",
+  error: "Failed to upload document"
+});
+```
+
+#### 3. **Soft Delete Pattern**
+
+```tsx
+const handleSoftDelete = async () => {
+  if (blockOperation()) return; // Demo mode check
+
+  const { error } = await softDeleteEntity({
+    entityType: "documents_v2",
+    entityId: document.id,
+    groupId: currentGroupId
+  });
+
+  if (!error) {
+    toast.success("Document removed from care group");
+    queryClient.invalidateQueries({ queryKey: ["documents_v2"] });
+  }
+};
+```
+
+#### 4. **Demo Mode Detection**
+
+```tsx
+import { useDemo } from "@/hooks/useDemo";
+
+function DocumentModal() {
+  const { isDemo, blockOperation } = useDemo();
+
+  const handleDelete = () => {
+    if (blockOperation()) return; // Shows demo mode toast
+    // Proceed with deletion
+  };
+
+  return (
+    <Dialog>
+      {isDemo && (
+        <Alert variant="warning">
+          <Info className="h-4 w-4" />
+          <AlertDescription>
+            This is demo mode. Changes will not be saved.
+          </AlertDescription>
+        </Alert>
+      )}
+    </Dialog>
+  );
+}
+```
+
+#### 5. **Query Invalidation After Mutations**
+
+```tsx
+// After creating/updating/deleting documents
+queryClient.invalidateQueries({ queryKey: ["documents_v2"] });
+queryClient.invalidateQueries({ queryKey: ["documents_v2", groupId] });
+queryClient.invalidateQueries({ queryKey: ["document_categories", groupId] });
+
+// After creating associations
+queryClient.invalidateQueries({ queryKey: ["associations", "documents_v2", documentId] });
+queryClient.invalidateQueries({ queryKey: ["associations", entityType, entityId] });
+```
+
+#### 6. **URL Parameter Support (Deep Linking)**
+
+```tsx
+import { useSearchParams } from "react-router-dom";
+
+function DocumentsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const openDocumentId = searchParams.get("openDocument");
+
+  useEffect(() => {
+    if (openDocumentId) {
+      setSelectedDocument(openDocumentId);
+      setSearchParams({}); // Clear param after opening
+    }
+  }, [openDocumentId]);
+}
+
+// Navigate to document from another page:
+// /app/${groupId}/documents?openDocument=${documentId}
+```
+
+#### 7. **Audit Logging**
+
+```tsx
+// Log document access
+await supabase.from("document_v2_audit_logs").insert({
+  document_id: documentId,
+  user_id: currentUserId,
+  user_email: currentUserEmail,
+  action: "view", // or 'edit', 'delete', 'download', 'version'
+  details: { source: "web_app" },
+  ip_address: clientIp, // From request headers
+  user_agent: navigator.userAgent
+});
+```
+
+---
+
+### Responsive Behavior
+
+**Breakpoints:**
+- Mobile: `< 768px` (sm)
+- Tablet: `768px - 1024px` (md, lg)
+- Desktop: `> 1024px` (xl)
+
+**Mobile Adaptations:**
+```tsx
+{/* Desktop: Two-column layout */}
+<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <div>{/* Form */}</div>
+  <div className="hidden lg:block">{/* Associations - Hidden on mobile */}</div>
+</div>
+
+{/* Mobile: Show associations via button */}
+<Button variant="outline" className="lg:hidden w-full" onClick={() => setShowAssociations(true)}>
+  <Link className="mr-2 h-4 w-4" />
+  View Related Items ({associationCount})
+</Button>
+
+{/* Mobile: Stack table cells vertically */}
+<div className="block md:hidden">
+  {/* Card-style layout for mobile */}
+</div>
+<div className="hidden md:block">
+  {/* Table layout for tablet/desktop */}
+</div>
+```
+
+**Touch Interactions:**
+- Increase button touch targets to minimum 44x44px on mobile
+- Support swipe gestures for deleting items
+- Pull-to-refresh for document lists
+- Long-press for context menu
+
+---
+
+### Visual Design Standards
+
+**Color System:**
+- **Primary Actions:** `bg-primary text-primary-foreground` (Upload, Save)
+- **Secondary Actions:** `bg-secondary text-secondary-foreground` (Cancel)
+- **Destructive Actions:** `bg-destructive text-destructive-foreground` (Delete)
+- **Muted Text:** `text-muted-foreground`
+- **Card Backgrounds:** `bg-card`
+- **Borders:** `border border-border`
+
+**CRITICAL:** Never use direct color values like `text-white`, `bg-blue-500`, etc. Always use semantic tokens from `index.css`:
+```css
+/* ✅ CORRECT */
+<Button className="bg-primary text-primary-foreground">Upload</Button>
+<p className="text-muted-foreground">Last updated 2 days ago</p>
+
+/* ❌ WRONG */
+<Button className="bg-blue-600 text-white">Upload</Button>
+<p className="text-gray-500">Last updated 2 days ago</p>
+```
+
+**Typography:**
+- Page Titles: `text-3xl font-bold`
+- Section Titles: `text-xl font-semibold`
+- Card Titles: `text-lg font-medium`
+- Body Text: `text-base`
+- Caption Text: `text-sm text-muted-foreground`
+- Tiny Text: `text-xs text-muted-foreground`
+
+**Spacing:**
+- Page sections: `space-y-6`
+- Form fields: `space-y-4`
+- Inline elements: `gap-2` or `gap-3`
+- Card padding: `p-4` or `p-6`
+
+**Icons:**
+- Use `lucide-react` icons exclusively
+- Icon sizes: `h-4 w-4` (small), `h-5 w-5` (medium), `h-8 w-8` (large)
+- Always pair icons with text labels for accessibility
+
+**Badges:**
+```tsx
+{/* Category badges */}
+<Badge variant="outline">Medical</Badge>
+
+{/* Status badges */}
+<Badge variant="default">Processing</Badge>
+<Badge variant="secondary">Completed</Badge>
+<Badge variant="destructive">Failed</Badge>
+
+{/* Removable tags */}
+<Badge variant="secondary" className="gap-1">
+  {tagName}
+  <X className="h-3 w-3 cursor-pointer" onClick={onRemove} />
+</Badge>
+```
+
+---
+
+### Loading States & Skeletons
+
+```tsx
+{/* Document List Loading */}
+{isLoading && (
+  <div className="space-y-4">
+    {[1, 2, 3, 4, 5].map((i) => (
+      <div key={i} className="flex items-center space-x-4">
+        <Skeleton className="h-12 w-12 rounded" />
+        <div className="space-y-2 flex-1">
+          <Skeleton className="h-4 w-[250px]" />
+          <Skeleton className="h-4 w-[200px]" />
+        </div>
+      </div>
+    ))}
+  </div>
+)}
+
+{/* Upload Progress */}
+<div className="space-y-2">
+  <div className="flex justify-between text-sm">
+    <span>Uploading {fileName}...</span>
+    <span>{uploadProgress}%</span>
+  </div>
+  <Progress value={uploadProgress} />
+</div>
+
+{/* AI Processing */}
+<div className="flex items-center gap-2 text-muted-foreground">
+  <Loader2 className="h-4 w-4 animate-spin" />
+  <span>AI is analyzing your document...</span>
+</div>
+```
+
+---
 
 ### Error Handling
-- Graceful degradation if AI processing fails
-- Clear error messages for file size limits
-- Retry mechanisms for failed uploads
+
+**Error Messages:**
+```tsx
+{/* Form Validation Error */}
+{errors.title && (
+  <p className="text-sm text-destructive">{errors.title.message}</p>
+)}
+
+{/* API Error Alert */}
+{error && (
+  <Alert variant="destructive">
+    <AlertCircle className="h-4 w-4" />
+    <AlertTitle>Error</AlertTitle>
+    <AlertDescription>{error.message}</AlertDescription>
+  </Alert>
+)}
+
+{/* Graceful Degradation for AI Failure */}
+{aiProcessingFailed && (
+  <Alert>
+    <Info className="h-4 w-4" />
+    <AlertDescription>
+      AI processing is temporarily unavailable. Your document has been uploaded successfully, 
+      but you'll need to add the summary and category manually.
+    </AlertDescription>
+  </Alert>
+)}
+```
+
+**Retry Mechanisms:**
+```tsx
+const uploadMutation = useMutation({
+  mutationFn: uploadDocument,
+  retry: 3, // Retry failed uploads 3 times
+  retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000)
+});
+```
+
+---
+
+### Accessibility (WCAG 2.1 AA)
+
+- All form inputs have associated `<Label>` elements
+- All buttons have descriptive text or `aria-label`
+- Modal dialogs trap focus and can be closed with ESC key
+- Color contrast ratio minimum 4.5:1 for text
+- Keyboard navigation support for all interactive elements
+- Screen reader announcements for async actions (toasts)
+
+---
+
+### Component Reusability Checklist
+
+**Reuse These Existing Components:**
+- ✅ `UnifiedTableView` - For all document listings
+- ✅ `UnifiedAssociationManager` - For linking to tasks/appointments/contacts/activities
+- ✅ `EnhancedDeleteConfirm` - For delete confirmations
+- ✅ `BulkDeleteBar` - For bulk operations
+- ✅ `DocumentUpload` - Modify to support V2 schema
+- ✅ All shadcn UI components (Button, Dialog, Input, Select, Badge, etc.)
+
+**Create These New Components:**
+- 📝 `DocumentV2Modal` - Main document edit/view modal (two-column layout)
+- 📝 `DocumentCategoryManager` - Manage categories and subgroups hierarchy
+- 📝 `DocumentTagManager` - Create and assign tags to documents
+- 📝 `DocumentVersionHistory` - List versions with restore capability
+- 📝 `DocumentAIProcessing` - AI extraction interface with chat-style approval
+- 📝 `DocumentSearchBar` - Enhanced search with semantic understanding
+- 📝 `DocumentTabs` - Two-tab interface (Care Group / My Documents)
+
+---
+
+### Mobile-First Considerations
+- Mobile: View-only mode, camera upload, swipe gestures for actions
+- Tablet: Full features with responsive two-column → single-column layout
+- Desktop: Full power-user features, keyboard shortcuts, bulk operations
 
 ---
 
