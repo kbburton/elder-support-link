@@ -236,7 +236,7 @@ serve(async (req) => {
                 contents: [{
                   parts: [
                     { text: 'Extract all text content from this document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.' },
-                    { file_data: { file_uri: fileUri, mime_type: file.type } }
+                    { fileData: { fileUri, mimeType: file.type } }
                   ]
                 }]
               })
@@ -260,7 +260,7 @@ serve(async (req) => {
           // Step 4: Clean up - delete file from Google's servers
           log('DEBUG', 'Deleting file from Google servers', { requestId, fileUri });
           const deleteResponse = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/${googleFileName}?key=${GOOGLE_GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1/${googleFileName}?key=${GOOGLE_GEMINI_API_KEY}`,
             { method: 'DELETE' }
           );
           

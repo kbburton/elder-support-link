@@ -6,6 +6,8 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,6 +79,8 @@ export function DocumentV2Modal({ document, isOpen, onClose, groupId }: Document
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [activeTab, setActiveTab] = useState("details");
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewSummary, setPreviewSummary] = useState("");
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -178,31 +182,22 @@ const updateDocument = useMutation({
 
   const regenerateSummary = async () => {
     if (!document) return;
-    
     setIsRegenerating(true);
     try {
-      const { data, error } = await supabase.functions.invoke('regenerate-summary', {
+      const { data, error } = await supabase.functions.invoke('regenerate-summary-v2', {
         body: { documentId: document.id }
       });
-      
       if (error) throw error;
-      
-      setFormData(prev => ({
-        ...prev,
-        summary: data.summary || prev.summary
-      }));
-      
-      toast({
-        title: "Summary regenerated",
-        description: "AI summary has been regenerated successfully.",
-      });
+      const generated = data?.summary as string | undefined;
+      if (!generated || !generated.trim()) {
+        toast({ title: 'No summary returned', description: 'The AI did not return any summary text.', variant: 'destructive' });
+        return;
+      }
+      setPreviewSummary(generated.trim());
+      setPreviewOpen(true);
     } catch (error) {
       console.error('Error regenerating summary:', error);
-      toast({
-        title: "Error",
-        description: "Failed to regenerate summary.",
-        variant: "destructive",
-      });
+      toast({ title: 'Error', description: 'Failed to regenerate summary.', variant: 'destructive' });
     } finally {
       setIsRegenerating(false);
     }
@@ -309,7 +304,7 @@ const getUploadDate = () => {
 
   if (!document) return null;
 
-  return (
+  return (<>
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader className="space-y-3">
@@ -540,5 +535,31 @@ const getUploadDate = () => {
         </Tabs>
       </DialogContent>
     </Dialog>
-  );
+
+    <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>AI Summary Preview</DialogTitle>
+          <DialogDescription>
+            Review the generated summary. Click Save to update the document.
+          </DialogDescription>
+        </DialogHeader>
+        <Textarea value={previewSummary} readOnly rows={8} />
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setPreviewOpen(false)}>
+            Cancel
+          </Button>
+          <Button onClick={() => {
+            setFormData(prev => ({ ...prev, summary: previewSummary }));
+            updateDocument.mutate({ summary: previewSummary });
+            setPreviewOpen(false);
+          }}>
+            Save Summary
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  </>);
+
 }
+
