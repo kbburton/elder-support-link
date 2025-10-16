@@ -166,24 +166,27 @@ Level 3: Tags/Metadata (Unlimited)
   - ✅ File metadata (type, size, original filename)
   - **Status:** Complete
 
-- [x] **1.9 Associations** ✅ (Completed)
-  - ✅ Link documents to tasks via `task_documents_v2`
-  - ✅ Link documents to appointments via `appointment_documents_v2`
-  - ✅ Link documents to contacts via `contact_documents_v2`
-  - ✅ Link documents to activities via `activity_documents_v2`
-  - ✅ Unified Association Manager component
+- [x] **1.9 Associations** ✅ (Completed - Updated 2025-01-16)
+  - ✅ Unified `entity_associations` table for all entity types
+  - ✅ Supports: document ↔ task, appointment, contact, activity_log
+  - ✅ Group-scoped associations (all entities must belong to same group)
+  - ✅ Prevents self-associations and cross-group links
+  - ✅ Normalized association storage (entity_1 always has lower ID)
+  - ✅ `UnifiedAssociationManagerV2` component with search and filter
   - ✅ Bidirectional relationship display
-  - ✅ Same-group validation triggers
-  - ⚠️ Changed from single `document_v2_associations` table to separate junction tables
+  - ✅ Automatic cleanup when document unshared from group
+  - ⚠️ Changed from separate junction tables to unified `entity_associations` table
   - **Status:** Complete
 
-- [x] **1.8 Database Schema & RLS** ✅ (Completed)
-  - ✅ `documents_v2` table with full schema
+- [x] **1.8 Database Schema & RLS** ✅ (Completed - Updated 2025-01-16)
+  - ✅ `documents_v2` table (removed `group_id`, using `document_v2_group_shares`)
+  - ✅ `document_v2_group_shares` for multi-group sharing
   - ✅ `document_categories` with parent_id for hierarchy
   - ✅ `document_tags` table
   - ✅ `document_v2_tags` junction table
-  - ✅ All junction tables for associations
-  - ✅ RLS policies for group member access
+  - ✅ `entity_associations` unified association table
+  - ✅ RLS policies fixed for infinite recursion (SECURITY DEFINER functions)
+  - ✅ `is_document_owner()` and `is_group_member()` helper functions
   - ✅ RLS policies for admin-only documents
   - ✅ Soft delete support (is_deleted flag)
   - **Status:** Complete
@@ -199,6 +202,14 @@ Level 3: Tags/Metadata (Unlimited)
   - ✅ Processing status indicator
   - ✅ Error state handling
   - **Status:** Complete
+
+- [ ] **1.14 Document Notes Enhancement** 🎯 NEXT PRIORITY (Target: Week 2)
+  - Rich text editor for document notes
+  - Markdown support for formatting
+  - Auto-save notes on blur
+  - Notes visible in document modal
+  - Notes searchable in future full-text search
+  - **Status:** Not Started - Next Feature
 
 - [ ] **1.4 Version Control** (Target: Week 2)
   - Manual versioning (user chooses "Version" or "Replace")
@@ -390,7 +401,7 @@ Level 3: Tags/Metadata (Unlimited)
 
 ### New Tables
 
-#### `documents_v2` ✅ IMPLEMENTED
+#### `documents_v2` ✅ IMPLEMENTED (Updated 2025-01-16)
 ```sql
 CREATE TABLE documents_v2 (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -401,8 +412,8 @@ CREATE TABLE documents_v2 (
   file_size BIGINT NOT NULL,
   
   -- Ownership
-  uploader_user_id UUID REFERENCES auth.users(id) NOT NULL,
-  group_id UUID REFERENCES care_groups(id),
+  uploaded_by_user_id UUID REFERENCES auth.users(id) NOT NULL,
+  -- NOTE: group_id REMOVED - use document_v2_group_shares instead
   
   -- Organization
   category_id UUID REFERENCES document_categories(id) NOT NULL,
@@ -414,30 +425,51 @@ CREATE TABLE documents_v2 (
   
   -- Processing
   processing_status TEXT DEFAULT 'pending',
-  processing_error TEXT, -- ADDED: Store error messages
+  processing_error TEXT,
   
   -- Permissions
   is_admin_only BOOLEAN DEFAULT false,
   
   -- Versioning (NOT YET IMPLEMENTED)
-  version_number INTEGER DEFAULT 1,
-  parent_version_id UUID REFERENCES documents_v2(id),
+  current_version INTEGER DEFAULT 1,
   
   -- Soft delete
   is_deleted BOOLEAN DEFAULT false,
   deleted_at TIMESTAMPTZ,
-  deleted_by_user_id UUID REFERENCES auth.users(id),
-  deleted_by_email TEXT, -- ADDED: Store email for audit
+  deleted_by_user_id UUID,
+  deleted_by_email TEXT,
   
   -- Timestamps
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX idx_documents_v2_uploader ON documents_v2(uploader_user_id);
-CREATE INDEX idx_documents_v2_group ON documents_v2(group_id);
+CREATE INDEX idx_documents_v2_uploader ON documents_v2(uploaded_by_user_id);
 CREATE INDEX idx_documents_v2_category ON documents_v2(category_id);
 -- Full-text search index NOT YET IMPLEMENTED
+
+-- NEW: Multi-group sharing table
+CREATE TABLE document_v2_group_shares (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  document_id UUID REFERENCES documents_v2(id) ON DELETE CASCADE,
+  group_id UUID REFERENCES care_groups(id) ON DELETE CASCADE,
+  shared_by_user_id UUID REFERENCES auth.users(id),
+  shared_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(document_id, group_id)
+);
+
+-- NEW: Unified associations table
+CREATE TABLE entity_associations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  group_id UUID REFERENCES care_groups(id) NOT NULL,
+  entity_1_type TEXT NOT NULL, -- 'document', 'task', 'appointment', 'contact', 'activity_log'
+  entity_1_id UUID NOT NULL,
+  entity_2_type TEXT NOT NULL,
+  entity_2_id UUID NOT NULL,
+  created_by_user_id UUID,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(group_id, entity_1_type, entity_1_id, entity_2_type, entity_2_id)
+);
 ```
 
 #### `document_categories` ✅ IMPLEMENTED

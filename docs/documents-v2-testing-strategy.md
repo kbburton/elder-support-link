@@ -24,11 +24,14 @@
 - ✅ Category/subgroup hierarchy with limit enforcement
 - ✅ Tag management system
 - ✅ AI document processing (summary generation)
-- ✅ Association system (tasks, appointments, contacts, activities)
+- ✅ Association system via `entity_associations` table (2025-01-16)
+- ✅ UnifiedAssociationManagerV2 component
+- ✅ Multi-group sharing via `document_v2_group_shares`
 - ✅ Document modal UI with edit/delete capabilities
-- ✅ RLS policies for group member access
+- ✅ RLS policies for group member access (fixed infinite recursion 2025-01-16)
 
 ### Not Yet Implemented (Tests Deferred)
+- 🎯 **Document Notes Enhancement** (Next Priority - Week 2)
 - ❌ Version control
 - ❌ Full-text search
 - ❌ Bulk operations

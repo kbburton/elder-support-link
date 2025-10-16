@@ -49,9 +49,14 @@
   - Unlimited tags per document
 - ✅ Document metadata editing (title, category, notes)
 
-### 5. Association System
-- ✅ UnifiedAssociationManager component
+### 5. Association System (Updated 2025-01-16)
+- ✅ `entity_associations` unified table
+- ✅ UnifiedAssociationManagerV2 component
 - ✅ Link documents to tasks, appointments, contacts, activities
+- ✅ Group-scoped associations (all must belong to same group)
+- ✅ Prevents self-associations and cross-group links
+- ✅ Normalized storage (entity_1_id < entity_2_id)
+- ✅ Automatic cleanup on document unshare
 - ✅ Bidirectional relationships (view from either side)
 - ✅ Same-group validation triggers
 - ✅ Create/delete associations
@@ -69,14 +74,19 @@
 
 ### 7. Key Implementation Decisions
 
-#### Junction Tables (Changed from Original Design)
-- **Original Plan:** Single `document_v2_associations` table with entity_type + entity_id
-- **Implemented:** Separate junction tables for each entity type
+#### Unified Associations Table (Evolved Design - 2025-01-16)
+- **Phase 1:** Separate junction tables (`task_documents_v2`, `appointment_documents_v2`, etc.)
+- **Phase 2 (Current):** Single `entity_associations` table with normalized entity pairs
+- **Final Implementation:** 
+  - Unified `entity_associations` table with `entity_1_type/id` and `entity_2_type/id`
+  - Entity pairs normalized (entity_1_id always < entity_2_id) via trigger
+  - Group-scoped with validation trigger
+  - Automatic cleanup when document unshared from group
 - **Rationale:** 
-  - Better foreign key constraints
-  - Easier to query and maintain
-  - Consistent with existing system patterns
-  - Improved RLS policy enforcement
+  - More flexible for future entity types
+  - Simpler queries for bidirectional relationships
+  - Reduced table proliferation
+  - Better support for multi-way associations (future)
 
 #### Category Hierarchy (Simplified)
 - **Original Plan:** 3 levels (Categories → Subgroups → Tags)
@@ -90,6 +100,15 @@
 - **Issue:** Radix SelectItem cannot have empty string value
 - **Solution:** Use "none" as value for "no parent" option, convert to empty string in handler
 - **Location:** `DocumentCategoryManager.tsx` line 329
+
+#### RLS Infinite Recursion Fix (2025-01-16)
+- **Issue:** `document_v2_group_shares` RLS policies caused infinite recursion loop
+- **Root Cause:** SELECT policy on `document_v2_group_shares` queried `documents_v2`, which queried `document_v2_group_shares`
+- **Solution:** Created SECURITY DEFINER functions to break recursion:
+  - `is_document_owner(_document_id, _user_id)`: Direct query without RLS
+  - `is_group_member(_group_id, _user_id)`: Direct query without RLS
+- **Location:** Migration `20251016201202_b93fdd9a-38fa-424c-aa63-4c4b362aca18.sql`
+- **Status:** Resolved
 
 ---
 
@@ -207,12 +226,19 @@
 
 ## 🚀 Next Steps for Phase 2
 
-1. **Version Control** (Week 3, Days 1-3)
+1. **Document Notes Enhancement** 🎯 NEXT (Week 2, Days 1-2)
+   - Add rich text editor (markdown support)
+   - Implement auto-save functionality
+   - Make notes searchable
+   - Add formatting toolbar
+   - Test notes persistence and display
+
+2. **Version Control** (Week 3, Days 1-3)
    - Implement version history UI
    - Add "Version" vs "Replace" options
    - Test version restore functionality
 
-2. **Full-Text Search** (Week 3, Days 4-7)
+3. **Full-Text Search** (Week 3, Days 4-7)
    - Add search_vector column with GIN index
    - Implement search UI with filters
    - Test search accuracy and performance
