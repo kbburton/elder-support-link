@@ -197,7 +197,7 @@ serve(async (req) => {
           uploadFormData.append('file', new Blob([uint8Array], { type: file.type }), file.name);
           
           const uploadResponse = await fetch(
-            `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${GOOGLE_GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/upload/v1/files?key=${GOOGLE_GEMINI_API_KEY}`,
             {
               method: 'POST',
               body: uploadFormData,
@@ -225,10 +225,10 @@ serve(async (req) => {
           log('DEBUG', 'Waiting for Google to process file', { requestId });
           await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds
           
-          // Step 3: Extract text using Gemini
-          log('DEBUG', 'Extracting text with Gemini', { requestId });
-          const extractResponse = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
+          // Step 3: Extract text using Gemini 2.5 Flash
+          log('DEBUG', 'Extracting text with Gemini 2.5 Flash', { requestId });
+          let extractResponse = await fetch(
+            `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -236,31 +236,54 @@ serve(async (req) => {
                 contents: [{
                   parts: [
                     { text: 'Extract all text content from this document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.' },
-                    { fileData: { fileUri: fileUri, mimeType: file.type } }
+                    { file_data: { file_uri: fileUri, mime_type: file.type } }
                   ]
                 }]
               })
             }
           );
           
+          // Fallback to Gemini 2.0 Flash if 2.5 fails
+          if (!extractResponse.ok && extractResponse.status === 404) {
+            log('WARN', 'Gemini 2.5 Flash not available, trying 2.0 Flash', { requestId });
+            extractResponse = await fetch(
+              `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash-001:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [{
+                    parts: [
+                      { text: 'Extract all text content from this document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.' },
+                      { file_data: { file_uri: fileUri, mime_type: file.type } }
+                    ]
+                  }]
+                })
+              }
+            );
+          }
+          
           if (!extractResponse.ok) {
             const errorText = await extractResponse.text();
             log('ERROR', 'Gemini text extraction failed', { requestId, status: extractResponse.status, error: errorText });
           } else {
             const extractData = await extractResponse.json();
-            fullText = extractData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            // Aggregate text from ALL parts (critical fix)
+            const parts = extractData.candidates?.[0]?.content?.parts || [];
+            fullText = parts.map((p: any) => p.text).filter(Boolean).join('\n').trim();
             usedGemini = true;
             log('INFO', 'Text extraction successful with Google Gemini', { 
               requestId, 
               textLength: fullText.length,
-              hasContent: fullText.length > 0
+              hasContent: fullText.length > 0,
+              partsCount: parts.length
             });
           }
           
           // Step 4: Clean up - delete file from Google's servers
           log('DEBUG', 'Deleting file from Google servers', { requestId, fileUri });
           const deleteResponse = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/${googleFileName}?key=${GOOGLE_GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1/${googleFileName}?key=${GOOGLE_GEMINI_API_KEY}`,
             { method: 'DELETE' }
           );
           

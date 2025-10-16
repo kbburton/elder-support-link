@@ -74,3 +74,6 @@ verify_jwt = true
 
 [functions.debug-extract-text]
 verify_jwt = false
+
+[functions.debug-gemini-health]
+verify_jwt = false

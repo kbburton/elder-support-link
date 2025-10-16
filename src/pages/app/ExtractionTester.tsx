@@ -6,12 +6,14 @@ import { Input } from "@/components/ui/input";
 import { useParams } from "react-router-dom";
 
 const EDGE_URL = "https://yfwgegapmggwywrnzqvg.supabase.co/functions/v1/debug-extract-text";
+const HEALTH_URL = "https://yfwgegapmggwywrnzqvg.supabase.co/functions/v1/debug-gemini-health";
 
 export default function ExtractionTester() {
   const { groupId } = useParams();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [healthCheck, setHealthCheck] = useState<any>(null);
 
   const runBundledTest = async () => {
     setLoading(true); setError(null); setResult(null);
@@ -25,6 +27,17 @@ export default function ExtractionTester() {
       const data = await resp.json();
       if (!data.success) throw new Error(data.error || "Unknown error");
       setResult(data);
+    } catch (e: any) {
+      setError(e.message);
+    } finally { setLoading(false); }
+  };
+
+  const checkHealth = async () => {
+    setLoading(true); setError(null); setHealthCheck(null);
+    try {
+      const resp = await fetch(HEALTH_URL);
+      const data = await resp.json();
+      setHealthCheck(data);
     } catch (e: any) {
       setError(e.message);
     } finally { setLoading(false); }
@@ -54,21 +67,58 @@ export default function ExtractionTester() {
           <CardTitle>Extraction Tester</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center gap-3">
-            <Button onClick={runBundledTest} disabled={loading}>
-              {loading ? "Running..." : "Run test on bundled DOCX"}
-            </Button>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-3">
+              <Button onClick={checkHealth} disabled={loading} variant="outline">
+                {loading ? "Checking..." : "Check API Health"}
+              </Button>
+              <Button onClick={runBundledTest} disabled={loading}>
+                {loading ? "Running..." : "Run test on bundled DOCX"}
+              </Button>
+            </div>
             <label className="inline-flex items-center gap-2">
+              <span className="text-sm">Or upload your own file:</span>
               <Input type="file" onChange={onPickFile} />
             </label>
           </div>
           {error && (
-            <div className="text-destructive">Error: {error}</div>
+            <div className="text-destructive p-3 bg-destructive/10 rounded">
+              <strong>Error:</strong> {error}
+            </div>
+          )}
+          {healthCheck && (
+            <div className="space-y-2 p-3 bg-muted rounded">
+              <div className="font-semibold">API Health Check:</div>
+              <div>Status: {healthCheck.success ? "✅ OK" : "❌ Failed"}</div>
+              {healthCheck.success && (
+                <>
+                  <div>Total Models: {healthCheck.totalCount}</div>
+                  <div className="text-sm">
+                    <strong>Recommendations:</strong>
+                    <ul className="list-disc list-inside mt-1">
+                      {Object.entries(healthCheck.recommendations).map(([model, status]) => (
+                        <li key={model}><code>{model}</code>: {status as string}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <details className="text-xs">
+                    <summary className="cursor-pointer">Show all {healthCheck.models.length} models</summary>
+                    <pre className="mt-2 whitespace-pre-wrap">{JSON.stringify(healthCheck.models, null, 2)}</pre>
+                  </details>
+                </>
+              )}
+              {healthCheck.error && (
+                <div className="text-destructive">{healthCheck.error}</div>
+              )}
+            </div>
           )}
           {result && (
-            <div className="space-y-2">
-              <div>Extracted length: {result.length}</div>
-              <pre className="whitespace-pre-wrap bg-muted p-3 rounded max-h-[400px] overflow-auto">{result.preview}</pre>
+            <div className="space-y-2 p-3 bg-muted rounded">
+              <div><strong>Extracted length:</strong> {result.length} characters</div>
+              <details>
+                <summary className="cursor-pointer font-semibold">Preview (first 5000 chars)</summary>
+                <pre className="whitespace-pre-wrap bg-background p-3 rounded max-h-[400px] overflow-auto mt-2 text-xs">{result.preview}</pre>
+              </details>
             </div>
           )}
         </CardContent>

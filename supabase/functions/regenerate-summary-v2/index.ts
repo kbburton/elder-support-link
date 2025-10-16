@@ -112,7 +112,7 @@ serve(async (req) => {
           uploadFormData.append('file', new Blob([uint8Array], { type: document.mime_type || 'application/octet-stream' }), document.original_filename || 'document');
 
           const uploadResponse = await fetch(
-            `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${GOOGLE_GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/upload/v1/files?key=${GOOGLE_GEMINI_API_KEY}`,
             { method: 'POST', body: uploadFormData }
           );
 
@@ -134,9 +134,9 @@ serve(async (req) => {
           // Wait briefly for processing
           await new Promise((resolve) => setTimeout(resolve, 2000));
 
-          // Extract with Gemini 1.5 Flash
-          const geminiExtractResp = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-001:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
+          // Extract with Gemini 2.5 Flash
+          let geminiExtractResp = await fetch(
+            `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -153,6 +153,28 @@ serve(async (req) => {
             }
           );
 
+          // Fallback to Gemini 2.0 Flash if 2.5 fails
+          if (!geminiExtractResp.ok && geminiExtractResp.status === 404) {
+            console.warn('Gemini 2.5 Flash not available, trying 2.0 Flash');
+            geminiExtractResp = await fetch(
+              `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash-001:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [
+                    {
+                      parts: [
+                        { text: 'Extract all text content from this document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.' },
+                        { file_data: { file_uri: fileUri, mime_type: document.mime_type || 'application/octet-stream' } },
+                      ],
+                    },
+                  ],
+                }),
+              }
+            );
+          }
+
           if (!geminiExtractResp.ok) {
             const errorText = await geminiExtractResp.text();
             console.error('Gemini text extraction failed', geminiExtractResp.status, errorText);
@@ -164,7 +186,7 @@ serve(async (req) => {
 
           // Cleanup Google temporary file
           const deleteResponse = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/${googleFileName}?key=${GOOGLE_GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1/${googleFileName}?key=${GOOGLE_GEMINI_API_KEY}`,
             { method: 'DELETE' }
           );
           if (!deleteResponse.ok) {
