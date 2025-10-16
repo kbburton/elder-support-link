@@ -131,31 +131,36 @@ serve(async (req) => {
           // Wait briefly for processing
           await new Promise((resolve) => setTimeout(resolve, 3000));
 
-          // Extract with Gemini
+          // Wait briefly for processing
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+
+          // Extract with Gemini 1.5 Flash
           const geminiExtractResp = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                contents: [{
-                  parts: [
-                    { text: 'Extract all text content from this document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.' },
-                    { file_data: { file_uri: fileUri, mime_type: document.mime_type || 'application/octet-stream' } }
-                  ]
-                }]
-              })
+                contents: [
+                  {
+                    parts: [
+                      { text: 'Extract all text content from this document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.' },
+                      { file_data: { file_uri: fileUri, mime_type: document.mime_type || 'application/octet-stream' } },
+                    ],
+                  },
+                ],
+              }),
             }
           );
 
           if (!geminiExtractResp.ok) {
             const errorText = await geminiExtractResp.text();
             console.error('Gemini text extraction failed', geminiExtractResp.status, errorText);
-          } else {
-            const extractData = await geminiExtractResp.json();
-            const parts = extractData.candidates?.[0]?.content?.parts || [];
-            extractedText = parts.map((p: any) => p.text).filter(Boolean).join('\n').trim();
+            throw new Error(`Gemini extract failed: ${geminiExtractResp.status}`);
           }
+          const extractData = await geminiExtractResp.json();
+          const parts = extractData.candidates?.[0]?.content?.parts || [];
+          extractedText = parts.map((p: any) => p.text).filter(Boolean).join('\n').trim();
 
           // Cleanup Google temporary file
           const deleteResponse = await fetch(

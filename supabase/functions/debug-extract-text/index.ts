@@ -60,9 +60,9 @@ serve(async (req) => {
       // Wait briefly for processing
       await new Promise((r) => setTimeout(r, 2000));
 
-      // Extract with Gemini 1.5 Flash - latest
+      // Extract with Gemini 1.5 Flash
       const extractResp = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
