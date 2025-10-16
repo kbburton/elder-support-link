@@ -53,6 +53,45 @@ export type Database = {
           },
         ]
       }
+      activity_documents_v2: {
+        Row: {
+          activity_log_id: string
+          created_at: string
+          created_by_user_id: string | null
+          document_id: string
+          id: string
+        }
+        Insert: {
+          activity_log_id: string
+          created_at?: string
+          created_by_user_id?: string | null
+          document_id: string
+          id?: string
+        }
+        Update: {
+          activity_log_id?: string
+          created_at?: string
+          created_by_user_id?: string | null
+          document_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_documents_v2_activity_log_id_fkey"
+            columns: ["activity_log_id"]
+            isOneToOne: false
+            referencedRelation: "activity_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_documents_v2_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents_v2"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       activity_log_comments: {
         Row: {
           activity_log_id: string
@@ -460,6 +499,45 @@ export type Database = {
             columns: ["document_id"]
             isOneToOne: false
             referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      appointment_documents_v2: {
+        Row: {
+          appointment_id: string
+          created_at: string
+          created_by_user_id: string | null
+          document_id: string
+          id: string
+        }
+        Insert: {
+          appointment_id: string
+          created_at?: string
+          created_by_user_id?: string | null
+          document_id: string
+          id?: string
+        }
+        Update: {
+          appointment_id?: string
+          created_at?: string
+          created_by_user_id?: string | null
+          document_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_documents_v2_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_documents_v2_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents_v2"
             referencedColumns: ["id"]
           },
         ]
@@ -901,6 +979,42 @@ export type Database = {
             columns: ["document_id"]
             isOneToOne: false
             referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contact_documents_v2: {
+        Row: {
+          contact_id: string
+          created_at: string
+          document_id: string
+          id: string
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          document_id: string
+          id?: string
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          document_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_documents_v2_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_documents_v2_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents_v2"
             referencedColumns: ["id"]
           },
         ]
@@ -2210,6 +2324,45 @@ export type Database = {
           },
           {
             foreignKeyName: "task_documents_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_documents_v2: {
+        Row: {
+          created_at: string
+          created_by_user_id: string | null
+          document_id: string
+          id: string
+          task_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_user_id?: string | null
+          document_id: string
+          id?: string
+          task_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by_user_id?: string | null
+          document_id?: string
+          id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_documents_v2_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents_v2"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_documents_v2_task_id_fkey"
             columns: ["task_id"]
             isOneToOne: false
             referencedRelation: "tasks"

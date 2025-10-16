@@ -272,7 +272,7 @@ export function useAvailableItems(entityType: EntityType, targetType: EntityType
             .eq("task_id", entityId);
           
           if (existingDocs) {
-            existingDocs.forEach(doc => existingIds.add(doc.document_id));
+            existingDocs.forEach((doc: any) => existingIds.add(doc.document_id));
           }
         }
         
