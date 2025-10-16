@@ -162,11 +162,50 @@ serve(async (req) => {
           if (!geminiExtractResp.ok) {
             const errorText = await geminiExtractResp.text();
             console.error('Gemini text extraction failed', geminiExtractResp.status, errorText);
-            throw new Error(`Gemini extract failed: ${geminiExtractResp.status}`);
+
+            // Fallback: some MIME types like DOCX are not supported via inline_data. Try Lovable AI Gateway with signed URL.
+            if (geminiExtractResp.status === 400 && (errorText.includes('Unsupported MIME type') || (document.mime_type || '').includes('officedocument'))) {
+              console.warn('Falling back to Lovable AI Gateway extraction via signed URL for Office document');
+              const fallbackResp = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  model: 'google/gemini-2.5-flash',
+                  messages: [
+                    {
+                      role: 'system',
+                      content: 'You are a document text extraction expert. Extract ALL text content from this Office document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.'
+                    },
+                    {
+                      role: 'user',
+                      content: [
+                        { type: 'text', text: 'Extract all text from this document:' },
+                        { type: 'image_url', image_url: { url: signedUrlData.signedUrl } }
+                      ]
+                    }
+                  ]
+                })
+              });
+
+              if (!fallbackResp.ok) {
+                const fText = await fallbackResp.text();
+                console.error('Lovable AI fallback extraction failed', fallbackResp.status, fText);
+                throw new Error(`Gemini extract failed and fallback failed: ${fallbackResp.status}`);
+              }
+
+              const fData = await fallbackResp.json();
+              extractedText = fData.choices?.[0]?.message?.content || '';
+            } else {
+              throw new Error(`Gemini extract failed: ${geminiExtractResp.status}`);
+            }
+          } else {
+            const extractData = await geminiExtractResp.json();
+            const parts = extractData.candidates?.[0]?.content?.parts || [];
+            extractedText = parts.map((p: any) => p.text).filter(Boolean).join('\n').trim();
           }
-          const extractData = await geminiExtractResp.json();
-          const parts = extractData.candidates?.[0]?.content?.parts || [];
-          extractedText = parts.map((p: any) => p.text).filter(Boolean).join('\n').trim();
 
         } else if (isTextFile) {
           const fileResp = await fetch(signedUrlData.signedUrl);
