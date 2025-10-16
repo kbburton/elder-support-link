@@ -19,6 +19,7 @@ import { useSidebar } from "@/components/ui/sidebar";
 import { UserMenu } from "@/components/navigation/UserMenu";
 import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
 import { useDemo } from "@/hooks/useDemo";
+import { useDocumentsV2Access } from "@/hooks/useDocumentsV2Access";
 
 const mainItems = [
   { title: "Dashboard", url: "dashboard", icon: LayoutDashboard },   // Added Dashboard as first menu item
@@ -133,29 +134,9 @@ export function AppSidebar() {
 
 // Separate component to check admin status for Documents V2
 function AdminOnlyNavItem({ base, groupId }: { base: string; groupId: string }) {
-  // Check if user is admin of the care group
-  const { data: isAdmin } = useQuery({
-    queryKey: ["is-admin", groupId],
-    queryFn: async () => {
-      if (!groupId) return false;
-      
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return false;
+  const { data: accessData } = useDocumentsV2Access();
 
-      const { data, error } = await supabase
-        .from("care_group_members")
-        .select("is_admin")
-        .eq("group_id", groupId)
-        .eq("user_id", user.id)
-        .single();
-
-      if (error) return false;
-      return data?.is_admin || false;
-    },
-    enabled: !!groupId,
-  });
-
-  if (!isAdmin) return null;
+  if (!accessData?.hasAccess) return null;
 
   return (
     <SidebarMenuItem>
