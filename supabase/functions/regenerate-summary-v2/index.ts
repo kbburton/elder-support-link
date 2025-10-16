@@ -99,93 +99,80 @@ serve(async (req) => {
             extractedText = extractData.choices?.[0]?.message?.content || '';
           }
         } else if ((isOfficeDoc || isPdf) && GOOGLE_GEMINI_API_KEY) {
-          // Fetch bytes via signed URL
-          const fileResp = await fetch(signedUrlData.signedUrl);
-          if (!fileResp.ok) {
-            throw new Error(`Failed to fetch file for extraction: ${fileResp.status} ${fileResp.statusText}`);
-          }
-          const arrayBuffer = await fileResp.arrayBuffer();
-          const uint8Array = new Uint8Array(arrayBuffer);
-
-          // Prefer inline_data to avoid Google File API upload issues
-          const toBase64 = (u8: Uint8Array) => {
-            let binary = '';
-            const chunkSize = 0x8000;
-            for (let i = 0; i < u8.length; i += chunkSize) {
-              binary += String.fromCharCode.apply(null, Array.from(u8.subarray(i, i + chunkSize)) as any);
-            }
-            return btoa(binary);
-          };
-
-          const base64Data = toBase64(uint8Array);
-
-          // Extract with Gemini using inline_data (2.5 Flash, fallback to 2.0 Flash)
-          let geminiExtractResp = await fetch(
-            `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
-            {
+          // Use OPENAI_API_KEY for Office docs if available, otherwise fallback to Gemini for PDFs
+          const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+          
+          if (isOfficeDoc && OPENAI_API_KEY) {
+            // Office documents: Use OpenAI GPT-4o (best for DOCX)
+            console.log('Using OpenAI GPT-4o for Office document extraction');
+            const extractResponse = await fetch('https://api.openai.com/v1/chat/completions', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: {
+                'Authorization': `Bearer ${OPENAI_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
               body: JSON.stringify({
-                contents: [
+                model: 'gpt-4o',
+                messages: [
                   {
-                    parts: [
-                      { text: 'Extract all text content from this document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.' },
-                      { inline_data: { mime_type: document.mime_type || 'application/octet-stream', data: base64Data } },
-                    ],
+                    role: 'system',
+                    content: 'You are a document text extraction expert. Extract ALL text content from this Office document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.'
                   },
-                ],
-              }),
+                  {
+                    role: 'user',
+                    content: [
+                      { type: 'text', text: 'Extract all text from this document:' },
+                      { type: 'image_url', image_url: { url: signedUrlData.signedUrl } }
+                    ]
+                  }
+                ]
+              })
+            });
+
+            if (!extractResponse.ok) {
+              const errorText = await extractResponse.text();
+              console.error('OpenAI extraction failed', extractResponse.status, errorText);
+              throw new Error(`OpenAI extract failed: ${extractResponse.status}`);
             }
-          );
 
-          if (!geminiExtractResp.ok && geminiExtractResp.status === 404) {
-            console.warn('Gemini 2.5 Flash not available, trying 2.0 Flash');
-            geminiExtractResp = await fetch(
-              `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash-001:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  contents: [
-                    {
-                      parts: [
-                        { text: 'Extract all text content from this document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.' },
-                        { inline_data: { mime_type: document.mime_type || 'application/octet-stream', data: base64Data } },
-                      ],
-                    },
-                  ],
-                }),
-              }
-            );
+            const extractData = await extractResponse.json();
+            extractedText = extractData.choices?.[0]?.message?.content || '';
+          } else {
+            // PDFs or fallback: Use Gemini with Lovable AI Gateway via signed URL
+            console.log('Using Lovable AI (Gemini) for PDF/document extraction via signed URL');
+            const fallbackResp = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'google/gemini-2.5-flash',
+                messages: [
+                  {
+                    role: 'system',
+                    content: 'You are a document text extraction expert. Extract ALL text content from this document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.'
+                  },
+                  {
+                    role: 'user',
+                    content: [
+                      { type: 'text', text: 'Extract all text from this document:' },
+                      { type: 'image_url', image_url: { url: signedUrlData.signedUrl } }
+                    ]
+                  }
+                ]
+              })
+            });
+
+            if (!fallbackResp.ok) {
+              const fText = await fallbackResp.text();
+              console.error('Lovable AI extraction failed', fallbackResp.status, fText);
+              throw new Error(`Text extraction failed: ${fallbackResp.status}`);
+            }
+
+            const fData = await fallbackResp.json();
+            extractedText = fData.choices?.[0]?.message?.content || '';
           }
-
-          if (!geminiExtractResp.ok) {
-            const errorText = await geminiExtractResp.text();
-            console.error('Gemini text extraction failed', geminiExtractResp.status, errorText);
-
-            // Fallback: some MIME types like DOCX are not supported via inline_data. Try Lovable AI Gateway with signed URL.
-            if (geminiExtractResp.status === 400 && (errorText.includes('Unsupported MIME type') || (document.mime_type || '').includes('officedocument'))) {
-              console.warn('Falling back to Lovable AI Gateway extraction via signed URL for Office document');
-              const fallbackResp = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  model: 'google/gemini-2.5-flash',
-                  messages: [
-                    {
-                      role: 'system',
-                      content: 'You are a document text extraction expert. Extract ALL text content from this Office document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.'
-                    },
-                    {
-                      role: 'user',
-                      content: [
-                        { type: 'text', text: 'Extract all text from this document:' },
-                        { type: 'image_url', image_url: { url: signedUrlData.signedUrl } }
-                      ]
-                    }
                   ]
                 })
               });

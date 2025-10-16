@@ -177,11 +177,83 @@ serve(async (req) => {
         }
       }
     }
-    // Office documents and PDFs: Use Lovable AI for DOCX (Gemini inline_data doesn't support it)
-    else if (isOfficeDoc || isPdf) {
-      log('INFO', 'Processing Office/PDF document', { requestId, mimeType: file.type, isOfficeDoc, isPdf });
+    // Office documents: Use OpenAI GPT-4o (excellent for DOCX extraction)
+    else if (isOfficeDoc) {
+      const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+      if (!OPENAI_API_KEY) {
+        log('WARN', 'Office document detected but no OpenAI API key', { 
+          requestId, 
+          mimeType: file.type,
+          reason: 'OPENAI_API_KEY not configured'
+        });
+        log('INFO', 'Document will be stored without AI summary', { requestId });
+      } else {
+        log('INFO', 'Processing Office document with OpenAI GPT-4o', { requestId, mimeType: file.type });
+        
+        const { data: signedUrlData, error: signError } = await supabaseClient.storage
+          .from('documents')
+          .createSignedUrl(fileName, 3600);
+
+        if (signError || !signedUrlData?.signedUrl) {
+          log('WARN', 'Failed to create signed URL', { requestId, error: signError?.message });
+        } else {
+          try {
+            log('DEBUG', 'Calling OpenAI GPT-4o for Office document extraction', { requestId });
+            
+            const extractResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${OPENAI_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'gpt-4o',
+                messages: [
+                  {
+                    role: 'system',
+                    content: 'You are a document text extraction expert. Extract ALL text content from this Office document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.'
+                  },
+                  {
+                    role: 'user',
+                    content: [
+                      { type: 'text', text: 'Extract all text from this document:' },
+                      { type: 'image_url', image_url: { url: signedUrlData.signedUrl } }
+                    ]
+                  }
+                ]
+              })
+            });
+
+            if (!extractResponse.ok) {
+              const errorText = await extractResponse.text();
+              log('ERROR', 'OpenAI extraction failed', { 
+                requestId, 
+                status: extractResponse.status, 
+                error: errorText 
+              });
+            } else {
+              const extractData = await extractResponse.json();
+              fullText = extractData.choices?.[0]?.message?.content || '';
+              usedGemini = false; // Using OpenAI
+              log('INFO', 'Text extraction successful with OpenAI GPT-4o', {
+                requestId,
+                textLength: fullText.length
+              });
+            }
+          } catch (error) {
+            log('ERROR', 'Office document processing failed', {
+              requestId,
+              error: error instanceof Error ? error.message : String(error)
+            });
+            log('INFO', 'Document will be stored without AI summary', { requestId });
+          }
+        }
+      }
+    }
+    // PDFs: Use Gemini via Lovable AI (excellent for PDFs)
+    else if (isPdf) {
+      log('INFO', 'Processing PDF with Gemini via Lovable AI', { requestId, mimeType: file.type });
       
-      // Create signed URL for AI to access the file
       const { data: signedUrlData, error: signError } = await supabaseClient.storage
         .from('documents')
         .createSignedUrl(fileName, 3600);
@@ -190,8 +262,7 @@ serve(async (req) => {
         log('WARN', 'Failed to create signed URL', { requestId, error: signError?.message });
       } else {
         try {
-          // Use Lovable AI Gateway for all Office docs and PDFs
-          log('DEBUG', 'Extracting with Lovable AI Gateway', { requestId, signedUrlLength: signedUrlData.signedUrl.length });
+          log('DEBUG', 'Calling Lovable AI for PDF extraction', { requestId });
           
           const extractResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
             method: 'POST',
@@ -204,12 +275,12 @@ serve(async (req) => {
               messages: [
                 {
                   role: 'system',
-                  content: 'You are a document text extraction expert. Extract ALL text content from this document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.'
+                  content: 'You are a document text extraction expert. Extract ALL text content from this PDF. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.'
                 },
                 {
                   role: 'user',
                   content: [
-                    { type: 'text', text: 'Extract all text from this document:' },
+                    { type: 'text', text: 'Extract all text from this PDF:' },
                     { type: 'image_url', image_url: { url: signedUrlData.signedUrl } }
                   ]
                 }
@@ -219,7 +290,7 @@ serve(async (req) => {
 
           if (!extractResponse.ok) {
             const errorText = await extractResponse.text();
-            log('ERROR', 'Lovable AI extraction failed', { 
+            log('ERROR', 'Gemini extraction failed', { 
               requestId, 
               status: extractResponse.status, 
               error: errorText 
@@ -228,19 +299,20 @@ serve(async (req) => {
             const extractData = await extractResponse.json();
             fullText = extractData.choices?.[0]?.message?.content || '';
             usedGemini = true;
-            log('INFO', 'Text extraction successful with Lovable AI', {
+            log('INFO', 'Text extraction successful with Gemini', {
               requestId,
               textLength: fullText.length
             });
           }
         } catch (error) {
-          log('ERROR', 'Office document processing failed', {
+          log('ERROR', 'PDF processing failed', {
             requestId,
             error: error instanceof Error ? error.message : String(error)
           });
           log('INFO', 'Document will be stored without AI summary', { requestId });
         }
       }
+    }
     }
     // Process text files directly
     else if (isTextFile) {
