@@ -313,7 +313,6 @@ serve(async (req) => {
         }
       }
     }
-    }
     // Process text files directly
     else if (isTextFile) {
       log('INFO', 'Reading text file directly', { requestId });
