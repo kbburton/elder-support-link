@@ -372,14 +372,20 @@ export function useCreateAssociation(options?: { documentsV2?: boolean }) {
       const columns = COLUMN_MAPPING[junctionTable as keyof typeof COLUMN_MAPPING];
       const [type1, type2] = getJunctionTableKey(entityType, targetType).split('-') as [EntityType, EntityType];
       
+      // Determine which ID goes in which column
+      let isFirstType = entityType === type1;
+      let entityColumn = isFirstType ? columns.left : columns.right;
+      let targetColumn = isFirstType ? columns.right : columns.left;
+      
+      // Special-case: task_documents(_v2) always store task_id ↔ document_id
+      if (junctionTable === 'task_documents' || junctionTable === 'task_documents_v2') {
+        entityColumn = entityType === ENTITY.task ? 'task_id' : 'document_id';
+        targetColumn = entityType === ENTITY.task ? 'document_id' : 'task_id';
+      }
+      
       // Get user ID first
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
-      
-      // Determine which ID goes in which column using alphabetical mapping
-      const isFirstType = entityType === type1;
-      const entityColumn = isFirstType ? columns.left : columns.right;
-      const targetColumn = isFirstType ? columns.right : columns.left;
       
       // Build insert data - only include created_by_user_id for tables that have it
       const insertData: any = {
@@ -543,10 +549,16 @@ export function useRemoveAssociation(options?: { documentsV2?: boolean }) {
       const columns = COLUMN_MAPPING[junctionTable as keyof typeof COLUMN_MAPPING];
       const [type1, type2] = getJunctionTableKey(entityType, targetType).split('-') as [EntityType, EntityType];
       
-      // Determine which ID goes in which column using alphabetical mapping
+      // Determine which ID goes in which column
       const isFirstType = entityType === type1;
-      const entityColumn = isFirstType ? columns.left : columns.right;
-      const targetColumn = isFirstType ? columns.right : columns.left;
+      let entityColumn = isFirstType ? columns.left : columns.right;
+      let targetColumn = isFirstType ? columns.right : columns.left;
+      
+      // Special-case: task_documents(_v2) always store task_id ↔ document_id
+      if (junctionTable === 'task_documents' || junctionTable === 'task_documents_v2') {
+        entityColumn = entityType === ENTITY.task ? 'task_id' : 'document_id';
+        targetColumn = entityType === ENTITY.task ? 'document_id' : 'task_id';
+      }
       
       console.log(`🗑️ [DELETE] Removing association from ${junctionTable}`);
       console.log(`🎯 [DELETE] Where: ${entityColumn} = ${entityId} AND ${targetColumn} = ${targetId}`);
