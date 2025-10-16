@@ -269,10 +269,10 @@ export function useAvailableItems(entityType: EntityType, targetType: EntityType
           const { data: existingDocs } = await supabase
             .from(junctionTable as any)
             .select("document_id")
-            .eq("task_id", entityId);
+            .eq("task_id", entityId) as { data: Array<{ document_id: string }> | null };
           
           if (existingDocs) {
-            existingDocs.forEach((doc: any) => existingIds.add(doc.document_id));
+            existingDocs.forEach((doc) => existingIds.add(doc.document_id));
           }
         }
         
