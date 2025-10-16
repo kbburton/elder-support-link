@@ -326,14 +326,14 @@ export function DocumentCategoryManager({ groupId }: DocumentCategoryManagerProp
               <div>
                 <Label htmlFor="parent">Parent Category (Optional)</Label>
                 <Select
-                  value={formData.parent_id}
-                  onValueChange={(value) => setFormData({ ...formData, parent_id: value })}
+                  value={formData.parent_id || "none"}
+                  onValueChange={(value) => setFormData({ ...formData, parent_id: value === "none" ? "" : value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="None (top-level category)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None (top-level category)</SelectItem>
+                    <SelectItem value="none">None (top-level category)</SelectItem>
                     {parentCategories.map((cat) => (
                       <SelectItem key={cat.id} value={cat.id}>
                         {cat.name}
