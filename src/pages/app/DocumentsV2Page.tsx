@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useParams, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Plus, FileText, FolderOpen, Settings, Upload, Loader2, CheckCircle, XCircle, Clock } from "lucide-react";
 import SEO from "@/components/layout/SEO";
@@ -28,6 +28,7 @@ const formatFileSize = (bytes?: number) => {
 
 export default function DocumentsV2Page() {
   const { groupId } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState("care-group");
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<any>(null);
@@ -58,6 +59,22 @@ export default function DocumentsV2Page() {
     deleteDocument: deletePersonalDoc,
     isUploading: isUploadingToPersonal
   } = useDocumentsV2(groupId, true);
+
+  // Handle opening document from URL parameter
+  useEffect(() => {
+    const documentId = searchParams.get('openDocument');
+    if (documentId && !showDocumentModal) {
+      // Search in both care group and personal documents
+      const doc = [...careGroupDocuments, ...personalDocuments].find(d => d.id === documentId);
+      if (doc) {
+        setSelectedDocument(doc);
+        setShowDocumentModal(true);
+        // Remove the query parameter
+        searchParams.delete('openDocument');
+        setSearchParams(searchParams);
+      }
+    }
+  }, [searchParams, careGroupDocuments, personalDocuments, showDocumentModal, setSearchParams]);
 
   const blockOperation = () => {
     if (isDemo) {

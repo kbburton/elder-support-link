@@ -75,6 +75,7 @@ export function DocumentV2Modal({ document, isOpen, onClose, groupId }: Document
     notes: document?.notes || "",
     summary: document?.summary || "",
     is_shared_with_group: document?.is_shared_with_group ?? true,
+    admin_only_visible: (document as any)?.admin_only_visible ?? false,
   });
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
@@ -118,6 +119,7 @@ export function DocumentV2Modal({ document, isOpen, onClose, groupId }: Document
         notes: document.notes || "",
         summary: document.summary || "",
         is_shared_with_group: document.is_shared_with_group ?? true,
+        admin_only_visible: (document as any)?.admin_only_visible ?? false,
       });
     } else {
       setFormData({
@@ -126,6 +128,7 @@ export function DocumentV2Modal({ document, isOpen, onClose, groupId }: Document
         notes: "",
         summary: "",
         is_shared_with_group: true,
+        admin_only_visible: false,
       });
     }
   }, [document]);
@@ -250,7 +253,7 @@ const handleDownload = async () => {
   const handleShareLink = async () => {
     if (!document?.id) return;
     
-    const shareUrl = `${window.location.origin}/app/${groupId}/documents?openDocument=${document.id}`;
+    const shareUrl = `${window.location.origin}/app/${groupId}/documents-v2?openDocument=${document.id}`;
     
     try {
       await navigator.clipboard.writeText(shareUrl);
@@ -419,15 +422,35 @@ const getUploadDate = () => {
                     />
                   </div>
 
-                  <div className="flex items-center justify-between space-x-2">
-                    <Label htmlFor="share-toggle" className="text-sm">
-                      Share with care group
-                    </Label>
-                    <Switch
-                      id="share-toggle"
-                      checked={formData.is_shared_with_group}
-                      onCheckedChange={(checked) => setFormData({ ...formData, is_shared_with_group: checked })}
-                    />
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between space-x-2">
+                      <Label htmlFor="share-toggle" className="text-sm">
+                        Share with care group
+                      </Label>
+                      <Switch
+                        id="share-toggle"
+                        checked={formData.is_shared_with_group}
+                        onCheckedChange={(checked) => setFormData({ ...formData, is_shared_with_group: checked })}
+                      />
+                    </div>
+                    
+                    {formData.is_shared_with_group && (
+                      <div className="flex items-center justify-between space-x-2 pl-4 border-l-2 border-muted">
+                        <div className="flex flex-col">
+                          <Label htmlFor="admin-only-toggle" className="text-sm">
+                            Admin only
+                          </Label>
+                          <span className="text-xs text-muted-foreground">
+                            Only care group admins can view this document
+                          </span>
+                        </div>
+                        <Switch
+                          id="admin-only-toggle"
+                          checked={formData.admin_only_visible}
+                          onCheckedChange={(checked) => setFormData({ ...formData, admin_only_visible: checked })}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
 

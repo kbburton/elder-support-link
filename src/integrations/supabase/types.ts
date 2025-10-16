@@ -1490,6 +1490,7 @@ export type Database = {
       }
       documents_v2: {
         Row: {
+          admin_only_visible: boolean
           ai_metadata: Json | null
           category_id: string | null
           created_at: string
@@ -1515,6 +1516,7 @@ export type Database = {
           uploaded_by_user_id: string
         }
         Insert: {
+          admin_only_visible?: boolean
           ai_metadata?: Json | null
           category_id?: string | null
           created_at?: string
@@ -1540,6 +1542,7 @@ export type Database = {
           uploaded_by_user_id: string
         }
         Update: {
+          admin_only_visible?: boolean
           ai_metadata?: Json | null
           category_id?: string | null
           created_at?: string
