@@ -1371,6 +1371,54 @@ export type Database = {
           },
         ]
       }
+      document_notes: {
+        Row: {
+          care_group_id: string | null
+          content: string
+          created_at: string
+          created_by_user_id: string
+          document_id: string
+          id: string
+          is_locked: boolean
+          last_edited_by_user_id: string | null
+          locked_at: string | null
+          locked_by_user_id: string | null
+          owner_user_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          care_group_id?: string | null
+          content?: string
+          created_at?: string
+          created_by_user_id: string
+          document_id: string
+          id?: string
+          is_locked?: boolean
+          last_edited_by_user_id?: string | null
+          locked_at?: string | null
+          locked_by_user_id?: string | null
+          owner_user_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          care_group_id?: string | null
+          content?: string
+          created_at?: string
+          created_by_user_id?: string
+          document_id?: string
+          id?: string
+          is_locked?: boolean
+          last_edited_by_user_id?: string | null
+          locked_at?: string | null
+          locked_by_user_id?: string | null
+          owner_user_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       document_tag_assignments: {
         Row: {
           created_at: string
@@ -2918,6 +2966,10 @@ export type Database = {
       }
       reindex_row: {
         Args: { p_entity_id: string; p_entity_type: string }
+        Returns: undefined
+      }
+      release_stale_note_locks: {
+        Args: Record<PropertyKey, never>
         Returns: undefined
       }
       remove_from_index: {
