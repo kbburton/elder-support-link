@@ -46,18 +46,35 @@ const JUNCTION_TABLES = {
   "task-document": "task_documents"
 } as const;
 
+// V2 junction tables when working with documents_v2
+const V2_JUNCTION_TABLES = {
+  ...JUNCTION_TABLES,
+  "activity_log-document": "activity_documents_v2",
+  "document-activity_log": "activity_documents_v2",
+  "appointment-document": "appointment_documents_v2",
+  "document-appointment": "appointment_documents_v2",
+  "contact-document": "contact_documents_v2",
+  "document-contact": "contact_documents_v2",
+  "document-task": "task_documents_v2",
+  "task-document": "task_documents_v2",
+} as const satisfies Record<string, string>;
+
 // Column mapping for junction tables
 const COLUMN_MAPPING = {
   "contact_appointments": { left: "contact_id", right: "appointment_id" },
   "contact_tasks": { left: "contact_id", right: "task_id" },
   "contact_documents": { left: "contact_id", right: "document_id" },
+  "contact_documents_v2": { left: "contact_id", right: "document_id" },
   "contact_activities": { left: "contact_id", right: "activity_log_id" },
   "appointment_tasks": { left: "appointment_id", right: "task_id" },
   "appointment_documents": { left: "appointment_id", right: "document_id" },
+  "appointment_documents_v2": { left: "appointment_id", right: "document_id" },
   "appointment_activities": { left: "appointment_id", right: "activity_log_id" },
   "task_documents": { left: "task_id", right: "document_id" },
+  "task_documents_v2": { left: "task_id", right: "document_id" },
   "task_activities": { left: "task_id", right: "activity_log_id" },
-  "activity_documents": { left: "activity_log_id", right: "document_id" }
+  "activity_documents": { left: "activity_log_id", right: "document_id" },
+  "activity_documents_v2": { left: "activity_log_id", right: "document_id" }
 } as const;
 
 function getJunctionTableKey(entityType1: EntityType, entityType2: EntityType): string {
@@ -65,12 +82,13 @@ function getJunctionTableKey(entityType1: EntityType, entityType2: EntityType): 
   return `${types[0]}-${types[1]}`;
 }
 
-function getJunctionTable(entityType1: EntityType, entityType2: EntityType): string | null {
+function getJunctionTable(entityType1: EntityType, entityType2: EntityType, options?: { documentsV2?: boolean }): string | null {
   const key = getJunctionTableKey(entityType1, entityType2);
-  return JUNCTION_TABLES[key as keyof typeof JUNCTION_TABLES] || null;
+  const map = options?.documentsV2 ? V2_JUNCTION_TABLES : JUNCTION_TABLES;
+  return map[key as keyof typeof map] || null;
 }
 
-export function useAssociations(entityId: string, entityType: EntityType) {
+export function useAssociations(entityId: string, entityType: EntityType, options?: { documentsV2?: boolean }) {
   return useQuery({
     queryKey: ["associations", entityType, entityId],
     queryFn: async (): Promise<Association[]> => {

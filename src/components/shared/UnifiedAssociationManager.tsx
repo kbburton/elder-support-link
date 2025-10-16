@@ -17,6 +17,7 @@ interface UnifiedAssociationManagerProps {
   onNavigate?: (type: string, id: string) => void;
   showTitle?: boolean;
   className?: string;
+  documentsV2?: boolean;
 }
 
 export function UnifiedAssociationManager({ 
@@ -25,24 +26,26 @@ export function UnifiedAssociationManager({
   groupId, 
   onNavigate,
   showTitle = true,
-  className
+  className,
+  documentsV2 = false,
 }: UnifiedAssociationManagerProps) {
   const [selectedType, setSelectedType] = useState<EntityType | "">("")
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
 
   // Use unified association hooks
-  const { data: associations = [], isLoading: associationsLoading } = useAssociations(entityId, entityType);
+  const { data: associations = [], isLoading: associationsLoading } = useAssociations(entityId, entityType, { documentsV2 });
   const { data: availableItems = [], isLoading: itemsLoading } = useAvailableItems(
     entityType, 
     selectedType as EntityType, 
     groupId, 
     searchTerm,
-    entityId
+    entityId,
+    { documentsV2 }
   );
   
-  const createAssociationMutation = useCreateAssociation();
-  const removeAssociationMutation = useRemoveAssociation();
+  const createAssociationMutation = useCreateAssociation({ documentsV2 });
+  const removeAssociationMutation = useRemoveAssociation({ documentsV2 });
 
   const availableTypes: EntityType[] = [ENTITY.contact, ENTITY.appointment, ENTITY.task, ENTITY.document, ENTITY.activity_log]
     .filter(type => type !== entityType);
