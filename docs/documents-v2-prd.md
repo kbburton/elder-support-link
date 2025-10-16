@@ -118,34 +118,87 @@ Level 3: Tags/Metadata (Unlimited)
 ## 📋 Feature Requirements - MVP (Phase 1)
 
 **Timeline:** Weeks 1-2  
-**Status:** Planning
+**Status:** In Progress - Core Infrastructure Complete
 
 ### Core Features
 
-- [ ] **1.1 Hierarchical Subgroups** (Target: Week 1)
-  - Create 5 default categories: Medical, Legal, Financial, Personal, Other
-  - Support up to 10 custom Level 1 categories (15 total max)
-  - Support up to 20 Level 2 subgroups per category
-  - Support unlimited Level 3 tags per document
-  - Drag-and-drop organization
-  - **Status:** Not Started
+- [x] **1.1 Hierarchical Categories & Subgroups** ✅ (Completed)
+  - ✅ Created 5 default categories: Medical, Legal, Financial, Personal, Other
+  - ✅ Support up to 10 custom Level 1 categories (15 total max)
+  - ✅ Support up to 20 Level 2 subgroups per category
+  - ✅ Tags system with unlimited tags per document
+  - ✅ Database triggers to enforce limits
+  - ✅ Category Manager UI with parent/subgroup creation
+  - ✅ Tag Manager UI with color selection
+  - ⚠️ Changed from "subgroups" terminology to "parent categories" + "subgroups" for clarity
+  - **Status:** Complete
 
-- [ ] **1.2 AI Document Processing** (Target: Week 1-2)
-  - Smart summaries (category-specific prompts)
-  - Extract appointments (interactive chat-style approval - Option B)
-  - Extract contacts (interactive chat-style approval)
-  - Extract tasks (interactive chat-style approval)
-  - Auto-categorization suggestions (AI suggests Level 1 category)
-  - Duplicate detection (file name matching)
-  - **Status:** Not Started
+- [x] **1.2 Document Upload & Storage** ✅ (Completed)
+  - ✅ Support formats: PDF, DOCX, Excel, TXT, Images (JPG/PNG), Audio (MP3, WAV)
+  - ✅ File size limit: 25MB with validation
+  - ✅ Supabase Storage bucket `documents-v2` with RLS policies
+  - ✅ Drag-and-drop upload interface
+  - ✅ Progress indicator during upload
+  - ✅ Duplicate filename detection with user confirmation
+  - ⚠️ OCR for images and scanned PDFs - implemented via edge function
+  - ⚠️ Audio transcription - implemented but requires testing
+  - **Status:** Complete
 
-- [ ] **1.3 Document Upload & Storage** (Target: Week 1)
-  - Support formats: PDF, DOCX, Excel, TXT, Images (JPG/PNG), Audio (MP3, WAV)
-  - File size limit: 25MB
-  - Supabase Storage bucket with RLS policies
-  - OCR for images and scanned PDFs
-  - Audio transcription with AI summary
-  - **Status:** Not Started
+- [x] **1.3 AI Document Processing** ✅ (Completed)
+  - ✅ Smart summaries via Gemini AI
+  - ✅ Category-specific prompts stored in `ai_prompts` table
+  - ✅ Processing status tracking (pending/processing/completed/failed)
+  - ✅ Error handling and retry capability
+  - ✅ Full text extraction stored in database
+  - ⚠️ Auto-categorization suggestions - not implemented (user manually selects)
+  - ⚠️ Extract appointments/contacts/tasks - deferred to Phase 2
+  - **Status:** Core complete, extractions deferred
+
+- [x] **1.4 Document Metadata** ✅ (Completed)
+  - ✅ Title (editable)
+  - ✅ Category (Level 1) - required field
+  - ✅ Subgroup (Level 2) - optional
+  - ✅ Tags (Level 3, unlimited) - optional
+  - ✅ Notes (plain text)
+  - ✅ Upload date (auto)
+  - ✅ Uploader (auto)
+  - ✅ Last modified date (auto-updated)
+  - ✅ File metadata (type, size, original filename)
+  - **Status:** Complete
+
+- [x] **1.9 Associations** ✅ (Completed)
+  - ✅ Link documents to tasks via `task_documents_v2`
+  - ✅ Link documents to appointments via `appointment_documents_v2`
+  - ✅ Link documents to contacts via `contact_documents_v2`
+  - ✅ Link documents to activities via `activity_documents_v2`
+  - ✅ Unified Association Manager component
+  - ✅ Bidirectional relationship display
+  - ✅ Same-group validation triggers
+  - ⚠️ Changed from single `document_v2_associations` table to separate junction tables
+  - **Status:** Complete
+
+- [x] **1.8 Database Schema & RLS** ✅ (Completed)
+  - ✅ `documents_v2` table with full schema
+  - ✅ `document_categories` with parent_id for hierarchy
+  - ✅ `document_tags` table
+  - ✅ `document_v2_tags` junction table
+  - ✅ All junction tables for associations
+  - ✅ RLS policies for group member access
+  - ✅ RLS policies for admin-only documents
+  - ✅ Soft delete support (is_deleted flag)
+  - **Status:** Complete
+
+- [x] **1.13 Document Modal UI** ✅ (Completed)
+  - ✅ View document details
+  - ✅ Edit metadata (title, category, notes)
+  - ✅ Manage tags
+  - ✅ View/manage associations
+  - ✅ Download document
+  - ✅ Delete document
+  - ✅ Regenerate summary
+  - ✅ Processing status indicator
+  - ✅ Error state handling
+  - **Status:** Complete
 
 - [ ] **1.4 Version Control** (Target: Week 2)
   - Manual versioning (user chooses "Version" or "Replace")
@@ -158,7 +211,7 @@ Level 3: Tags/Metadata (Unlimited)
 - [ ] **1.5 Full-Text Search** (Target: Week 2)
   - Search within document contents (extracted via OCR/AI)
   - Semantic search ("find documents about heart condition")
-  - Filter by date range, subgroup, uploader
+  - Filter by date range, category, uploader
   - Context snippets in search results
   - Real-time indexing on upload
   - **Status:** Not Started
@@ -171,112 +224,133 @@ Level 3: Tags/Metadata (Unlimited)
   - Maximum 5 documents for email operations
   - **Status:** Not Started
 
-- [ ] **1.7 Admin-Only Permissions** (Target: Week 1)
-  - Per-document "Admin Only" checkbox
-  - Visual indicator for admin-only documents
-  - Audit log for permission changes
-  - **Status:** Not Started
+- [ ] **1.7 Admin-Only Permissions** (Partially Complete)
+  - ✅ Per-document "Admin Only" checkbox in database
+  - ✅ RLS policies to enforce admin-only access
+  - ⚠️ Visual indicator for admin-only documents - not implemented in UI
+  - ⚠️ Audit log for permission changes - not implemented
+  - **Status:** Backend complete, UI pending
 
-- [ ] **1.8 Document Metadata** (Target: Week 1)
-  - Title (editable)
-  - Category (Level 1)
-  - Subgroup (Level 2)
-  - Tags (Level 3, unlimited)
-  - Notes (rich text)
-  - Upload date
-  - Uploader
-  - Last modified date
-  - Version number
-  - **Status:** Not Started
-
-- [ ] **1.9 Associations** (Target: Week 2)
-  - Link documents to tasks
-  - Link documents to appointments
-  - Link documents to contacts
-  - Link documents to activities
-  - Bidirectional relationship display
-  - **Status:** Not Started
-
-- [ ] **1.10 Audit Logging** (Target: Week 2)
+- [ ] **1.10 Audit Logging** (Not Started)
   - Track who viewed each document (timestamp)
   - Track who edited each field
   - Track document version history
   - Viewable by document owner and care group admin
   - **Status:** Not Started
 
-- [ ] **1.11 Responsive Design** (Target: Week 1-2)
-  - Mobile: View-only, camera upload
-  - Desktop: Full edit capabilities
-  - Tablet: Full features with responsive layout
-  - **Status:** Not Started
+- [ ] **1.11 Responsive Design** (Partially Complete)
+  - ✅ Desktop: Full edit capabilities
+  - ⚠️ Mobile: View-only, camera upload - needs testing
+  - ⚠️ Tablet: Full features with responsive layout - needs testing
+  - **Status:** Desktop complete, mobile/tablet needs work
 
-- [ ] **1.12 Storage Usage Display** (Target: Week 2)
-  - Show storage usage by subgroup
+- [ ] **1.12 Storage Usage Display** (Not Started)
+  - Show storage usage by category
   - Total storage for care group
   - Progress bars and limits
   - **Status:** Not Started
 
-- [ ] **1.13 Two-Tab UI** (Target: Week 1)
+- [ ] **1.13 Two-Tab UI** (Not Started)
   - Tab 1: Care Group Documents (group docs + user's shared docs)
   - Tab 2: My Documents (all user docs with sharing indicator)
   - Tab state persistence
-  - **Status:** Not Started
+  - **Status:** Not Started - Currently single list view
 
-- [ ] **1.14 Feature Flag System** (Target: Week 1)
+- [ ] **1.14 Feature Flag System** (Not Started)
   - Database setting: `documents_v2_enabled_for_all`
   - Default: `false` (admin-only access)
   - UI check before rendering section
-  - **Status:** Not Started
+  - **Status:** Not Started - Currently accessible to all group members
 
-- [ ] **1.15 Soft Delete Model** (Target: Week 1)
+- [ ] **1.15 Soft Delete Model** (Not Started)
   - Group member soft delete: removes from care group only
   - Document remains in uploader's personal documents
   - Only uploader can hard delete
   - 30-day trash retention
-  - **Status:** Not Started
+  - **Status:** Not Started - Using standard soft delete
 
 ---
 
 ## 📋 Feature Requirements - Phase 2
 
 **Timeline:** Weeks 3-4 (Post-MVP)  
-**Status:** Not Started
+**Status:** Ready to Begin
 
-- [ ] **2.1 Document Comments** (Target: Week 3)
+### Priority Items for Phase 2
+
+- [ ] **2.1 Version Control** ⭐ HIGH PRIORITY (Target: Week 3, Days 1-3)
+  - Implement document versioning UI
+  - "Version" vs "Replace" options on upload
+  - Version history modal with restore capability
+  - Maximum 5 versions per document (auto-prune oldest)
+  - Version comparison view
+  - Database: `document_v2_versions` table
+  - **Rationale:** Core feature mentioned in MVP, deferred for initial release
+  - **Status:** Not Started
+
+- [ ] **2.2 Full-Text Search** ⭐ HIGH PRIORITY (Target: Week 3, Days 4-7)
+  - Search within document full_text content
+  - Filter by category, date range, uploader
+  - Search results with context snippets
+  - PostgreSQL full-text search with ts_vector
+  - Reindex on document update
+  - Database: Add search_vector column + GIN index
+  - **Rationale:** Critical for finding documents in large libraries
+  - **Status:** Not Started
+
+- [ ] **2.3 Two-Tab UI System** (Target: Week 3)
+  - Tab 1: "Care Group Documents" (shared documents)
+  - Tab 2: "My Documents" (all user's documents with sharing indicator)
+  - Tab state persistence
+  - Visual indicator for which documents are shared
+  - **Rationale:** Improves organization and clarifies ownership
+  - **Status:** Not Started
+
+- [ ] **2.4 Feature Flag + Admin-Only Rollout** (Target: Week 3)
+  - `app_settings` table entry: `documents_v2_enabled_for_all`
+  - Default: `false` (admin-only)
+  - UI check before showing Documents V2 section
+  - Admin UI to toggle feature flag
+  - **Rationale:** Controlled rollout to admins first for testing
+  - **Status:** Not Started
+
+- [ ] **2.5 Soft Delete Model Refinement** (Target: Week 4)
+  - Group member soft delete → removes from group only
+  - Document remains in uploader's "My Documents"
+  - Only uploader can permanently delete
+  - 30-day trash retention with auto-purge
+  - Trash view for admins
+  - **Rationale:** Prevents accidental data loss, allows recovery
+  - **Status:** Not Started
+
+- [ ] **2.6 Bulk Operations** (Target: Week 4)
+  - Select multiple documents (checkbox UI)
+  - Bulk download as ZIP
+  - Bulk tag assignment
+  - Bulk category reassignment
+  - Bulk delete (with confirmation)
+  - **Rationale:** Efficiency for managing multiple documents
+  - **Status:** Not Started
+
+- [ ] **2.7 Document Comments** (Target: Week 4)
   - Comment threads on documents
   - @mentions for care group members
   - Email notifications for new comments
   - Resolve/unresolve comments
+  - Database: `document_v2_comments` table
+  - **Rationale:** Collaboration feature for care teams
   - **Status:** Not Started
 
-- [ ] **2.2 Email Documents** (Target: Week 3)
-  - Send as secure link (not attachment)
-  - Link expiration (7 days default)
-  - Access code protection
-  - Track who opened links
-  - Maximum 5 documents per email
+- [ ] **2.8 Audit Logging** (Target: Week 4)
+  - Track document views (user, timestamp)
+  - Track edits (field changes)
+  - Track permission changes
+  - Viewable by document owner and group admin
+  - Database: `document_v2_audit_logs` table
+  - **Rationale:** Security and accountability
   - **Status:** Not Started
 
-- [ ] **2.3 Advanced Search** (Target: Week 4)
-  - Search history
-  - Saved searches
-  - Search within specific care group
-  - Boolean operators (AND, OR, NOT)
-  - **Status:** Not Started
-
-- [ ] **2.4 Document Q&A** (Target: Week 4)
-  - Natural language queries across all documents
-  - "What medications is Dad taking?"
-  - "When is the next appointment?"
-  - AI-powered answers with source citations
-  - **Status:** Not Started
-
-- [ ] **2.5 Expiration Alerts** (Target: Week 4)
-  - Set expiration dates on documents
-  - Email/push notifications 30 days before expiration
-  - Dashboard widget for expiring documents
-  - Common presets (insurance annual, passport 10 years)
-  - **Status:** Not Started
+### Lower Priority (Can defer to Phase 3)
 
 ---
 
@@ -316,7 +390,7 @@ Level 3: Tags/Metadata (Unlimited)
 
 ### New Tables
 
-#### `documents_v2`
+#### `documents_v2` ✅ IMPLEMENTED
 ```sql
 CREATE TABLE documents_v2 (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -332,21 +406,20 @@ CREATE TABLE documents_v2 (
   
   -- Organization
   category_id UUID REFERENCES document_categories(id) NOT NULL,
-  subgroup_id UUID REFERENCES document_subgroups(id),
   
   -- Content
   summary TEXT,
   full_text TEXT, -- OCR/transcription
   notes TEXT,
-  file_metadata JSONB,
   
   -- Processing
   processing_status TEXT DEFAULT 'pending',
+  processing_error TEXT, -- ADDED: Store error messages
   
   -- Permissions
   is_admin_only BOOLEAN DEFAULT false,
   
-  -- Versioning
+  -- Versioning (NOT YET IMPLEMENTED)
   version_number INTEGER DEFAULT 1,
   parent_version_id UUID REFERENCES documents_v2(id),
   
@@ -354,76 +427,55 @@ CREATE TABLE documents_v2 (
   is_deleted BOOLEAN DEFAULT false,
   deleted_at TIMESTAMPTZ,
   deleted_by_user_id UUID REFERENCES auth.users(id),
+  deleted_by_email TEXT, -- ADDED: Store email for audit
   
   -- Timestamps
   created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  
-  -- Search
-  search_vector TSVECTOR
+  updated_at TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE INDEX idx_documents_v2_uploader ON documents_v2(uploader_user_id);
 CREATE INDEX idx_documents_v2_group ON documents_v2(group_id);
 CREATE INDEX idx_documents_v2_category ON documents_v2(category_id);
-CREATE INDEX idx_documents_v2_search ON documents_v2 USING GIN(search_vector);
+-- Full-text search index NOT YET IMPLEMENTED
 ```
 
-#### `document_categories`
+#### `document_categories` ✅ IMPLEMENTED
 ```sql
 CREATE TABLE document_categories (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   description TEXT,
-  icon TEXT,
-  color TEXT,
+  icon TEXT, -- NOT USED in current UI
+  color TEXT, -- NOT USED in current UI
   is_default BOOLEAN DEFAULT false,
-  group_id UUID REFERENCES care_groups(id), -- NULL = system default
+  parent_id UUID REFERENCES document_categories(id), -- ADDED: For hierarchical structure
+  care_group_id UUID REFERENCES care_groups(id), -- NULL = system default
   created_by_user_id UUID REFERENCES auth.users(id),
   created_at TIMESTAMPTZ DEFAULT now(),
   display_order INTEGER,
   
-  UNIQUE(name, group_id)
+  UNIQUE(name, care_group_id, parent_id) -- CHANGED: Added parent_id to unique constraint
 );
 
--- Seed defaults
-INSERT INTO document_categories (name, is_default, display_order) VALUES
-  ('Medical', true, 1),
-  ('Legal', true, 2),
-  ('Financial', true, 3),
-  ('Personal', true, 4),
-  ('Other', true, 5);
+-- Trigger to enforce category limits (max 10 custom, max 20 subgroups)
+-- See: validate_category_limits() function
 ```
 
-#### `document_subgroups`
-```sql
-CREATE TABLE document_subgroups (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  description TEXT,
-  category_id UUID REFERENCES document_categories(id) NOT NULL,
-  created_by_user_id UUID REFERENCES auth.users(id),
-  created_at TIMESTAMPTZ DEFAULT now(),
-  display_order INTEGER,
-  
-  UNIQUE(name, category_id)
-);
-```
-
-#### `document_tags`
+#### `document_tags` ✅ IMPLEMENTED
 ```sql
 CREATE TABLE document_tags (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
-  color TEXT,
-  group_id UUID REFERENCES care_groups(id),
+  color TEXT, -- Hex color code for tag display
+  care_group_id UUID REFERENCES care_groups(id),
   created_at TIMESTAMPTZ DEFAULT now(),
   
-  UNIQUE(name, group_id)
+  UNIQUE(name, care_group_id)
 );
 ```
 
-#### `document_v2_tags` (Junction Table)
+#### `document_v2_tags` ✅ IMPLEMENTED
 ```sql
 CREATE TABLE document_v2_tags (
   document_id UUID REFERENCES documents_v2(id) ON DELETE CASCADE,
@@ -434,66 +486,64 @@ CREATE TABLE document_v2_tags (
 );
 ```
 
-#### `document_v2_associations`
+#### Association Junction Tables ✅ IMPLEMENTED
+**CHANGE:** Instead of single `document_v2_associations` table, implemented separate junction tables:
+
 ```sql
-CREATE TABLE document_v2_associations (
+-- Task-Document V2 Junction
+CREATE TABLE task_documents_v2 (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  task_id UUID REFERENCES tasks(id) ON DELETE CASCADE,
   document_id UUID REFERENCES documents_v2(id) ON DELETE CASCADE,
-  entity_type TEXT NOT NULL, -- 'task', 'appointment', 'contact', 'activity'
-  entity_id UUID NOT NULL,
   created_by_user_id UUID REFERENCES auth.users(id),
   created_at TIMESTAMPTZ DEFAULT now(),
-  
-  UNIQUE(document_id, entity_type, entity_id)
+  UNIQUE(task_id, document_id)
 );
-```
 
-#### `document_v2_versions`
-```sql
-CREATE TABLE document_v2_versions (
+-- Appointment-Document V2 Junction
+CREATE TABLE appointment_documents_v2 (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  appointment_id UUID REFERENCES appointments(id) ON DELETE CASCADE,
   document_id UUID REFERENCES documents_v2(id) ON DELETE CASCADE,
-  version_number INTEGER NOT NULL,
-  file_url TEXT NOT NULL,
-  file_size BIGINT NOT NULL,
-  notes TEXT, -- User's version notes
   created_by_user_id UUID REFERENCES auth.users(id),
   created_at TIMESTAMPTZ DEFAULT now(),
-  
-  UNIQUE(document_id, version_number)
+  UNIQUE(appointment_id, document_id)
 );
-```
 
-#### `document_v2_comments`
-```sql
-CREATE TABLE document_v2_comments (
+-- Contact-Document V2 Junction
+CREATE TABLE contact_documents_v2 (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  contact_id UUID REFERENCES contacts(id) ON DELETE CASCADE,
   document_id UUID REFERENCES documents_v2(id) ON DELETE CASCADE,
-  comment_text TEXT NOT NULL,
-  created_by_user_id UUID REFERENCES auth.users(id),
-  created_by_email TEXT,
   created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
+  UNIQUE(contact_id, document_id)
 );
-```
 
-#### `document_v2_audit_logs`
-```sql
-CREATE TABLE document_v2_audit_logs (
+-- Activity-Document V2 Junction
+CREATE TABLE activity_documents_v2 (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  activity_log_id UUID REFERENCES activity_logs(id) ON DELETE CASCADE,
   document_id UUID REFERENCES documents_v2(id) ON DELETE CASCADE,
-  user_id UUID REFERENCES auth.users(id),
-  user_email TEXT,
-  action TEXT NOT NULL, -- 'view', 'edit', 'delete', 'restore', 'version', 'download'
-  details JSONB,
-  ip_address INET,
-  user_agent TEXT,
-  created_at TIMESTAMPTZ DEFAULT now()
+  created_by_user_id UUID REFERENCES auth.users(id),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(activity_log_id, document_id)
 );
 
-CREATE INDEX idx_audit_document ON document_v2_audit_logs(document_id);
-CREATE INDEX idx_audit_user ON document_v2_audit_logs(user_id);
+-- Validation trigger: validate_same_group_association_v2()
+-- Ensures documents and linked entities belong to same care group
 ```
+
+#### ❌ NOT YET IMPLEMENTED
+
+**Version Control Tables:**
+- `document_v2_versions` - deferred to Phase 2
+- Version history UI and restore functionality
+
+**Comments:**
+- `document_v2_comments` - deferred to Phase 2
+
+**Audit Logging:**
+- `document_v2_audit_logs` - deferred to Phase 2
 
 ---
 

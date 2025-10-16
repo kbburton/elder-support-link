@@ -1,7 +1,8 @@
 # Documents V2 - Testing Strategy
 
-**Version:** 1.0  
+**Version:** 1.1  
 **Created:** 2025-01-15  
+**Updated:** 2025-01-16 (Implementation Phase)  
 **Status:** Active  
 **Owner:** Elder Care Development Team
 
@@ -15,6 +16,26 @@
 4. **Confirm UI/UX consistency** with existing platform patterns
 5. **Achieve 80% minimum code coverage** for core functionality
 6. **Prevent regressions** through automated test suites
+
+## ✅ Implementation Status
+
+### Completed Features (Requiring Tests)
+- ✅ Document upload with file validation
+- ✅ Category/subgroup hierarchy with limit enforcement
+- ✅ Tag management system
+- ✅ AI document processing (summary generation)
+- ✅ Association system (tasks, appointments, contacts, activities)
+- ✅ Document modal UI with edit/delete capabilities
+- ✅ RLS policies for group member access
+
+### Not Yet Implemented (Tests Deferred)
+- ❌ Version control
+- ❌ Full-text search
+- ❌ Bulk operations
+- ❌ Audit logging
+- ❌ Two-tab UI (care group vs personal documents)
+- ❌ Feature flag system
+- ❌ Soft delete with group removal vs hard delete
 
 ---
 
