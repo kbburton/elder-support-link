@@ -1779,6 +1779,47 @@ export type Database = {
         }
         Relationships: []
       }
+      entity_associations: {
+        Row: {
+          created_at: string
+          created_by_user_id: string
+          entity_1_id: string
+          entity_1_type: string
+          entity_2_id: string
+          entity_2_type: string
+          group_id: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_user_id: string
+          entity_1_id: string
+          entity_1_type: string
+          entity_2_id: string
+          entity_2_type: string
+          group_id: string
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          created_by_user_id?: string
+          entity_1_id?: string
+          entity_1_type?: string
+          entity_2_id?: string
+          entity_2_type?: string
+          group_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entity_associations_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "care_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       feedback_comments: {
         Row: {
           body: string

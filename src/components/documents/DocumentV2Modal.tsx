@@ -25,8 +25,7 @@ import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
 import { useDemo } from "@/hooks/useDemo";
 import { softDeleteEntity } from "@/lib/delete/rpc";
-import { UnifiedAssociationManager } from "@/components/shared/UnifiedAssociationManager";
-import { ENTITY } from "@/constants/entities";
+import { UnifiedAssociationManagerV2 } from "@/components/shared/UnifiedAssociationManagerV2";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -570,11 +569,10 @@ const getUploadDate = () => {
           </TabsContent>
 
           <TabsContent value="associations">
-            <UnifiedAssociationManager
+            <UnifiedAssociationManagerV2
               entityId={document.id}
-              entityType={ENTITY.document}
+              entityType="document"
               groupId={groupId}
-              documentsV2={true}
             />
           </TabsContent>
         </Tabs>
