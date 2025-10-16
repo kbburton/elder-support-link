@@ -25,6 +25,11 @@ export interface DocumentV2 {
   deleted_by_email: string | null;
   created_at: string;
   updated_at: string;
+  document_v2_group_shares?: Array<{
+    id: string;
+    group_id: string;
+    care_groups?: { id: string; name: string };
+  }>;
 }
 
 export const useDocumentsV2 = (groupId: string | undefined, showPersonal: boolean = false) => {
@@ -34,25 +39,50 @@ export const useDocumentsV2 = (groupId: string | undefined, showPersonal: boolea
   const { data: documents, isLoading } = useQuery({
     queryKey: ['documents-v2', groupId, showPersonal],
     queryFn: async () => {
-      let query = supabase
-        .from('documents_v2')
-        .select('*, document_categories(name)')
-        .eq('is_deleted', false)
-        .order('created_at', { ascending: false });
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
 
       if (showPersonal) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          query = query.eq('uploaded_by_user_id', user.id);
-        }
+        // Personal documents: All documents uploaded by the user, with their shares
+        const { data, error } = await supabase
+          .from('documents_v2')
+          .select(`
+            *,
+            document_categories(name),
+            document_v2_group_shares(
+              id,
+              group_id,
+              care_groups(id, name)
+            )
+          `)
+          .eq('uploaded_by_user_id', user.id)
+          .eq('is_deleted', false)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        return data as DocumentV2[];
       } else if (groupId) {
-        query = query.eq('group_id', groupId).eq('is_shared_with_group', true);
+        // Care group documents: Documents shared with this specific group via junction table
+        const { data, error } = await supabase
+          .from('documents_v2')
+          .select(`
+            *,
+            document_categories(name),
+            document_v2_group_shares!inner(
+              id,
+              group_id,
+              care_groups(id, name)
+            )
+          `)
+          .eq('document_v2_group_shares.group_id', groupId)
+          .eq('is_deleted', false)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        return data as DocumentV2[];
       }
 
-      const { data, error } = await query;
-
-      if (error) throw error;
-      return data as DocumentV2[];
+      return [];
     },
     enabled: !!groupId || showPersonal,
   });

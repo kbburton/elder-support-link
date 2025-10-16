@@ -1452,6 +1452,45 @@ export type Database = {
           },
         ]
       }
+      document_v2_group_shares: {
+        Row: {
+          created_at: string
+          document_id: string
+          group_id: string
+          id: string
+          shared_by_user_id: string
+        }
+        Insert: {
+          created_at?: string
+          document_id: string
+          group_id: string
+          id?: string
+          shared_by_user_id: string
+        }
+        Update: {
+          created_at?: string
+          document_id?: string
+          group_id?: string
+          id?: string
+          shared_by_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_v2_group_shares_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents_v2"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_v2_group_shares_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "care_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_versions: {
         Row: {
           created_at: string

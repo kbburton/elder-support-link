@@ -392,10 +392,11 @@ serve(async (req) => {
       processingStatus: 'completed'
     });
     
+    // All documents are personal by default (group_id = null)
     const { data: insertedDoc, error: insertError } = await supabaseClient
       .from('documents_v2')
       .insert({
-        group_id: groupId,
+        group_id: null, // All documents are personal by default
         uploaded_by_user_id: uploadedByUserId,
         uploaded_by_email: uploadedByEmail,
         title: title || file.name,
@@ -405,7 +406,7 @@ serve(async (req) => {
         mime_type: file.type,
         category_id: categoryId,
         notes: notes,
-        is_shared_with_group: isSharedWithGroup,
+        is_shared_with_group: false, // Deprecated field, always false
         full_text: fullText || null,
         summary: summary || null,
         processing_status: 'completed',
@@ -428,6 +429,30 @@ serve(async (req) => {
       summaryLength: summary.length,
       usedGemini
     });
+
+    // Step 4: If sharing with care group, create junction table entry
+    if (isSharedWithGroup && groupId) {
+      log('INFO', 'Creating group share entry', { requestId, documentId: insertedDoc.id, groupId });
+      
+      const { error: shareError } = await supabaseClient
+        .from('document_v2_group_shares')
+        .insert({
+          document_id: insertedDoc.id,
+          group_id: groupId,
+          shared_by_user_id: uploadedByUserId
+        });
+
+      if (shareError) {
+        log('WARN', 'Failed to create group share', { 
+          requestId, 
+          documentId: insertedDoc.id, 
+          error: shareError.message 
+        });
+        // Don't throw error - document is still created successfully
+      } else {
+        log('INFO', 'Group share created successfully', { requestId, documentId: insertedDoc.id, groupId });
+      }
+    }
 
     return new Response(
       JSON.stringify({ 

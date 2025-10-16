@@ -253,6 +253,32 @@ export default function DocumentsV2Page() {
     },
   ];
 
+  // Columns for personal documents (includes shared groups)
+  const personalColumns: TableColumn[] = [
+    ...columns.slice(0, 3), // Title, Status, Category
+    {
+      key: "document_v2_group_shares",
+      label: "Shared With",
+      sortable: false,
+      render: (value, row) => {
+        const shares = row.document_v2_group_shares || [];
+        if (shares.length === 0) {
+          return <span className="text-xs text-muted-foreground">Private</span>;
+        }
+        return (
+          <div className="flex flex-wrap gap-1">
+            {shares.map((share: any) => (
+              <Badge key={share.id} variant="outline" className="text-xs">
+                {share.care_groups?.name || 'Unknown'}
+              </Badge>
+            ))}
+          </div>
+        );
+      },
+    },
+    ...columns.slice(3), // Type, Size, Upload Date
+  ];
+
   // Access control check
   if (accessLoading) {
     return (
@@ -392,7 +418,7 @@ export default function DocumentsV2Page() {
                 <UnifiedTableView
                   title=""
                   data={personalDocuments}
-                  columns={columns}
+                  columns={personalColumns}
                   loading={personalLoading}
                   onEdit={handleEditDocument}
                   onDelete={(id) => handleDeleteDocument(id, true)}

@@ -35,6 +35,7 @@ import { useDocumentTags, useAssignTag, useUnassignTag } from "@/hooks/useDocume
 import { useDocumentVersions } from "@/hooks/useDocumentVersions";
 import { DocumentVersionHistory } from "./DocumentVersionHistory";
 import { DocumentTagManager } from "./DocumentTagManager";
+import { DocumentGroupShareManager } from "./DocumentGroupShareManager";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface Document {
@@ -335,8 +336,9 @@ const getUploadDate = () => {
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="details">Details</TabsTrigger>
+            <TabsTrigger value="sharing">Sharing</TabsTrigger>
             <TabsTrigger value="versions">
               <Clock className="h-4 w-4 mr-2" />
               Versions ({versions.length})
@@ -550,6 +552,13 @@ const getUploadDate = () => {
                 />
               </div>
             </div>
+          </TabsContent>
+
+          <TabsContent value="sharing">
+            <DocumentGroupShareManager
+              documentId={document.id}
+              currentGroupId={groupId}
+            />
           </TabsContent>
 
           <TabsContent value="versions">
