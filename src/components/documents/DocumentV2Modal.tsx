@@ -565,6 +565,7 @@ const getUploadDate = () => {
               entityId={document.id}
               entityType={ENTITY.document}
               groupId={groupId}
+              documentsV2={true}
             />
           </TabsContent>
         </Tabs>

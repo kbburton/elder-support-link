@@ -90,18 +90,21 @@ function getJunctionTable(entityType1: EntityType, entityType2: EntityType, opti
 
 export function useAssociations(entityId: string, entityType: EntityType, options?: { documentsV2?: boolean }) {
   return useQuery({
-    queryKey: ["associations", entityType, entityId],
+    queryKey: ["associations", entityType, entityId, options?.documentsV2],
     queryFn: async (): Promise<Association[]> => {
       if (!entityId) return [];
       
-      console.log(`🔍 [ASSOCIATIONS] Fetching associations for ${entityType}:${entityId}`);
+      const useV2 = options?.documentsV2 || false;
+      const junctionMap = useV2 ? V2_JUNCTION_TABLES : JUNCTION_TABLES;
+      
+      console.log(`🔍 [ASSOCIATIONS] Fetching associations for ${entityType}:${entityId} (v2: ${useV2})`);
       console.log(`🌍 [ENV] Environment: ${window.location.hostname}`);
-      console.log(`🔗 [TABLES] Available junction tables:`, Object.keys(JUNCTION_TABLES));
+      console.log(`🔗 [TABLES] Available junction tables:`, Object.keys(junctionMap));
       
       const associations: Association[] = [];
       
       // Query all possible associations for this entity
-      for (const [key, tableName] of Object.entries(JUNCTION_TABLES)) {
+      for (const [key, tableName] of Object.entries(junctionMap)) {
         const [type1, type2] = key.split('-') as [EntityType, EntityType];
         
         // Skip if this entity type is not part of this relationship
@@ -128,7 +131,9 @@ export function useAssociations(entityId: string, entityType: EntityType, option
         } else if (targetType === ENTITY.task) {
           selectClause = `tasks!inner(id, title, status, priority, due_date, category)`;
         } else if (targetType === ENTITY.document) {
-          selectClause = `documents!inner(id, title, original_filename, category)`;
+          // Use documents_v2 if this is a v2 context
+          const docTable = useV2 ? 'documents_v2' : 'documents';
+          selectClause = `${docTable}!inner(id, title, original_filename, category)`;
         } else if (targetType === ENTITY.activity_log) {
           selectClause = `activity_logs!inner(id, title, type, date_time, notes)`;
         }
@@ -197,11 +202,13 @@ export function useAssociations(entityId: string, entityType: EntityType, option
   });
 }
 
-export function useAvailableItems(entityType: EntityType, targetType: EntityType, groupId: string, searchTerm: string = "", entityId?: string) {
+export function useAvailableItems(entityType: EntityType, targetType: EntityType, groupId: string, searchTerm: string = "", entityId?: string, options?: { documentsV2?: boolean }) {
   return useQuery({
-    queryKey: ["available-items", entityType, targetType, groupId, searchTerm, entityId],
+    queryKey: ["available-items", entityType, targetType, groupId, searchTerm, entityId, options?.documentsV2],
     queryFn: async () => {
       if (!groupId || !targetType) return [];
+      
+      const useV2 = options?.documentsV2 || false;
       
       let tableName = "";
       let selectClause = "";
@@ -220,7 +227,7 @@ export function useAvailableItems(entityType: EntityType, targetType: EntityType
         selectClause = "id, title, status, priority, due_date, category";
         groupColumn = ENTITY_GROUP_COLUMN_MAP[ENTITY.task];
       } else if (targetType === ENTITY.document) {
-        tableName = ENTITY_TABLE_MAP[ENTITY.document];
+        tableName = useV2 ? 'documents_v2' : ENTITY_TABLE_MAP[ENTITY.document];
         selectClause = "id, title, original_filename, category";
         groupColumn = ENTITY_GROUP_COLUMN_MAP[ENTITY.document];
       } else if (targetType === ENTITY.activity_log) {
@@ -258,8 +265,9 @@ export function useAvailableItems(entityType: EntityType, targetType: EntityType
         
         // Build set of existing document_ids from task_documents for taskId
         if (entityType === ENTITY.task && targetType === ENTITY.document) {
+          const junctionTable = useV2 ? "task_documents_v2" : "task_documents";
           const { data: existingDocs } = await supabase
-            .from("task_documents")
+            .from(junctionTable as any)
             .select("document_id")
             .eq("task_id", entityId);
           
@@ -282,7 +290,7 @@ export function useAvailableItems(entityType: EntityType, targetType: EntityType
         
         // Filter for other entity types using junction tables
         if (existingIds.size === 0) {
-          const junctionTable = getJunctionTable(entityType, targetType);
+          const junctionTable = getJunctionTable(entityType, targetType, { documentsV2: useV2 });
           if (junctionTable) {
             const columns = COLUMN_MAPPING[junctionTable as keyof typeof COLUMN_MAPPING];
             const [type1, type2] = getJunctionTableKey(entityType, targetType).split('-') as [EntityType, EntityType];
@@ -312,9 +320,10 @@ export function useAvailableItems(entityType: EntityType, targetType: EntityType
   });
 }
 
-export function useCreateAssociation() {
+export function useCreateAssociation(options?: { documentsV2?: boolean }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const useV2 = options?.documentsV2 || false;
   
   return useMutation({
     mutationFn: async ({ 
@@ -328,7 +337,7 @@ export function useCreateAssociation() {
       targetId: string; 
       targetType: EntityType; 
     }) => {
-      const junctionTable = getJunctionTable(entityType, targetType);
+      const junctionTable = getJunctionTable(entityType, targetType, { documentsV2: useV2 });
       if (!junctionTable) {
         throw new Error(`Unsupported association: ${entityType} ↔ ${targetType}. This combination is not available.`);
       }
@@ -509,9 +518,10 @@ export function useCreateAssociation() {
   });
 }
 
-export function useRemoveAssociation() {
+export function useRemoveAssociation(options?: { documentsV2?: boolean }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const useV2 = options?.documentsV2 || false;
   
   return useMutation({
     mutationFn: async ({ 
@@ -525,7 +535,7 @@ export function useRemoveAssociation() {
       targetId: string; 
       targetType: EntityType; 
     }) => {
-      const junctionTable = getJunctionTable(entityType, targetType);
+      const junctionTable = getJunctionTable(entityType, targetType, { documentsV2: useV2 });
       if (!junctionTable) {
         throw new Error(`No junction table found for ${entityType} ↔ ${targetType}`);
       }
