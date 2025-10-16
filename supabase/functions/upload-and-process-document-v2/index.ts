@@ -177,80 +177,60 @@ serve(async (req) => {
         }
       }
     }
-    // Office documents and PDFs require Google Gemini File API
+    // Office documents and PDFs: Use Lovable AI for DOCX (Gemini inline_data doesn't support it)
     else if (isOfficeDoc || isPdf) {
-      if (!GOOGLE_GEMINI_API_KEY) {
-        log('WARN', 'Office document detected but no Google API key', { 
-          requestId, 
-          mimeType: file.type,
-          reason: 'GOOGLE_GEMINI_API_KEY not configured'
-        });
-        log('INFO', 'Document will be stored without AI summary', { requestId });
+      log('INFO', 'Processing Office/PDF document', { requestId, mimeType: file.type, isOfficeDoc, isPdf });
+      
+      // Create signed URL for AI to access the file
+      const { data: signedUrlData, error: signError } = await supabaseClient.storage
+        .from('documents')
+        .createSignedUrl(fileName, 3600);
+
+      if (signError || !signedUrlData?.signedUrl) {
+        log('WARN', 'Failed to create signed URL', { requestId, error: signError?.message });
       } else {
-        log('INFO', 'Processing Office/PDF with Google Gemini inline_data', { requestId, mimeType: file.type });
-        
         try {
-          // Prefer inline_data to avoid Google File API upload issues
-          const toBase64 = (u8: Uint8Array) => {
-            let binary = '';
-            const chunkSize = 0x8000;
-            for (let i = 0; i < u8.length; i += chunkSize) {
-              binary += String.fromCharCode.apply(null, Array.from(u8.subarray(i, i + chunkSize)) as any);
-            }
-            return btoa(binary);
-          };
-
-          const base64Data = toBase64(uint8Array);
-          log('DEBUG', 'Extracting text with Gemini using inline_data', { requestId, bytes: uint8Array.length });
-
-          let extractResponse = await fetch(
-            `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contents: [{
-                  parts: [
-                    { text: 'Extract all text content from this document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.' },
-                    { inline_data: { mime_type: file.type || 'application/octet-stream', data: base64Data } }
+          // Use Lovable AI Gateway for all Office docs and PDFs
+          log('DEBUG', 'Extracting with Lovable AI Gateway', { requestId, signedUrlLength: signedUrlData.signedUrl.length });
+          
+          const extractResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: 'google/gemini-2.5-flash',
+              messages: [
+                {
+                  role: 'system',
+                  content: 'You are a document text extraction expert. Extract ALL text content from this document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.'
+                },
+                {
+                  role: 'user',
+                  content: [
+                    { type: 'text', text: 'Extract all text from this document:' },
+                    { type: 'image_url', image_url: { url: signedUrlData.signedUrl } }
                   ]
-                }]
-              })
-            }
-          );
-
-          // Fallback to Gemini 2.0 Flash if 2.5 not available
-          if (!extractResponse.ok && extractResponse.status === 404) {
-            log('WARN', 'Gemini 2.5 Flash not available, trying 2.0 Flash', { requestId });
-            extractResponse = await fetch(
-              `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash-001:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  contents: [{
-                    parts: [
-                      { text: 'Extract all text content from this document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.' },
-                      { inline_data: { mime_type: file.type || 'application/octet-stream', data: base64Data } }
-                    ]
-                  }]
-                })
-              }
-            );
-          }
+                }
+              ]
+            })
+          });
 
           if (!extractResponse.ok) {
             const errorText = await extractResponse.text();
-            log('ERROR', 'Gemini text extraction failed', { requestId, status: extractResponse.status, error: errorText });
+            log('ERROR', 'Lovable AI extraction failed', { 
+              requestId, 
+              status: extractResponse.status, 
+              error: errorText 
+            });
           } else {
             const extractData = await extractResponse.json();
-            const parts = extractData.candidates?.[0]?.content?.parts || [];
-            fullText = parts.map((p: any) => p.text).filter(Boolean).join('\n').trim();
+            fullText = extractData.choices?.[0]?.message?.content || '';
             usedGemini = true;
-            log('INFO', 'Text extraction successful with Gemini inline_data', {
+            log('INFO', 'Text extraction successful with Lovable AI', {
               requestId,
-              textLength: fullText.length,
-              partsCount: parts.length
+              textLength: fullText.length
             });
           }
         } catch (error) {
