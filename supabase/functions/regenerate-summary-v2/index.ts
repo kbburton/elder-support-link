@@ -173,26 +173,6 @@ serve(async (req) => {
             const fData = await fallbackResp.json();
             extractedText = fData.choices?.[0]?.message?.content || '';
           }
-                  ]
-                })
-              });
-
-              if (!fallbackResp.ok) {
-                const fText = await fallbackResp.text();
-                console.error('Lovable AI fallback extraction failed', fallbackResp.status, fText);
-                throw new Error(`Gemini extract failed and fallback failed: ${fallbackResp.status}`);
-              }
-
-              const fData = await fallbackResp.json();
-              extractedText = fData.choices?.[0]?.message?.content || '';
-            } else {
-              throw new Error(`Gemini extract failed: ${geminiExtractResp.status}`);
-            }
-          } else {
-            const extractData = await geminiExtractResp.json();
-            const parts = extractData.candidates?.[0]?.content?.parts || [];
-            extractedText = parts.map((p: any) => p.text).filter(Boolean).join('\n').trim();
-          }
 
         } else if (isTextFile) {
           const fileResp = await fetch(signedUrlData.signedUrl);
