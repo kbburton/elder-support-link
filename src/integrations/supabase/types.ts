@@ -2849,6 +2849,14 @@ export type Database = {
         Args: { p_group_id: string; p_user_id: string }
         Returns: boolean
       }
+      is_document_owner: {
+        Args: { _document_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_group_member: {
+        Args: { _group_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_platform_admin: {
         Args: { user_uuid?: string }
         Returns: boolean
