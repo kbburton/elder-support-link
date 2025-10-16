@@ -187,46 +187,22 @@ serve(async (req) => {
         });
         log('INFO', 'Document will be stored without AI summary', { requestId });
       } else {
-        log('INFO', 'Processing Office document with Google Gemini File API', { requestId, mimeType: file.type });
+        log('INFO', 'Processing Office/PDF with Google Gemini inline_data', { requestId, mimeType: file.type });
         
         try {
-          // Step 1: Upload file to Google Gemini
-          log('DEBUG', 'Uploading file to Google Gemini', { requestId, fileSize: file.size });
-          
-          const uploadFormData = new FormData();
-          uploadFormData.append('file', new Blob([uint8Array], { type: file.type }), file.name);
-          
-          const uploadResponse = await fetch(
-            `https://generativelanguage.googleapis.com/upload/v1/files?key=${GOOGLE_GEMINI_API_KEY}`,
-            {
-              method: 'POST',
-              body: uploadFormData,
+          // Prefer inline_data to avoid Google File API upload issues
+          const toBase64 = (u8: Uint8Array) => {
+            let binary = '';
+            const chunkSize = 0x8000;
+            for (let i = 0; i < u8.length; i += chunkSize) {
+              binary += String.fromCharCode.apply(null, Array.from(u8.subarray(i, i + chunkSize)) as any);
             }
-          );
-          
-          if (!uploadResponse.ok) {
-            const errorText = await uploadResponse.text();
-            log('ERROR', 'Google File API upload failed', { requestId, status: uploadResponse.status, error: errorText });
-            throw new Error('Failed to upload to Google File API');
-          }
-          
-          const uploadData = await uploadResponse.json();
-          const fileUri = uploadData.file?.uri;
-          const googleFileName = uploadData.file?.name;
-          
-          if (!fileUri || !googleFileName) {
-            log('ERROR', 'No file URI or name returned from Google', { requestId, uploadData });
-            throw new Error('No file URI or name returned from Google');
-          }
-          
-          log('INFO', 'File uploaded to Google successfully', { requestId, fileUri, googleFileName });
-          
-          // Step 2: Wait for file to be processed (Google needs time to process the file)
-          log('DEBUG', 'Waiting for Google to process file', { requestId });
-          await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds
-          
-          // Step 3: Extract text using Gemini 2.5 Flash
-          log('DEBUG', 'Extracting text with Gemini 2.5 Flash', { requestId });
+            return btoa(binary);
+          };
+
+          const base64Data = toBase64(uint8Array);
+          log('DEBUG', 'Extracting text with Gemini using inline_data', { requestId, bytes: uint8Array.length });
+
           let extractResponse = await fetch(
             `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
             {
@@ -236,14 +212,14 @@ serve(async (req) => {
                 contents: [{
                   parts: [
                     { text: 'Extract all text content from this document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.' },
-                    { file_data: { file_uri: fileUri, mime_type: file.type } }
+                    { inline_data: { mime_type: file.type || 'application/octet-stream', data: base64Data } }
                   ]
                 }]
               })
             }
           );
-          
-          // Fallback to Gemini 2.0 Flash if 2.5 fails
+
+          // Fallback to Gemini 2.0 Flash if 2.5 not available
           if (!extractResponse.ok && extractResponse.status === 404) {
             log('WARN', 'Gemini 2.5 Flash not available, trying 2.0 Flash', { requestId });
             extractResponse = await fetch(
@@ -255,47 +231,31 @@ serve(async (req) => {
                   contents: [{
                     parts: [
                       { text: 'Extract all text content from this document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.' },
-                      { file_data: { file_uri: fileUri, mime_type: file.type } }
+                      { inline_data: { mime_type: file.type || 'application/octet-stream', data: base64Data } }
                     ]
                   }]
                 })
               }
             );
           }
-          
+
           if (!extractResponse.ok) {
             const errorText = await extractResponse.text();
             log('ERROR', 'Gemini text extraction failed', { requestId, status: extractResponse.status, error: errorText });
           } else {
             const extractData = await extractResponse.json();
-            // Aggregate text from ALL parts (critical fix)
             const parts = extractData.candidates?.[0]?.content?.parts || [];
             fullText = parts.map((p: any) => p.text).filter(Boolean).join('\n').trim();
             usedGemini = true;
-            log('INFO', 'Text extraction successful with Google Gemini', { 
-              requestId, 
+            log('INFO', 'Text extraction successful with Gemini inline_data', {
+              requestId,
               textLength: fullText.length,
-              hasContent: fullText.length > 0,
               partsCount: parts.length
             });
           }
-          
-          // Step 4: Clean up - delete file from Google's servers
-          log('DEBUG', 'Deleting file from Google servers', { requestId, fileUri });
-          const deleteResponse = await fetch(
-            `https://generativelanguage.googleapis.com/v1/${googleFileName}?key=${GOOGLE_GEMINI_API_KEY}`,
-            { method: 'DELETE' }
-          );
-          
-          if (!deleteResponse.ok) {
-            log('WARN', 'Failed to delete file from Google', { requestId, status: deleteResponse.status });
-          } else {
-            log('DEBUG', 'File deleted from Google successfully', { requestId });
-          }
-          
         } catch (error) {
-          log('ERROR', 'Office document processing failed', { 
-            requestId, 
+          log('ERROR', 'Office document processing failed', {
+            requestId,
             error: error instanceof Error ? error.message : String(error)
           });
           log('INFO', 'Document will be stored without AI summary', { requestId });

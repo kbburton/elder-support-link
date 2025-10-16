@@ -40,38 +40,31 @@ serve(async (req) => {
     if (isText) {
       extractedText = await file.text();
     } else {
-      // Upload to Google Gemini Files API
-      const uploadForm = new FormData();
-      uploadForm.append("file", file, file.name || "document");
+      // Use inline_data with base64 to avoid Google File API upload
+      const arrayBuffer = await file.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+      const toBase64 = (u8: Uint8Array) => {
+        let binary = '';
+        const chunk = 0x8000;
+        for (let i = 0; i < u8.length; i += chunk) {
+          binary += String.fromCharCode.apply(null, Array.from(u8.subarray(i, i + chunk)) as any);
+        }
+        return btoa(binary);
+      };
+      const base64Data = toBase64(uint8Array);
 
-      const uploadResp = await fetch(
-        `https://generativelanguage.googleapis.com/upload/v1/files?key=${GOOGLE_GEMINI_API_KEY}`,
-        { method: "POST", body: uploadForm }
-      );
-      if (!uploadResp.ok) {
-        const t = await uploadResp.text();
-        throw new Error(`Google File upload failed: ${uploadResp.status} ${t}`);
-      }
-      const uploadData = await uploadResp.json();
-      const fileUri: string | undefined = uploadData.file?.uri;
-      const fileName: string | undefined = uploadData.file?.name;
-      if (!fileUri || !fileName) throw new Error("Invalid response from Google Files API");
-
-      // Wait briefly for processing
-      await new Promise((r) => setTimeout(r, 2000));
-
-      // Extract with Gemini 2.5 Flash
+      // Extract with Gemini 2.5 Flash using inline_data; fallback to 2.0 Flash
       let extractResp = await fetch(
         `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [
               {
                 parts: [
-                  { text: "Extract all text content from this document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary." },
-                  { file_data: { file_uri: fileUri, mime_type: file.type || "application/octet-stream" } },
+                  { text: 'Extract all text content from this document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.' },
+                  { inline_data: { mime_type: file.type || 'application/octet-stream', data: base64Data } },
                 ],
               },
             ],
@@ -79,20 +72,19 @@ serve(async (req) => {
         }
       );
 
-      // Fallback to Gemini 2.0 Flash if 2.5 fails
       if (!extractResp.ok && extractResp.status === 404) {
-        console.warn("Gemini 2.5 Flash not available, trying 2.0 Flash");
+        console.warn('Gemini 2.5 Flash not available, trying 2.0 Flash');
         extractResp = await fetch(
           `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash-001:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
           {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               contents: [
                 {
                   parts: [
-                    { text: "Extract all text content from this document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary." },
-                    { file_data: { file_uri: fileUri, mime_type: file.type || "application/octet-stream" } },
+                    { text: 'Extract all text content from this document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.' },
+                    { inline_data: { mime_type: file.type || 'application/octet-stream', data: base64Data } },
                   ],
                 },
               ],
@@ -103,21 +95,12 @@ serve(async (req) => {
 
       if (!extractResp.ok) {
         const t = await extractResp.text();
-        console.error("Gemini extract failed:", extractResp.status, t);
+        console.error('Gemini extract failed:', extractResp.status, t);
         throw new Error(`Gemini extract failed: ${extractResp.status}`);
       }
       const extractJson = await extractResp.json();
       const parts = extractJson.candidates?.[0]?.content?.parts || [];
-      extractedText = parts.map((p: any) => p.text).filter(Boolean).join("\n").trim();
-
-      // Cleanup temp file
-      const delResp = await fetch(
-        `https://generativelanguage.googleapis.com/v1/${fileName}?key=${GOOGLE_GEMINI_API_KEY}`,
-        { method: "DELETE" }
-      );
-      if (!delResp.ok) {
-        console.warn("Failed to delete Google temp file", delResp.status);
-      }
+      extractedText = parts.map((p: any) => p.text).filter(Boolean).join('\n').trim();
     }
 
     return new Response(

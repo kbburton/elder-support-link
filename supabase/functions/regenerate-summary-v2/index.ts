@@ -107,34 +107,19 @@ serve(async (req) => {
           const arrayBuffer = await fileResp.arrayBuffer();
           const uint8Array = new Uint8Array(arrayBuffer);
 
-          // Upload to Google Gemini File API
-          const uploadFormData = new FormData();
-          uploadFormData.append('file', new Blob([uint8Array], { type: document.mime_type || 'application/octet-stream' }), document.original_filename || 'document');
+          // Prefer inline_data to avoid Google File API upload issues
+          const toBase64 = (u8: Uint8Array) => {
+            let binary = '';
+            const chunkSize = 0x8000;
+            for (let i = 0; i < u8.length; i += chunkSize) {
+              binary += String.fromCharCode.apply(null, Array.from(u8.subarray(i, i + chunkSize)) as any);
+            }
+            return btoa(binary);
+          };
 
-          const uploadResponse = await fetch(
-            `https://generativelanguage.googleapis.com/upload/v1/files?key=${GOOGLE_GEMINI_API_KEY}`,
-            { method: 'POST', body: uploadFormData }
-          );
+          const base64Data = toBase64(uint8Array);
 
-          if (!uploadResponse.ok) {
-            const errorText = await uploadResponse.text();
-            throw new Error(`Google File API upload failed: ${uploadResponse.status} ${errorText}`);
-          }
-
-          const uploadData = await uploadResponse.json();
-          const fileUri = uploadData.file?.uri;
-          const googleFileName = uploadData.file?.name;
-          if (!fileUri || !googleFileName) {
-            throw new Error('No file URI or name returned from Google');
-          }
-
-          // Wait briefly for processing
-          await new Promise((resolve) => setTimeout(resolve, 3000));
-
-          // Wait briefly for processing
-          await new Promise((resolve) => setTimeout(resolve, 2000));
-
-          // Extract with Gemini 2.5 Flash
+          // Extract with Gemini using inline_data (2.5 Flash, fallback to 2.0 Flash)
           let geminiExtractResp = await fetch(
             `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
             {
@@ -145,7 +130,7 @@ serve(async (req) => {
                   {
                     parts: [
                       { text: 'Extract all text content from this document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.' },
-                      { file_data: { file_uri: fileUri, mime_type: document.mime_type || 'application/octet-stream' } },
+                      { inline_data: { mime_type: document.mime_type || 'application/octet-stream', data: base64Data } },
                     ],
                   },
                 ],
@@ -153,7 +138,6 @@ serve(async (req) => {
             }
           );
 
-          // Fallback to Gemini 2.0 Flash if 2.5 fails
           if (!geminiExtractResp.ok && geminiExtractResp.status === 404) {
             console.warn('Gemini 2.5 Flash not available, trying 2.0 Flash');
             geminiExtractResp = await fetch(
@@ -166,7 +150,7 @@ serve(async (req) => {
                     {
                       parts: [
                         { text: 'Extract all text content from this document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.' },
-                        { file_data: { file_uri: fileUri, mime_type: document.mime_type || 'application/octet-stream' } },
+                        { inline_data: { mime_type: document.mime_type || 'application/octet-stream', data: base64Data } },
                       ],
                     },
                   ],
@@ -184,14 +168,6 @@ serve(async (req) => {
           const parts = extractData.candidates?.[0]?.content?.parts || [];
           extractedText = parts.map((p: any) => p.text).filter(Boolean).join('\n').trim();
 
-          // Cleanup Google temporary file
-          const deleteResponse = await fetch(
-            `https://generativelanguage.googleapis.com/v1/${googleFileName}?key=${GOOGLE_GEMINI_API_KEY}`,
-            { method: 'DELETE' }
-          );
-          if (!deleteResponse.ok) {
-            console.warn('Failed to delete Google temporary file', deleteResponse.status);
-          }
         } else if (isTextFile) {
           const fileResp = await fetch(signedUrlData.signedUrl);
           if (!fileResp.ok) {
