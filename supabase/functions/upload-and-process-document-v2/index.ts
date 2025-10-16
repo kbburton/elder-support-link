@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
+import JSZip from 'https://esm.sh/jszip@3.10.1';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -178,74 +179,72 @@ serve(async (req) => {
       }
     }
     // Office documents: Use OpenAI GPT-4o (excellent for DOCX extraction)
+    // Office documents: Prefer local DOCX unzip-extract; fallback otherwise
     else if (isOfficeDoc) {
-      const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-      if (!OPENAI_API_KEY) {
-        log('WARN', 'Office document detected but no OpenAI API key', { 
-          requestId, 
-          mimeType: file.type,
-          reason: 'OPENAI_API_KEY not configured'
-        });
-        log('INFO', 'Document will be stored without AI summary', { requestId });
+      const isDocx = file.type?.includes('wordprocessingml');
+      if (isDocx) {
+        try {
+          log('INFO', 'Extracting DOCX text locally via ZIP', { requestId, mimeType: file.type });
+          const zip = await JSZip.loadAsync(uint8Array);
+          const xmlPaths = [
+            'word/document.xml',
+            'word/footnotes.xml',
+            'word/endnotes.xml',
+            'word/header1.xml',
+            'word/footer1.xml'
+          ];
+          const pieces: string[] = [];
+          for (const p of xmlPaths) {
+            const entry = zip.file(p);
+            if (!entry) continue;
+            const xml = await entry.async('string');
+            const texts = Array.from(xml.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)).map(m => m[1]);
+            if (texts.length) pieces.push(texts.join(' '));
+          }
+          fullText = pieces.join('\n').replace(/\s+/g, ' ').trim();
+          log('INFO', 'DOCX extraction complete', { requestId, textLength: fullText.length });
+        } catch (e) {
+          log('ERROR', 'DOCX unzip/extract failed', { requestId, error: e instanceof Error ? e.message : String(e) });
+          log('INFO', 'Document will be stored without AI summary', { requestId });
+        }
       } else {
-        log('INFO', 'Processing Office document with OpenAI GPT-4o', { requestId, mimeType: file.type });
-        
-        const { data: signedUrlData, error: signError } = await supabaseClient.storage
-          .from('documents')
-          .createSignedUrl(fileName, 3600);
-
-        if (signError || !signedUrlData?.signedUrl) {
-          log('WARN', 'Failed to create signed URL', { requestId, error: signError?.message });
+        // Non-DOCX Office types: keep current lightweight fallback (OpenAI may not support direct file URLs)
+        const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+        if (!OPENAI_API_KEY) {
+          log('WARN', 'Office document detected but no OpenAI API key', { requestId, mimeType: file.type, reason: 'OPENAI_API_KEY not configured' });
+          log('INFO', 'Document will be stored without AI summary', { requestId });
         } else {
-          try {
-            log('DEBUG', 'Calling OpenAI GPT-4o for Office document extraction', { requestId });
-            
-            const extractResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${OPENAI_API_KEY}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                model: 'gpt-4o',
-                messages: [
-                  {
-                    role: 'system',
-                    content: 'You are a document text extraction expert. Extract ALL text content from this Office document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.'
-                  },
-                  {
-                    role: 'user',
-                    content: [
-                      { type: 'text', text: 'Extract all text from this document:' },
-                      { type: 'image_url', image_url: { url: signedUrlData.signedUrl } }
-                    ]
-                  }
-                ]
-              })
-            });
-
-            if (!extractResponse.ok) {
-              const errorText = await extractResponse.text();
-              log('ERROR', 'OpenAI extraction failed', { 
-                requestId, 
-                status: extractResponse.status, 
-                error: errorText 
+          log('INFO', 'Attempting OpenAI extraction for non-DOCX Office doc', { requestId, mimeType: file.type });
+          const { data: signedUrlData, error: signError } = await supabaseClient.storage
+            .from('documents')
+            .createSignedUrl(fileName, 3600);
+          if (signError || !signedUrlData?.signedUrl) {
+            log('WARN', 'Failed to create signed URL', { requestId, error: signError?.message });
+          } else {
+            try {
+              const extractResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  model: 'gpt-4o',
+                  messages: [
+                    { role: 'system', content: 'Extract ALL text content from this document. Return only the text.' },
+                    { role: 'user', content: [ { type: 'text', text: 'Extract all text from this file:' }, { type: 'image_url', image_url: { url: signedUrlData.signedUrl } } ] }
+                  ]
+                })
               });
-            } else {
-              const extractData = await extractResponse.json();
-              fullText = extractData.choices?.[0]?.message?.content || '';
-              usedGemini = false; // Using OpenAI
-              log('INFO', 'Text extraction successful with OpenAI GPT-4o', {
-                requestId,
-                textLength: fullText.length
-              });
+              if (extractResponse.ok) {
+                const extractData = await extractResponse.json();
+                fullText = extractData.choices?.[0]?.message?.content || '';
+                log('INFO', 'OpenAI extraction returned text', { requestId, textLength: fullText.length });
+              } else {
+                const errorText = await extractResponse.text();
+                log('ERROR', 'OpenAI extraction failed', { requestId, status: extractResponse.status, error: errorText });
+              }
+            } catch (error) {
+              log('ERROR', 'Office document processing failed', { requestId, error: error instanceof Error ? error.message : String(error) });
+              log('INFO', 'Document will be stored without AI summary', { requestId });
             }
-          } catch (error) {
-            log('ERROR', 'Office document processing failed', {
-              requestId,
-              error: error instanceof Error ? error.message : String(error)
-            });
-            log('INFO', 'Document will be stored without AI summary', { requestId });
           }
         }
       }

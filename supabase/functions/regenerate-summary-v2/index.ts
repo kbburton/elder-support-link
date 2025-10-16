@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
+import JSZip from 'https://esm.sh/jszip@3.10.1';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -99,46 +100,33 @@ serve(async (req) => {
             extractedText = extractData.choices?.[0]?.message?.content || '';
           }
         } else if ((isOfficeDoc || isPdf) && GOOGLE_GEMINI_API_KEY) {
-          // Use OPENAI_API_KEY for Office docs if available, otherwise fallback to Gemini for PDFs
-          const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-          
-          if (isOfficeDoc && OPENAI_API_KEY) {
-            // Office documents: Use OpenAI GPT-4o (best for DOCX)
-            console.log('Using OpenAI GPT-4o for Office document extraction');
-            const extractResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${OPENAI_API_KEY}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                model: 'gpt-4o',
-                messages: [
-                  {
-                    role: 'system',
-                    content: 'You are a document text extraction expert. Extract ALL text content from this Office document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.'
-                  },
-                  {
-                    role: 'user',
-                    content: [
-                      { type: 'text', text: 'Extract all text from this document:' },
-                      { type: 'image_url', image_url: { url: signedUrlData.signedUrl } }
-                    ]
-                  }
-                ]
-              })
-            });
-
-            if (!extractResponse.ok) {
-              const errorText = await extractResponse.text();
-              console.error('OpenAI extraction failed', extractResponse.status, errorText);
-              throw new Error(`OpenAI extract failed: ${extractResponse.status}`);
+          // Prefer local DOCX unzip-extract; use Gemini for PDFs
+          const isDocx = document.mime_type?.includes('wordprocessingml');
+          if (isOfficeDoc && isDocx) {
+            try {
+              console.log('Extracting DOCX text locally via ZIP');
+              const fileResp = await fetch(signedUrlData.signedUrl);
+              if (!fileResp.ok) throw new Error(`Failed to fetch DOCX: ${fileResp.status}`);
+              const bytes = new Uint8Array(await fileResp.arrayBuffer());
+              const zip = await JSZip.loadAsync(bytes);
+              const xmlPaths = [
+                'word/document.xml', 'word/footnotes.xml', 'word/endnotes.xml', 'word/header1.xml', 'word/footer1.xml'
+              ];
+              const pieces: string[] = [];
+              for (const p of xmlPaths) {
+                const entry = zip.file(p);
+                if (!entry) continue;
+                const xml = await entry.async('string');
+                const texts = Array.from(xml.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)).map(m => m[1]);
+                if (texts.length) pieces.push(texts.join(' '));
+              }
+              extractedText = pieces.join('\n').replace(/\s+/g, ' ').trim();
+            } catch (e) {
+              console.error('DOCX unzip/extract failed', e);
+              throw new Error('OpenAI extract failed: local DOCX unzip failed');
             }
-
-            const extractData = await extractResponse.json();
-            extractedText = extractData.choices?.[0]?.message?.content || '';
           } else {
-            // PDFs or fallback: Use Gemini with Lovable AI Gateway via signed URL
+            // PDFs or other: Use Gemini with Lovable AI Gateway via signed URL
             console.log('Using Lovable AI (Gemini) for PDF/document extraction via signed URL');
             const fallbackResp = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
               method: 'POST',
@@ -149,27 +137,16 @@ serve(async (req) => {
               body: JSON.stringify({
                 model: 'google/gemini-2.5-flash',
                 messages: [
-                  {
-                    role: 'system',
-                    content: 'You are a document text extraction expert. Extract ALL text content from this document. Preserve formatting, structure, and important details. Return only the extracted text without any commentary.'
-                  },
-                  {
-                    role: 'user',
-                    content: [
-                      { type: 'text', text: 'Extract all text from this document:' },
-                      { type: 'image_url', image_url: { url: signedUrlData.signedUrl } }
-                    ]
-                  }
+                  { role: 'system', content: 'You are a document text extraction expert. Extract ALL text content from this document. Return only the text.' },
+                  { role: 'user', content: [ { type: 'text', text: 'Extract all text from this document:' }, { type: 'image_url', image_url: { url: signedUrlData.signedUrl } } ] }
                 ]
               })
             });
-
             if (!fallbackResp.ok) {
               const fText = await fallbackResp.text();
               console.error('Lovable AI extraction failed', fallbackResp.status, fText);
               throw new Error(`Text extraction failed: ${fallbackResp.status}`);
             }
-
             const fData = await fallbackResp.json();
             extractedText = fData.choices?.[0]?.message?.content || '';
           }
