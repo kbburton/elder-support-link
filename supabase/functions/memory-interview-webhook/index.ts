@@ -21,7 +21,7 @@ serve(async (req) => {
     const from = formData.get('From')?.toString();
     const to = formData.get('To')?.toString();
 
-    console.log('Memory interview call received:', { callSid, from, to });
+    console.log('Call received - routing:', { callSid, from, to });
 
     if (!from) {
       throw new Error('No caller phone number provided');
@@ -30,8 +30,8 @@ serve(async (req) => {
     // Normalize phone number
     const normalizedPhone = from.replace(/[^\d+]/g, '');
 
-    // Find scheduled interview for this phone number
-    const { data: interview, error: interviewError } = await supabase
+    // Check if there's a scheduled memory interview for this phone number
+    const { data: interview } = await supabase
       .from('memory_interviews')
       .select(`
         *,
@@ -42,41 +42,28 @@ serve(async (req) => {
       `)
       .eq('recipient_phone', normalizedPhone)
       .eq('status', 'scheduled')
-      .gte('scheduled_for', new Date(Date.now() - 30 * 60 * 1000).toISOString()) // 30 min window before
-      .lte('scheduled_for', new Date(Date.now() + 30 * 60 * 1000).toISOString()) // 30 min window after
+      .gte('scheduled_for', new Date(Date.now() - 30 * 60 * 1000).toISOString())
+      .lte('scheduled_for', new Date(Date.now() + 30 * 60 * 1000).toISOString())
       .single();
 
-    if (interviewError || !interview) {
-      console.error('No scheduled interview found:', interviewError);
+    // If there's a scheduled interview, route to memory interview flow
+    if (interview) {
+      console.log('Routing to memory interview for:', interview.id);
       
+      // Update interview status
+      await supabase
+        .from('memory_interviews')
+        .update({ 
+          status: 'in_progress',
+          call_sid: callSid,
+          actual_start_time: new Date().toISOString()
+        })
+        .eq('id', interview.id);
+
+      const recipientName = interview.care_groups.recipient_first_name;
+      const voiceUrl = `https://${supabaseUrl.replace('https://', '')}/functions/v1/memory-interview-voice?interview_id=${interview.id}&call_sid=${callSid}`;
+
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say voice="Polly.Joanna">
-    Hello! We don't have an interview scheduled at this time. 
-    Please contact your care coordinator if you believe this is an error. Goodbye!
-  </Say>
-  <Hangup/>
-</Response>`;
-
-      return new Response(twiml, {
-        headers: { ...corsHeaders, 'Content-Type': 'text/xml' }
-      });
-    }
-
-    // Update interview status
-    await supabase
-      .from('memory_interviews')
-      .update({ 
-        status: 'in_progress',
-        call_sid: callSid,
-        actual_start_time: new Date().toISOString()
-      })
-      .eq('id', interview.id);
-
-    const recipientName = interview.care_groups.recipient_first_name;
-    const voiceUrl = `https://${supabaseUrl.replace('https://', '')}/functions/v1/memory-interview-voice?interview_id=${interview.id}&call_sid=${callSid}`;
-
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="Polly.Joanna">
     Hello ${recipientName}! Thank you for calling in for your memory interview. 
@@ -88,12 +75,27 @@ serve(async (req) => {
   </Connect>
 </Response>`;
 
+      return new Response(twiml, {
+        headers: { ...corsHeaders, 'Content-Type': 'text/xml' }
+      });
+    }
+
+    // No scheduled interview - route to regular voice chat
+    console.log('No interview found, routing to regular voice chat');
+    const enhancedPinVerifyUrl = `https://${supabaseUrl.replace('https://', '')}/functions/v1/enhanced-twilio-pin-verify`;
+    
+    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="Polly.Joanna">Welcome to the Care Coordination System.</Say>
+  <Redirect>${enhancedPinVerifyUrl}</Redirect>
+</Response>`;
+
     return new Response(twiml, {
       headers: { ...corsHeaders, 'Content-Type': 'text/xml' }
     });
 
   } catch (error) {
-    console.error('Error in memory interview webhook:', error);
+    console.error('Error in routing webhook:', error);
     
     const errorTwiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
