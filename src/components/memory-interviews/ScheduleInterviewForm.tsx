@@ -30,14 +30,24 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { normalizePhoneToE164 } from "@/utils/phone";
 const formSchema = z.object({
+  scheduling_mode: z.enum(["schedule", "call_now"]),
   phone_number: z.string().min(10, "Phone number must be at least 10 digits"),
-  scheduled_at: z.string().min(1, "Please select a date and time"),
+  scheduled_at: z.string().optional(),
   selected_question_id: z.string().optional(),
   custom_instructions: z.string().optional(),
   interview_type: z.enum(["one_time", "recurring"]),
   recurring_frequency: z.enum(["weekly", "biweekly", "monthly"]).optional(),
   recurring_total_count: z.coerce.number().min(1).optional(),
   is_test: z.boolean().default(false),
+}).refine((data) => {
+  // If scheduling mode is "schedule", require scheduled_at
+  if (data.scheduling_mode === "schedule" && !data.scheduled_at) {
+    return false;
+  }
+  return true;
+}, {
+  message: "Please select a date and time",
+  path: ["scheduled_at"],
 });
 
 interface ScheduleInterviewFormProps {
@@ -72,6 +82,7 @@ export function ScheduleInterviewForm({ careGroupId }: ScheduleInterviewFormProp
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      scheduling_mode: "schedule",
       phone_number: "",
       scheduled_at: "",
       interview_type: "one_time",
@@ -79,6 +90,7 @@ export function ScheduleInterviewForm({ careGroupId }: ScheduleInterviewFormProp
     },
   });
 
+  const schedulingMode = form.watch("scheduling_mode");
   const interviewType = form.watch("interview_type");
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
@@ -87,46 +99,83 @@ export function ScheduleInterviewForm({ careGroupId }: ScheduleInterviewFormProp
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      // Convert local datetime to UTC ISO string for database storage
-      const localDateTime = new Date(values.scheduled_at);
-      const utcDateTime = localDateTime.toISOString();
-
-      console.log('Scheduling interview:');
-      console.log('  Local time input:', values.scheduled_at);
-      console.log('  User timezone:', userTimezone);
-      console.log('  Converted to UTC:', utcDateTime);
-      console.log('  Phone number (raw):', values.phone_number);
+      // Normalize phone number
       const normalizedPhone = normalizePhoneToE164(values.phone_number);
-      console.log('  Phone number (normalized E.164):', normalizedPhone);
       if (!normalizedPhone) {
         throw new Error("Invalid phone number. Please enter a valid number including area code.");
       }
 
-      const { error } = await supabase.from("memory_interviews").insert({
-        care_group_id: careGroupId,
-        created_by_user_id: user.id,
-        phone_number: normalizedPhone,
-        recipient_phone: normalizedPhone, // normalized for webhook matching
-        scheduled_at: utcDateTime,
-        selected_question_id: values.selected_question_id || null,
-        custom_instructions: values.custom_instructions || null,
-        interview_type: values.interview_type,
-        recurring_frequency: values.recurring_frequency || null,
-        recurring_total_count: values.recurring_total_count || null,
-        is_test: values.is_test,
-      });
+      // Determine scheduled time based on mode
+      let utcDateTime: string;
+      if (values.scheduling_mode === "call_now") {
+        // Set to current time for immediate call
+        utcDateTime = new Date().toISOString();
+        console.log('Call Now mode - scheduling for immediate call:', utcDateTime);
+      } else {
+        // Convert local datetime to UTC ISO string for database storage
+        const localDateTime = new Date(values.scheduled_at!);
+        utcDateTime = localDateTime.toISOString();
+        console.log('Schedule mode:');
+        console.log('  Local time input:', values.scheduled_at);
+        console.log('  User timezone:', userTimezone);
+        console.log('  Converted to UTC:', utcDateTime);
+      }
+
+      // Insert the interview record
+      const { data: interview, error } = await supabase
+        .from("memory_interviews")
+        .insert({
+          care_group_id: careGroupId,
+          created_by_user_id: user.id,
+          phone_number: normalizedPhone,
+          recipient_phone: normalizedPhone,
+          scheduled_at: utcDateTime,
+          selected_question_id: values.selected_question_id || null,
+          custom_instructions: values.custom_instructions || null,
+          interview_type: values.interview_type,
+          recurring_frequency: values.recurring_frequency || null,
+          recurring_total_count: values.recurring_total_count || null,
+          is_test: values.is_test,
+        })
+        .select()
+        .single();
 
       if (error) throw error;
 
-      toast({
-        title: "Interview Scheduled",
-        description: values.is_test 
-          ? "Test interview scheduled successfully"
-          : "Interview scheduled successfully. The recipient will receive a call at the scheduled time.",
-      });
+      // If "Call Now" mode, immediately trigger the edge function
+      if (values.scheduling_mode === "call_now" && interview) {
+        console.log('Triggering immediate call for interview:', interview.id);
+        
+        const { data: callResult, error: callError } = await supabase.functions.invoke(
+          'initiate-scheduled-interviews',
+          {
+            body: { interview_id: interview.id }
+          }
+        );
+
+        if (callError) {
+          console.error('Failed to initiate call:', callError);
+          throw new Error(`Call initiation failed: ${callError.message}`);
+        }
+
+        console.log('Call initiated:', callResult);
+        
+        toast({
+          title: "Call Started!",
+          description: "The phone call has been initiated. Check the Interviews tab to see the status.",
+        });
+      } else {
+        toast({
+          title: "Interview Scheduled",
+          description: values.is_test 
+            ? "Test interview scheduled successfully"
+            : "Interview scheduled successfully. The recipient will receive a call at the scheduled time.",
+        });
+      }
 
       form.reset();
     } catch (error: any) {
+      console.error('Submit error:', error);
       toast({
         title: "Error",
         description: error.message,
@@ -152,6 +201,35 @@ export function ScheduleInterviewForm({ careGroupId }: ScheduleInterviewFormProp
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <FormField
             control={form.control}
+            name="scheduling_mode"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>When should this interview happen?</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="schedule">Schedule for later</SelectItem>
+                    <SelectItem value="call_now">Call now</SelectItem>
+                  </SelectContent>
+                </Select>
+                {schedulingMode === "call_now" && (
+                  <div className="rounded-md bg-amber-50 dark:bg-amber-950 p-3 mt-2">
+                    <p className="text-sm text-amber-900 dark:text-amber-100">
+                      ⚡ The phone call will start immediately when you submit this form.
+                    </p>
+                  </div>
+                )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
             name="phone_number"
             render={({ field }) => (
               <FormItem>
@@ -174,32 +252,34 @@ export function ScheduleInterviewForm({ careGroupId }: ScheduleInterviewFormProp
             )}
           />
 
-          <FormField
-            control={form.control}
-            name="scheduled_at"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Schedule Date & Time</FormLabel>
-                <FormControl>
-                  <div className="relative">
-                    <Calendar className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                      type="datetime-local" 
-                      className="pl-10"
-                      {...field} 
-                    />
-                  </div>
-                </FormControl>
-                <FormDescription className="flex items-center gap-2">
-                  <Clock className="h-3 w-3" />
-                  <span>
-                    Your timezone: {userTimezone || "Detecting..."}
-                  </span>
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {schedulingMode === "schedule" && (
+            <FormField
+              control={form.control}
+              name="scheduled_at"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Schedule Date & Time</FormLabel>
+                  <FormControl>
+                    <div className="relative">
+                      <Calendar className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input 
+                        type="datetime-local" 
+                        className="pl-10"
+                        {...field} 
+                      />
+                    </div>
+                  </FormControl>
+                  <FormDescription className="flex items-center gap-2">
+                    <Clock className="h-3 w-3" />
+                    <span>
+                      Your timezone: {userTimezone || "Detecting..."}
+                    </span>
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
 
           <FormField
             control={form.control}
@@ -348,7 +428,10 @@ export function ScheduleInterviewForm({ careGroupId }: ScheduleInterviewFormProp
           />
 
           <Button type="submit" disabled={isSubmitting} className="w-full">
-            {isSubmitting ? "Scheduling..." : "Schedule Interview"}
+            {isSubmitting 
+              ? (schedulingMode === "call_now" ? "Starting Call..." : "Scheduling...")
+              : (schedulingMode === "call_now" ? "Start Call Now" : "Schedule Interview")
+            }
           </Button>
         </form>
       </Form>

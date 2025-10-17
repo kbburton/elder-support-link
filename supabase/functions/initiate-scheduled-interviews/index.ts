@@ -20,41 +20,86 @@ serve(async (req) => {
   }
 
   try {
-    console.log('=== CHECKING FOR SCHEDULED INTERVIEWS ===');
-    
-    // Look for interviews scheduled in the next 3 minutes
-    const now = new Date();
-    const windowStart = new Date(now.getTime() - 1 * 60 * 1000); // 1 minute ago (in case cron is slightly delayed)
-    const windowEnd = new Date(now.getTime() + 3 * 60 * 1000); // 3 minutes from now
-    
-    console.log('Time window (UTC):', windowStart.toISOString(), 'to', windowEnd.toISOString());
-
-    const { data: interviews, error } = await supabase
-      .from('memory_interviews')
-      .select(`
-        *,
-        care_groups (
-          id,
-          recipient_first_name
-        )
-      `)
-      .eq('status', 'scheduled')
-      .gte('scheduled_at', windowStart.toISOString())
-      .lte('scheduled_at', windowEnd.toISOString())
-      .is('call_sid', null); // Only get interviews that haven't been called yet
-
-    if (error) {
-      console.error('Database query error:', error);
-      throw error;
+    // Validate environment variables
+    if (!twilioAccountSid || !twilioAuthToken || !twilioPhoneNumber) {
+      console.error('Missing required Twilio environment variables');
+      return new Response(
+        JSON.stringify({ error: 'Twilio credentials not configured' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    console.log(`Found ${interviews?.length || 0} interviews to initiate`);
+    const body = await req.json().catch(() => ({}));
+    let interviews = [];
+
+    // Check if this is a manual trigger for a specific interview
+    if (body.interview_id) {
+      console.log(`=== MANUAL TRIGGER FOR INTERVIEW ${body.interview_id} ===`);
+      
+      const { data, error } = await supabase
+        .from('memory_interviews')
+        .select(`
+          *,
+          care_groups (
+            id,
+            recipient_first_name
+          )
+        `)
+        .eq('id', body.interview_id)
+        .eq('status', 'scheduled')
+        .is('twilio_call_sid', null)
+        .single();
+
+      if (error || !data) {
+        console.error('Interview not found or already processed:', error);
+        return new Response(
+          JSON.stringify({ error: 'Interview not found or already processed' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      interviews = [data];
+    } else {
+      // Cron job mode - look for interviews scheduled in the next 3 minutes
+      console.log('=== CHECKING FOR SCHEDULED INTERVIEWS (CRON MODE) ===');
+      
+      const now = new Date();
+      const windowStart = new Date(now.getTime() - 1 * 60 * 1000); // 1 minute ago (in case cron is slightly delayed)
+      const windowEnd = new Date(now.getTime() + 3 * 60 * 1000); // 3 minutes from now
+      
+      console.log('Time window (UTC):', windowStart.toISOString(), 'to', windowEnd.toISOString());
+
+      const { data, error } = await supabase
+        .from('memory_interviews')
+        .select(`
+          *,
+          care_groups (
+            id,
+            recipient_first_name
+          )
+        `)
+        .eq('status', 'scheduled')
+        .gte('scheduled_at', windowStart.toISOString())
+        .lte('scheduled_at', windowEnd.toISOString())
+        .is('twilio_call_sid', null); // Only get interviews that haven't been called yet
+
+      if (error) {
+        console.error('Database query error:', error);
+        throw error;
+      }
+
+      interviews = data || [];
+    }
+
+    console.log(`Found ${interviews.length} interview(s) to initiate`);
 
     const results = [];
 
-    for (const interview of interviews || []) {
+    for (const interview of interviews) {
       try {
-        console.log(`Initiating call for interview ${interview.id} to ${interview.recipient_phone}`);
+        // Mask phone number for logging (show last 4 digits only)
+        const maskedPhone = interview.recipient_phone.replace(/(\+\d{1})(\d+)(\d{4})/, '$1***$3');
+        console.log(`Initiating call for interview ${interview.id} to ${maskedPhone}`);
         
         // Construct the TwiML URL that Twilio will fetch when the call is answered
         const voiceUrl = `${supabaseUrl}/functions/v1/memory-interview-voice?interview_id=${interview.id}`;
@@ -101,17 +146,23 @@ serve(async (req) => {
         }
 
         const callData = await callResponse.json();
-        console.log(`Call initiated successfully for interview ${interview.id}, CallSid: ${callData.sid}`);
+        console.log(`✅ Call initiated successfully for interview ${interview.id}`);
+        console.log(`   CallSid: ${callData.sid}`);
+        console.log(`   Status: ${callData.status}`);
         
         // Update interview with call SID and status
-        await supabase
+        const { error: updateError } = await supabase
           .from('memory_interviews')
           .update({ 
             status: 'in_progress',
-            call_sid: callData.sid,
-            actual_start_time: new Date().toISOString()
+            twilio_call_sid: callData.sid,
+            updated_at: new Date().toISOString()
           })
           .eq('id', interview.id);
+
+        if (updateError) {
+          console.error(`Failed to update interview ${interview.id}:`, updateError);
+        }
 
         results.push({
           interview_id: interview.id,
