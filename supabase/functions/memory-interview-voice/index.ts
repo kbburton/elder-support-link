@@ -113,22 +113,23 @@ serve(async (req) => {
         recipientName: interview.care_groups.recipient_first_name
       });
 
-      // Get 5 random questions for this interview
-      console.log('Fetching random questions...');
-      const { data: q, error: questionsError } = await supabase
-        .rpc('get_random_interview_questions', { 
-          question_count: 5,
-          p_interview_id: interviewId 
-        });
+      // Get 5 random questions for this interview (fallback to direct table query)
+      console.log('Fetching questions directly from interview_questions (is_active=true)...');
+      const { data: allQs, error: questionsError } = await supabase
+        .from('interview_questions')
+        .select('id, question_text, category, display_order')
+        .eq('is_active', true);
 
-      if (questionsError || !q || q.length === 0) {
+      if (questionsError || !allQs || allQs.length === 0) {
         console.error('ERROR: Failed to get questions');
         console.error('Error details:', questionsError);
         try { twilioWs.close(); } catch {}
         return false;
       }
 
-      questions = q;
+      // Shuffle and take 5
+      const shuffled = [...allQs].sort(() => Math.random() - 0.5);
+      questions = shuffled.slice(0, 5);
       console.log(`✓ Loaded ${questions.length} questions for interview`);
 
       // Build system instructions
