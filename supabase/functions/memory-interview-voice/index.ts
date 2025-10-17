@@ -23,7 +23,7 @@ serve(async (req) => {
       console.error('ERROR: Missing interview_id on initial TwiML request');
       return new Response(
         `<?xml version="1.0" encoding="UTF-8"?>\n<Response><Say voice="alice">An error occurred initializing your interview. Please try again later.</Say><Hangup/></Response>`,
-        { status: 400, headers: { 'Content-Type': 'application/xml' } }
+        { status: 400, headers: { 'Content-Type': 'text/xml' } }
       );
     }
 
@@ -98,6 +98,8 @@ serve(async (req) => {
   let openaiWs: WebSocket | null = null;
   let transcriptBuffer: string[] = [];
   let currentQuestionIndex = 0;
+  let streamSid: string | null = null;
+  const pendingAudioDeltas: string[] = [];
 
   // Build system instructions
   const recipientInfo = interview.care_groups;
@@ -151,8 +153,8 @@ Current question to ask: ${questions[0].question_text}`;
             modalities: ['text', 'audio'],
             instructions: systemInstructions,
             voice: 'alloy',
-            input_audio_format: 'pcm16',
-            output_audio_format: 'pcm16',
+            input_audio_format: 'mulaw_8khz',
+            output_audio_format: 'mulaw_8khz',
             input_audio_transcription: {
               model: 'whisper-1'
             },
@@ -172,14 +174,15 @@ Current question to ask: ${questions[0].question_text}`;
         const data = JSON.parse(event.data);
         
         if (data.type === 'response.audio.delta' && data.delta) {
-          // Forward audio to Twilio
-          twilioWs.send(JSON.stringify({
-            event: 'media',
-            streamSid: callSid,
-            media: {
-              payload: data.delta
-            }
-          }));
+          if (streamSid) {
+            twilioWs.send(JSON.stringify({
+              event: 'media',
+              streamSid: streamSid,
+              media: { payload: data.delta }
+            }));
+          } else {
+            pendingAudioDeltas.push(data.delta);
+          }
         } else if (data.type === 'conversation.item.input_audio_transcription.completed') {
           // Store user's response
           const userTranscript = data.transcript;
@@ -257,9 +260,18 @@ Current question to ask: ${questions[0].question_text}`;
 
   twilioWs.onmessage = (event) => {
     const msg = JSON.parse(event.data);
-    
-    if (msg.event === 'media' && openaiWs && openaiWs.readyState === WebSocket.OPEN) {
-      // Forward audio from Twilio to OpenAI
+
+    if (msg.event === 'start') {
+      streamSid = msg.start?.streamSid || msg.streamSid || null;
+      console.log('Twilio stream started. streamSid:', streamSid);
+      // Flush any pending audio deltas
+      if (streamSid && pendingAudioDeltas.length) {
+        for (const delta of pendingAudioDeltas.splice(0)) {
+          twilioWs.send(JSON.stringify({ event: 'media', streamSid, media: { payload: delta } }));
+        }
+      }
+    } else if (msg.event === 'media' && openaiWs && openaiWs.readyState === WebSocket.OPEN) {
+      // Forward audio from Twilio (mulaw_8khz) to OpenAI
       openaiWs.send(JSON.stringify({
         type: 'input_audio_buffer.append',
         audio: msg.media.payload
