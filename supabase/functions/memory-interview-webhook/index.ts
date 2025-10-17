@@ -41,9 +41,11 @@ serve(async (req) => {
     const windowStart = new Date(now.getTime() - 30 * 60 * 1000);
     const windowEnd = new Date(now.getTime() + 30 * 60 * 1000);
     
-    console.log('Searching for interview with:');
-    console.log('  Phone:', normalizedPhone);
-    console.log('  Time window:', windowStart.toISOString(), 'to', windowEnd.toISOString());
+    console.log('=== TIME WINDOW CHECK (UTC) ===');
+    console.log('  Current time (UTC):', now.toISOString());
+    console.log('  Window start (UTC):', windowStart.toISOString());
+    console.log('  Window end (UTC):', windowEnd.toISOString());
+    console.log('  Searching for phone:', normalizedPhone);
 
     const { data: interview, error: interviewError } = await supabase
       .from('memory_interviews')
@@ -63,14 +65,19 @@ serve(async (req) => {
     console.log('Database query result:', { 
       found: !!interview, 
       error: interviewError?.message,
-      interviewId: interview?.id 
+      interviewId: interview?.id,
+      scheduledAt: interview?.scheduled_at
     });
 
     // If there's a scheduled interview, route to memory interview flow
     if (interview) {
+      const scheduledTime = new Date(interview.scheduled_at);
+      const timeDifferenceMinutes = Math.round((scheduledTime.getTime() - now.getTime()) / 60000);
+      
       console.log('✓ INTERVIEW FOUND - Routing to memory interview');
       console.log('  Interview ID:', interview.id);
-      console.log('  Scheduled at:', interview.scheduled_at);
+      console.log('  Scheduled at (UTC):', interview.scheduled_at);
+      console.log('  Time difference:', timeDifferenceMinutes, 'minutes', timeDifferenceMinutes > 0 ? '(in future)' : '(in past)');
       console.log('  Care group:', interview.care_groups.id);
       
       // Update interview status
@@ -106,7 +113,8 @@ serve(async (req) => {
     // No scheduled interview - route to regular voice chat
     console.log('✗ NO INTERVIEW FOUND - Routing to regular voice chat');
     console.log('  Checked phone:', normalizedPhone);
-    console.log('  Time window checked:', windowStart.toISOString(), 'to', windowEnd.toISOString());
+    console.log('  Window checked (UTC):', windowStart.toISOString(), 'to', windowEnd.toISOString());
+    console.log('  Current time (UTC):', now.toISOString());
     const enhancedPinVerifyUrl = `https://${supabaseUrl.replace('https://', '')}/functions/v1/enhanced-twilio-pin-verify`;
     
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>

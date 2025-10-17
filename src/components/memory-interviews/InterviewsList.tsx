@@ -3,8 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatDistanceToNow } from "date-fns";
-import { Calendar, Phone, Clock, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { formatDistanceToNow, format } from "date-fns";
+import { Calendar, Phone, Clock, CheckCircle, XCircle, AlertCircle, Globe } from "lucide-react";
 
 interface InterviewsListProps {
   careGroupId: string;
@@ -89,16 +89,24 @@ export function InterviewsList({ careGroupId }: InterviewsListProps) {
                 <span>{interview.phone_number}</span>
               </div>
 
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Calendar className="h-4 w-4" />
-                <span>
-                  {new Date(interview.scheduled_at).toLocaleString()} 
-                  {interview.status === "scheduled" && (
-                    <span className="ml-2">
-                      ({formatDistanceToNow(new Date(interview.scheduled_at), { addSuffix: true })})
-                    </span>
-                  )}
-                </span>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Calendar className="h-4 w-4" />
+                  <span>
+                    {format(new Date(interview.scheduled_at), "PPpp")}
+                    {interview.status === "scheduled" && (
+                      <span className="ml-2 text-xs">
+                        ({formatDistanceToNow(new Date(interview.scheduled_at), { addSuffix: true })})
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Globe className="h-3 w-3" />
+                  <span>
+                    Your timezone: {Intl.DateTimeFormat().resolvedOptions().timeZone}
+                  </span>
+                </div>
               </div>
 
               {interview.selected_question_id && (
