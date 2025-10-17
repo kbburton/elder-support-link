@@ -29,9 +29,9 @@
 - ✅ Multi-group sharing via `document_v2_group_shares`
 - ✅ Document modal UI with edit/delete capabilities
 - ✅ RLS policies for group member access (fixed infinite recursion 2025-01-16)
+- ✅ Document notes with optimistic locking and auto-save (2025-01-17)
 
 ### Not Yet Implemented (Tests Deferred)
-- 🎯 **Document Notes Enhancement** (Next Priority - Week 2)
 - ❌ Version control
 - ❌ Full-text search
 - ❌ Bulk operations
@@ -713,6 +713,377 @@ describe("Documents V2 Access Control", () => {
     
     expect(canAccessMember).toBe(true);
     expect(canAccessAdmin).toBe(true);
+  });
+});
+```
+
+---
+
+#### 11. **Document Notes**
+
+**Unit Tests:**
+```typescript
+describe("DocumentNotesSection Component", () => {
+  test("displays group notes when viewing group document", async () => {
+    const groupDoc = await createDocument({ 
+      uploaderId: user1.id, 
+      groupId,
+      isSharedWithGroup: true 
+    });
+    
+    await createNote({ 
+      documentId: groupDoc.id, 
+      careGroupId: groupId,
+      title: "Group Note", 
+      content: "Visible to all members" 
+    });
+    
+    const { getByText } = render(
+      <DocumentNotesSection 
+        documentId={groupDoc.id} 
+        careGroupId={groupId} 
+        isPersonal={false} 
+      />
+    );
+    
+    expect(getByText("Group Note")).toBeInTheDocument();
+  });
+
+  test("displays personal notes when viewing personal document", async () => {
+    const personalDoc = await createDocument({ 
+      uploaderId: user1.id, 
+      groupId: null 
+    });
+    
+    await createNote({ 
+      documentId: personalDoc.id, 
+      ownerUserId: user1.id,
+      title: "Personal Note", 
+      content: "Only visible to me" 
+    });
+    
+    const { getByText } = render(
+      <DocumentNotesSection 
+        documentId={personalDoc.id} 
+        careGroupId={null} 
+        isPersonal={true} 
+      />
+    );
+    
+    expect(getByText("Personal Note")).toBeInTheDocument();
+  });
+
+  test("sorts notes by recent changes by default", async () => {
+    const doc = await createDocument({ uploaderId: user1.id, groupId });
+    
+    await createNote({ documentId: doc.id, careGroupId: groupId, title: "Old Note", createdAt: "2025-01-01" });
+    await createNote({ documentId: doc.id, careGroupId: groupId, title: "New Note", createdAt: "2025-01-17" });
+    
+    const { getAllByTestId } = render(
+      <DocumentNotesSection documentId={doc.id} careGroupId={groupId} isPersonal={false} />
+    );
+    
+    const noteCards = getAllByTestId("note-card");
+    expect(noteCards[0]).toHaveTextContent("New Note");
+    expect(noteCards[1]).toHaveTextContent("Old Note");
+  });
+
+  test("paginates notes when more than 10 exist", async () => {
+    const doc = await createDocument({ uploaderId: user1.id, groupId });
+    
+    // Create 15 notes
+    for (let i = 1; i <= 15; i++) {
+      await createNote({ 
+        documentId: doc.id, 
+        careGroupId: groupId, 
+        title: `Note ${i}` 
+      });
+    }
+    
+    const { getAllByTestId, getByText } = render(
+      <DocumentNotesSection documentId={doc.id} careGroupId={groupId} isPersonal={false} />
+    );
+    
+    const noteCards = getAllByTestId("note-card");
+    expect(noteCards).toHaveLength(10);
+    expect(getByText("Next")).toBeInTheDocument();
+  });
+});
+```
+
+**Integration Tests:**
+```typescript
+describe("Document Notes Flow", () => {
+  test("creates new note with title and content", async () => {
+    const doc = await createDocument({ uploaderId: user1.id, groupId });
+    
+    const note = await createNote({
+      documentId: doc.id,
+      careGroupId: groupId,
+      title: "Test Note",
+      content: "This is test content"
+    });
+    
+    expect(note.id).toBeDefined();
+    expect(note.title).toBe("Test Note");
+    expect(note.content).toBe("This is test content");
+    expect(note.created_by_user_id).toBe(user1.id);
+  });
+
+  test("auto-saves note after typing stops (debounce)", async () => {
+    const doc = await createDocument({ uploaderId: user1.id, groupId });
+    const note = await createNote({ documentId: doc.id, careGroupId: groupId, title: "Draft" });
+    
+    // Simulate typing
+    await updateNoteContent(note.id, "New content...");
+    
+    // Wait for debounce (2 seconds)
+    await waitFor(() => {
+      const savedNote = fetchNote(note.id);
+      expect(savedNote.content).toBe("New content...");
+    }, { timeout: 3000 });
+  });
+
+  test("acquires lock when editing note", async () => {
+    const doc = await createDocument({ uploaderId: user1.id, groupId });
+    const note = await createNote({ documentId: doc.id, careGroupId: groupId, title: "Locked Note" });
+    
+    // User 1 starts editing
+    await acquireNoteLock(note.id, user1.id);
+    
+    const lockedNote = await fetchNote(note.id);
+    expect(lockedNote.is_locked).toBe(true);
+    expect(lockedNote.locked_by_user_id).toBe(user1.id);
+  });
+
+  test("prevents concurrent editing with optimistic locking", async () => {
+    const doc = await createDocument({ uploaderId: user1.id, groupId });
+    const note = await createNote({ documentId: doc.id, careGroupId: groupId, title: "Concurrent Test" });
+    
+    // User 1 acquires lock
+    await acquireNoteLock(note.id, user1.id);
+    
+    // User 2 attempts to acquire lock (should fail)
+    await expect(
+      acquireNoteLock(note.id, user2.id)
+    ).rejects.toThrow("Note is currently being edited");
+  });
+
+  test("releases lock after 5 minutes of inactivity", async () => {
+    const doc = await createDocument({ uploaderId: user1.id, groupId });
+    const note = await createNote({ documentId: doc.id, careGroupId: groupId, title: "Stale Lock" });
+    
+    // Acquire lock and set locked_at to 6 minutes ago
+    await supabase
+      .from("document_notes")
+      .update({ 
+        is_locked: true, 
+        locked_by_user_id: user1.id,
+        locked_at: new Date(Date.now() - 6 * 60 * 1000) 
+      })
+      .eq("id", note.id);
+    
+    // Run cleanup function
+    await supabase.rpc("release_stale_note_locks");
+    
+    const unlockedNote = await fetchNote(note.id);
+    expect(unlockedNote.is_locked).toBe(false);
+    expect(unlockedNote.locked_by_user_id).toBeNull();
+  });
+
+  test("stores failed auto-save in local storage", async () => {
+    const doc = await createDocument({ uploaderId: user1.id, groupId });
+    const note = await createNote({ documentId: doc.id, careGroupId: groupId, title: "Offline Note" });
+    
+    // Mock network failure
+    mockSupabaseError();
+    
+    // Attempt auto-save
+    await updateNoteContent(note.id, "Content during offline");
+    
+    // Check local storage
+    const backup = localStorage.getItem(`note-backup-${note.id}`);
+    expect(backup).toBeDefined();
+    expect(JSON.parse(backup).content).toBe("Content during offline");
+  });
+
+  test("retries failed auto-save on page reload", async () => {
+    const doc = await createDocument({ uploaderId: user1.id, groupId });
+    const note = await createNote({ documentId: doc.id, careGroupId: groupId, title: "Retry Note" });
+    
+    // Set backup in local storage
+    localStorage.setItem(`note-backup-${note.id}`, JSON.stringify({
+      title: "Retry Note",
+      content: "Content from backup"
+    }));
+    
+    // Simulate page reload (component mount)
+    render(<DocumentNotesSection documentId={doc.id} careGroupId={groupId} isPersonal={false} />);
+    
+    // Wait for retry
+    await waitFor(() => {
+      const savedNote = fetchNote(note.id);
+      expect(savedNote.content).toBe("Content from backup");
+    });
+    
+    // Local storage should be cleared
+    expect(localStorage.getItem(`note-backup-${note.id}`)).toBeNull();
+  });
+
+  test("shows delete confirmation before deleting note", async () => {
+    const doc = await createDocument({ uploaderId: user1.id, groupId });
+    const note = await createNote({ documentId: doc.id, careGroupId: groupId, title: "Delete Me" });
+    
+    const { getByText, queryByText } = render(
+      <DocumentNotesSection documentId={doc.id} careGroupId={groupId} isPersonal={false} />
+    );
+    
+    // Click delete button
+    fireEvent.click(getByText("Delete"));
+    
+    // Confirmation dialog appears
+    expect(getByText("Are you sure you want to delete this note?")).toBeInTheDocument();
+    
+    // Confirm deletion
+    fireEvent.click(getByText("Confirm"));
+    
+    await waitFor(() => {
+      expect(queryByText("Delete Me")).not.toBeInTheDocument();
+    });
+  });
+
+  test("updates last_edited_by_user_id when different user edits", async () => {
+    const doc = await createDocument({ uploaderId: user1.id, groupId });
+    const note = await createNote({ 
+      documentId: doc.id, 
+      careGroupId: groupId, 
+      title: "Collaborative Note",
+      createdByUserId: user1.id
+    });
+    
+    // User 2 edits the note
+    await updateNote(note.id, { content: "Edited by user 2" }, user2.id);
+    
+    const updatedNote = await fetchNote(note.id);
+    expect(updatedNote.created_by_user_id).toBe(user1.id); // Original creator unchanged
+    expect(updatedNote.last_edited_by_user_id).toBe(user2.id); // Last editor updated
+  });
+});
+```
+
+**API Tests:**
+```typescript
+describe("Document Notes RLS Policies", () => {
+  test("group members can view group notes", async () => {
+    const doc = await createDocument({ uploaderId: user1.id, groupId });
+    const note = await createNote({ documentId: doc.id, careGroupId: groupId, title: "Group Note" });
+    
+    // User 2 (group member) can view
+    const { data, error } = await supabase
+      .from("document_notes")
+      .select()
+      .eq("id", note.id)
+      .as(user2);
+    
+    expect(error).toBeNull();
+    expect(data).toHaveLength(1);
+  });
+
+  test("non-members cannot view group notes", async () => {
+    const doc = await createDocument({ uploaderId: user1.id, groupId });
+    const note = await createNote({ documentId: doc.id, careGroupId: groupId, title: "Private Group Note" });
+    
+    // User 3 (not in group) cannot view
+    const { data } = await supabase
+      .from("document_notes")
+      .select()
+      .eq("id", note.id)
+      .as(user3);
+    
+    expect(data).toHaveLength(0);
+  });
+
+  test("only owner can view personal notes", async () => {
+    const doc = await createDocument({ uploaderId: user1.id });
+    const note = await createNote({ 
+      documentId: doc.id, 
+      ownerUserId: user1.id, 
+      title: "Personal Note" 
+    });
+    
+    // User 1 (owner) can view
+    const { data: ownerData } = await supabase
+      .from("document_notes")
+      .select()
+      .eq("id", note.id)
+      .as(user1);
+    
+    expect(ownerData).toHaveLength(1);
+    
+    // User 2 (not owner) cannot view
+    const { data: otherData } = await supabase
+      .from("document_notes")
+      .select()
+      .eq("id", note.id)
+      .as(user2);
+    
+    expect(otherData).toHaveLength(0);
+  });
+
+  test("group members can create group notes", async () => {
+    const doc = await createDocument({ uploaderId: user1.id, groupId });
+    
+    const { data, error } = await supabase
+      .from("document_notes")
+      .insert({
+        document_id: doc.id,
+        care_group_id: groupId,
+        title: "New Group Note",
+        content: "Created by member",
+        created_by_user_id: user2.id
+      })
+      .as(user2);
+    
+    expect(error).toBeNull();
+    expect(data).toBeDefined();
+  });
+
+  test("group members can update group notes", async () => {
+    const doc = await createDocument({ uploaderId: user1.id, groupId });
+    const note = await createNote({ 
+      documentId: doc.id, 
+      careGroupId: groupId, 
+      title: "Editable Note",
+      createdByUserId: user1.id
+    });
+    
+    // User 2 (different member) updates
+    const { error } = await supabase
+      .from("document_notes")
+      .update({ content: "Updated by user 2" })
+      .eq("id", note.id)
+      .as(user2);
+    
+    expect(error).toBeNull();
+  });
+
+  test("group members can delete group notes", async () => {
+    const doc = await createDocument({ uploaderId: user1.id, groupId });
+    const note = await createNote({ 
+      documentId: doc.id, 
+      careGroupId: groupId, 
+      title: "Deletable Note",
+      createdByUserId: user1.id
+    });
+    
+    // User 2 (different member) deletes
+    const { error } = await supabase
+      .from("document_notes")
+      .delete()
+      .eq("id", note.id)
+      .as(user2);
+    
+    expect(error).toBeNull();
   });
 });
 ```

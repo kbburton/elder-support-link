@@ -203,13 +203,21 @@ Level 3: Tags/Metadata (Unlimited)
   - ✅ Error state handling
   - **Status:** Complete
 
-- [ ] **1.14 Document Notes Enhancement** 🎯 NEXT PRIORITY (Target: Week 2)
-  - Rich text editor for document notes
-  - Markdown support for formatting
-  - Auto-save notes on blur
-  - Notes visible in document modal
-  - Notes searchable in future full-text search
-  - **Status:** Not Started - Next Feature
+- [x] **1.14 Document Notes Enhancement** ✅ (Completed)
+  - ✅ Separate notes per document (not shared note field)
+  - ✅ Title and content fields (unlimited characters)
+  - ✅ Optimistic locking (5-minute timeout)
+  - ✅ Auto-save with 1-2 second debounce
+  - ✅ Local storage backup on auto-save failure
+  - ✅ Retry failed saves on page reload
+  - ✅ Context-aware: group notes vs personal notes
+  - ✅ Sorting: recent changes (default), title, creator/editor
+  - ✅ Expandable cards with edit/delete actions
+  - ✅ Pagination (10 notes per page)
+  - ✅ Delete confirmation dialog
+  - ✅ Lock status indicator when note is being edited
+  - ✅ Integrated into Document Modal "Notes" tab
+  - **Status:** Complete
 
 - [ ] **1.4 Version Control** (Target: Week 2)
   - Manual versioning (user chooses "Version" or "Replace")
@@ -563,6 +571,66 @@ CREATE TABLE activity_documents_v2 (
 
 -- Validation trigger: validate_same_group_association_v2()
 -- Ensures documents and linked entities belong to same care group
+```
+
+#### `document_notes` ✅ IMPLEMENTED (2025-01-17)
+```sql
+CREATE TABLE document_notes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  document_id UUID REFERENCES documents_v2(id) ON DELETE CASCADE NOT NULL,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  
+  -- Context: Either belongs to a care group OR is personal to owner
+  care_group_id UUID REFERENCES care_groups(id),
+  owner_user_id UUID, -- For personal notes only
+  
+  -- Audit trail
+  created_by_user_id UUID NOT NULL,
+  last_edited_by_user_id UUID,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  
+  -- Optimistic locking
+  is_locked BOOLEAN DEFAULT false,
+  locked_by_user_id UUID,
+  locked_at TIMESTAMPTZ,
+  
+  -- Constraint: Must be either group note OR personal note, not both
+  CONSTRAINT note_context_check CHECK (
+    (care_group_id IS NOT NULL AND owner_user_id IS NULL) OR
+    (care_group_id IS NULL AND owner_user_id IS NOT NULL)
+  )
+);
+
+-- Indexes
+CREATE INDEX idx_document_notes_document ON document_notes(document_id);
+CREATE INDEX idx_document_notes_group ON document_notes(care_group_id);
+CREATE INDEX idx_document_notes_owner ON document_notes(owner_user_id);
+CREATE INDEX idx_document_notes_updated ON document_notes(updated_at DESC);
+
+-- Trigger: Auto-update updated_at timestamp
+CREATE TRIGGER update_document_notes_updated_at_trigger
+  BEFORE UPDATE ON document_notes
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- Function: Release stale note locks (5-minute timeout)
+CREATE OR REPLACE FUNCTION release_stale_note_locks()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  UPDATE document_notes
+  SET is_locked = false,
+      locked_by_user_id = NULL,
+      locked_at = NULL
+  WHERE is_locked = true
+    AND locked_at < NOW() - INTERVAL '5 minutes';
+END;
+$$;
 ```
 
 #### ❌ NOT YET IMPLEMENTED
