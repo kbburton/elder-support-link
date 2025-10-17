@@ -54,76 +54,71 @@ serve(async (req) => {
     return new Response("Missing interview_id", { status: 400 });
   }
 
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  let interview: any = null;
+  let questions: any[] = [];
+  let systemInstructions = '';
+  let recipientInfo: any = null;
+  let recipientName = '';
 
-  // Get interview details
-  const { data: interview, error: interviewError } = await supabase
-    .from('memory_interviews')
-    .select(`
-      *,
-      care_groups (
-        id,
-        recipient_first_name,
-        recipient_last_name,
-        date_of_birth,
-        profile_description
-      )
-    `)
-    .eq('id', interviewId)
-    .single();
+  const initializeSession = async () => {
+    try {
+      const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-  if (interviewError || !interview) {
-    console.error('ERROR: Interview not found');
-    console.error('Error details:', interviewError);
-    return new Response("Interview not found", { status: 404 });
-  }
+      // Get interview details
+      const { data: interviewData, error: interviewError } = await supabase
+        .from('memory_interviews')
+        .select(`
+          *,
+          care_groups (
+            id,
+            recipient_first_name,
+            recipient_last_name,
+            date_of_birth,
+            profile_description
+          )
+        `)
+        .eq('id', interviewId)
+        .single();
 
-  console.log('✓ Interview loaded:', {
-    id: interview.id,
-    careGroupId: interview.care_group_id,
-    status: interview.status,
-    recipientName: interview.care_groups.recipient_first_name
-  });
+      if (interviewError || !interviewData) {
+        console.error('ERROR: Interview not found');
+        console.error('Error details:', interviewError);
+        try { twilioWs.close(); } catch {}
+        return false;
+      }
 
-  // Get 5 random questions for this interview
-  console.log('Fetching random questions...');
-  const { data: questions, error: questionsError } = await supabase
-    .rpc('get_random_interview_questions', { 
-      question_count: 5,
-      p_interview_id: interviewId 
-    });
+      interview = interviewData;
+      console.log('✓ Interview loaded:', {
+        id: interview.id,
+        careGroupId: interview.care_group_id,
+        status: interview.status,
+        recipientName: interview.care_groups.recipient_first_name
+      });
 
-  if (questionsError || !questions || questions.length === 0) {
-    console.error('ERROR: Failed to get questions');
-    console.error('Error details:', questionsError);
-    return new Response("Failed to get questions", { status: 500 });
-  }
+      // Get 5 random questions for this interview
+      console.log('Fetching random questions...');
+      const { data: q, error: questionsError } = await supabase
+        .rpc('get_random_interview_questions', { 
+          question_count: 5,
+          p_interview_id: interviewId 
+        });
 
-  console.log(`✓ Loaded ${questions.length} questions for interview`);
+      if (questionsError || !q || q.length === 0) {
+        console.error('ERROR: Failed to get questions');
+        console.error('Error details:', questionsError);
+        try { twilioWs.close(); } catch {}
+        return false;
+      }
 
-  // Negotiate Twilio subprotocol if provided (required for Twilio Media Streams)
-  const requestedProtocols = req.headers.get('sec-websocket-protocol')?.split(',').map(p => p.trim()) || [];
-  const preferredProtocol = requestedProtocols.find(p => p.toLowerCase().includes('audio')) || requestedProtocols[0];
-  if (requestedProtocols.length) console.log('Requested WebSocket subprotocols from Twilio:', requestedProtocols);
-  if (preferredProtocol) console.log('Negotiating WebSocket subprotocol:', preferredProtocol);
- 
-  const upgradeOpts = preferredProtocol ? { protocol: preferredProtocol } as any : undefined as any;
-  const { socket: twilioWs, response } = Deno.upgradeWebSocket(req, upgradeOpts);
-  let openaiWs: WebSocket | null = null;
-  let transcriptBuffer: string[] = [];
-  let currentQuestionIndex = 0;
-  let streamSid: string | null = null;
-  const pendingAudioDeltas: string[] = [];
-  let mediaCount = 0;
+      questions = q;
+      console.log(`✓ Loaded ${questions.length} questions for interview`);
 
-  // Build system instructions
-  const recipientInfo = interview.care_groups;
-  const recipientName = recipientInfo.recipient_first_name;
-  const questionsList = questions.map((q: any, idx: number) => 
-    `${idx + 1}. ${q.question_text}`
-  ).join('\n');
+      // Build system instructions
+      recipientInfo = interview.care_groups;
+      recipientName = recipientInfo.recipient_first_name;
+      const questionsList = questions.map((q: any, idx: number) => `${idx + 1}. ${q.question_text}`).join('\n');
 
-  const systemInstructions = `You are conducting a memory interview with ${recipientName}, born ${recipientInfo.date_of_birth}.
+      systemInstructions = `You are conducting a memory interview with ${recipientName}, born ${recipientInfo.date_of_birth}.
 
 Background: ${recipientInfo.profile_description || 'No additional background provided.'}
 
@@ -143,8 +138,43 @@ Instructions:
 
 Current question to ask: ${questions[0].question_text}`;
 
+      return true;
+    } catch (e) {
+      console.error('initializeSession error:', e);
+      try { twilioWs.close(); } catch {}
+      return false;
+    }
+  };
+
+  // Negotiate Twilio subprotocol if provided (required for Twilio Media Streams)
+  const requestedProtocols = req.headers.get('sec-websocket-protocol')?.split(',').map(p => p.trim()) || [];
+  const preferredProtocol = requestedProtocols.find(p => p.toLowerCase().includes('audio')) || requestedProtocols[0];
+  if (requestedProtocols.length) console.log('Requested WebSocket subprotocols from Twilio:', requestedProtocols);
+  if (preferredProtocol) console.log('Negotiating WebSocket subprotocol:', preferredProtocol);
+ 
+  const upgradeOpts = preferredProtocol ? { protocol: preferredProtocol } as any : undefined as any;
+  const { socket: twilioWs, response } = Deno.upgradeWebSocket(req, upgradeOpts);
+  let openaiWs: WebSocket | null = null;
+  let transcriptBuffer: string[] = [];
+  let currentQuestionIndex = 0;
+  let streamSid: string | null = null;
+  const pendingAudioDeltas: string[] = [];
+  const pendingMediaPayloads: string[] = [];
+  let mediaCount = 0;
+
+  // Build system instructions
+  // systemInstructions will be set during initializeSession()
+
   twilioWs.onopen = async () => {
     console.log('✓ Twilio WebSocket connected - starting OpenAI connection');
+    
+    // Initialize interview context before connecting to OpenAI
+    const ok = await initializeSession();
+    if (!ok) {
+      console.error('Initialization failed, closing Twilio socket.');
+      try { twilioWs.close(); } catch {}
+      return;
+    }
     
     try {
       // Connect to OpenAI Realtime API
@@ -183,6 +213,14 @@ Current question to ask: ${questions[0].question_text}`;
             max_response_output_tokens: 'inf'
           }
         }));
+
+        // Flush any pending input audio from Twilio
+        if (pendingMediaPayloads.length) {
+          console.log('Flushing pending media frames to OpenAI:', pendingMediaPayloads.length);
+          for (const payload of pendingMediaPayloads.splice(0)) {
+            openaiWs!.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: payload }));
+          }
+        }
       };
 
       openaiWs.onmessage = async (event) => {
@@ -296,6 +334,8 @@ Current question to ask: ${questions[0].question_text}`;
           type: 'input_audio_buffer.append',
           audio: msg.media.payload
         }));
+      } else {
+        pendingMediaPayloads.push(msg.media.payload);
       }
     } else if (msg.event === 'stop') {
       console.log('Call ended by Twilio. Total media frames received:', mediaCount);
