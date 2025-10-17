@@ -36,28 +36,20 @@ serve(async (req) => {
       );
     }
 
-    const wsUrl = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-voice?interview_id=${interviewIdFromQuery}${callSid ? `&call_sid=${callSid}` : ''}`;
-    // TwiML is XML; ampersands in query params must be escaped or Twilio will raise 12100 (Document parse failure)
-    const wsUrlXml = wsUrl.replace(/&/g, '&amp;');
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say voice="alice">Please hold while I connect your memory interview.</Say>\n  <Connect>\n    <Stream url="${wsUrlXml}" statusCallback="https://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-stream-status" statusCallbackMethod="POST" statusCallbackEvent="start stop"/>\n  </Connect>\n</Response>`;
+    const wsUrlBase = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-voice`;
+    const twiml = `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say voice=\"alice\">Please hold while I connect your memory interview.</Say>\n  <Connect>\n    <Stream url=\"${wsUrlBase}\" statusCallback=\"https://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-stream-status\" statusCallbackMethod=\"POST\" statusCallbackEvent=\"start stop\">\n      <Parameter name=\"interview_id\" value=\"${interviewIdFromQuery}\"/>\n      ${callSid ? `<Parameter name=\\\"call_sid\\\" value=\\\"${callSid}\\\"/>` : ''}\n    </Stream>\n  </Connect>\n</Response>`;
 
-    console.log('Responding with TwiML to connect stream:', wsUrl);
+    console.log('Responding with TwiML to connect stream:', wsUrlBase, { interviewIdFromQuery, callSid });
     return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
   }
 
-  const interviewId = interviewIdFromQuery;
-  const callSid = url.searchParams.get('call_sid');
+  let interviewId: string | null = interviewIdFromQuery;
+  let callSid = url.searchParams.get('call_sid');
 
   console.log('=== VOICE SESSION STARTING ===');
-  console.log('Interview ID:', interviewId);
-  console.log('Call SID:', callSid);
+  console.log('Interview ID (from URL, may be null when using <Parameter>):', interviewId);
+  console.log('Call SID (from URL, may be null when using <Parameter>):', callSid);
   console.log('Timestamp:', new Date().toISOString());
-
-  if (!interviewId) {
-    console.error('ERROR: Missing interview_id parameter');
-    return new Response("Missing interview_id", { status: 400 });
-  }
-
   let interview: any = null;
   let questions: any[] = [];
   let systemInstructions = '';
