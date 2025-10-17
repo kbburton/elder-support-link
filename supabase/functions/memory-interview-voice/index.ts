@@ -37,7 +37,9 @@ serve(async (req) => {
     }
 
     const wsUrl = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-voice?interview_id=${interviewIdFromQuery}${callSid ? `&call_sid=${callSid}` : ''}`;
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say voice="alice">Please hold while I connect your memory interview.</Say>\n  <Connect>\n    <Stream url="${wsUrl}" statusCallback="https://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-stream-status" statusCallbackMethod="POST" statusCallbackEvent="start stop"/>\n  </Connect>\n</Response>`;
+    // TwiML is XML; ampersands in query params must be escaped or Twilio will raise 12100 (Document parse failure)
+    const wsUrlXml = wsUrl.replace(/&/g, '&amp;');
+    const twiml = `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say voice="alice">Please hold while I connect your memory interview.</Say>\n  <Connect>\n    <Stream url="${wsUrlXml}" statusCallback="https://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-stream-status" statusCallbackMethod="POST" statusCallbackEvent="start stop"/>\n  </Connect>\n</Response>`;
 
     console.log('Responding with TwiML to connect stream:', wsUrl);
     return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
