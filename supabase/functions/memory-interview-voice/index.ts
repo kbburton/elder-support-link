@@ -37,28 +37,50 @@ serve(async (req) => {
     }
 
     const wsUrlBase = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-voice`;
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say voice=\"alice\">Please hold while I connect your memory interview.</Say>\n  <Connect>\n    <Stream url=\"${wsUrlBase}\" statusCallback=\"https://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-stream-status\" statusCallbackMethod=\"POST\" statusCallbackEvent=\"start stop\">\n      <Parameter name=\"interview_id\" value=\"${interviewIdFromQuery}\"/>\n      ${callSid ? `<Parameter name=\\\"call_sid\\\" value=\\\"${callSid}\\\"/>` : ''}\n    </Stream>\n  </Connect>\n</Response>`;
+    const twiml = `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say voice=\"alice\">Please hold while I connect your memory interview.</Say>\n  <Connect>\n    <Stream url=\"${wsUrlBase}\" statusCallback=\"https://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-stream-status\" statusCallbackMethod=\"POST\" statusCallbackEvent=\"start stop\">\n      <Parameter name=\"interview_id\" value=\"${interviewIdFromQuery}\"/>\n      ${callSid ? `<Parameter name=\"call_sid\" value=\"${callSid}\"/>` : ''}\n    </Stream>\n  </Connect>\n</Response>`;
 
     console.log('Responding with TwiML to connect stream:', wsUrlBase, { interviewIdFromQuery, callSid });
     return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
   }
 
-  let interviewId: string | null = interviewIdFromQuery;
-  let callSid = url.searchParams.get('call_sid');
+  let interviewId: string | null = null;
+  let callSid: string | null = null;
 
-  console.log('=== VOICE SESSION STARTING ===');
-  console.log('Interview ID (from URL, may be null when using <Parameter>):', interviewId);
-  console.log('Call SID (from URL, may be null when using <Parameter>):', callSid);
+  console.log('=== WEBSOCKET UPGRADE REQUEST ===');
   console.log('Timestamp:', new Date().toISOString());
+  
   let interview: any = null;
   let questions: any[] = [];
   let systemInstructions = '';
   let recipientInfo: any = null;
   let recipientName = '';
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  // Negotiate Twilio subprotocol if provided (required for Twilio Media Streams)
+  const requestedProtocols = req.headers.get('sec-websocket-protocol')?.split(',').map(p => p.trim()) || [];
+  const preferredProtocol = requestedProtocols.find(p => p.toLowerCase().includes('audio')) || requestedProtocols[0];
+  if (requestedProtocols.length) console.log('Requested WebSocket subprotocols from Twilio:', requestedProtocols);
+  if (preferredProtocol) console.log('Negotiating WebSocket subprotocol:', preferredProtocol);
+ 
+  const upgradeOpts = preferredProtocol ? { protocol: preferredProtocol } as any : undefined as any;
+  const { socket: twilioWs, response } = Deno.upgradeWebSocket(req, upgradeOpts);
+  let openaiWs: WebSocket | null = null;
+  let transcriptBuffer: string[] = [];
+  let currentQuestionIndex = 0;
+  let streamSid: string | null = null;
+  const pendingAudioDeltas: string[] = [];
+  const pendingMediaPayloads: string[] = [];
+  let mediaCount = 0;
+  let sessionInitialized = false;
 
   const initializeSession = async () => {
     try {
-      const supabase = createClient(supabaseUrl, supabaseServiceKey);
+      if (!interviewId) {
+        console.error('Cannot initialize: interviewId is null');
+        return false;
+      }
+
+      console.log('Initializing session for interview:', interviewId);
 
       // Get interview details
       const { data: interviewData, error: interviewError } = await supabase
@@ -142,37 +164,9 @@ Current question to ask: ${questions[0].question_text}`;
     }
   };
 
-  // Negotiate Twilio subprotocol if provided (required for Twilio Media Streams)
-  const requestedProtocols = req.headers.get('sec-websocket-protocol')?.split(',').map(p => p.trim()) || [];
-  const preferredProtocol = requestedProtocols.find(p => p.toLowerCase().includes('audio')) || requestedProtocols[0];
-  if (requestedProtocols.length) console.log('Requested WebSocket subprotocols from Twilio:', requestedProtocols);
-  if (preferredProtocol) console.log('Negotiating WebSocket subprotocol:', preferredProtocol);
- 
-  const upgradeOpts = preferredProtocol ? { protocol: preferredProtocol } as any : undefined as any;
-  const { socket: twilioWs, response } = Deno.upgradeWebSocket(req, upgradeOpts);
-  let openaiWs: WebSocket | null = null;
-  let transcriptBuffer: string[] = [];
-  let currentQuestionIndex = 0;
-  let streamSid: string | null = null;
-  const pendingAudioDeltas: string[] = [];
-  const pendingMediaPayloads: string[] = [];
-  let mediaCount = 0;
-
-  // Build system instructions
-  // systemInstructions will be set during initializeSession()
-
-  twilioWs.onopen = async () => {
-    console.log('✓ Twilio WebSocket connected - starting OpenAI connection');
-    
-    // Initialize interview context before connecting to OpenAI
-    const ok = await initializeSession();
-    if (!ok) {
-      console.error('Initialization failed, closing Twilio socket.');
-      try { twilioWs.close(); } catch {}
-      return;
-    }
-    
+  const startOpenAIConnection = async () => {
     try {
+      console.log('Starting OpenAI connection...');
       // Connect to OpenAI Realtime API
       openaiWs = new WebSocket(
         'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01',
@@ -307,14 +301,51 @@ Current question to ask: ${questions[0].question_text}`;
     }
   };
 
-  twilioWs.onmessage = (event) => {
+  twilioWs.onopen = () => {
+    console.log('✓ Twilio WebSocket connected - waiting for start event with customParameters');
+  };
+
+  twilioWs.onmessage = async (event) => {
     const msg = JSON.parse(event.data);
 
     if (msg.event === 'start') {
       streamSid = msg.start?.streamSid || msg.streamSid || null;
-      console.log('Twilio stream started. streamSid:', streamSid, 'protocol:', selectedProtocol);
+      const customParameters = msg.start?.customParameters || {};
+      
+      console.log('=== TWILIO START EVENT ===');
+      console.log('Full start payload:', JSON.stringify(msg, null, 2));
+      console.log('streamSid:', streamSid);
+      console.log('customParameters:', customParameters);
+      console.log('protocol:', preferredProtocol);
+
+      // Extract interview_id and call_sid from customParameters
+      interviewId = customParameters.interview_id || null;
+      callSid = customParameters.call_sid || null;
+
+      console.log('Extracted from customParameters:', { interviewId, callSid });
+
+      if (!interviewId) {
+        console.error('ERROR: Missing interview_id in customParameters');
+        twilioWs.close();
+        return;
+      }
+
+      // Now initialize the session and start OpenAI
+      console.log('Initializing interview session...');
+      const ok = await initializeSession();
+      if (!ok) {
+        console.error('Initialization failed, closing connection');
+        twilioWs.close();
+        return;
+      }
+
+      sessionInitialized = true;
+      console.log('Session initialized, starting OpenAI connection...');
+      await startOpenAIConnection();
+
       // Flush any pending audio deltas
       if (streamSid && pendingAudioDeltas.length) {
+        console.log('Flushing pending audio deltas to Twilio:', pendingAudioDeltas.length);
         for (const delta of pendingAudioDeltas.splice(0)) {
           twilioWs.send(JSON.stringify({ event: 'media', streamSid, media: { payload: delta } }));
         }
@@ -331,6 +362,7 @@ Current question to ask: ${questions[0].question_text}`;
           audio: msg.media.payload
         }));
       } else {
+        // Buffer audio until OpenAI is ready
         pendingMediaPayloads.push(msg.media.payload);
       }
     } else if (msg.event === 'stop') {
