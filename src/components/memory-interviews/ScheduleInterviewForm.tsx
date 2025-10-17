@@ -28,7 +28,7 @@ import { Switch } from "@/components/ui/switch";
 import { Calendar, Phone, Clock } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-
+import { normalizePhoneToE164 } from "@/utils/phone";
 const formSchema = z.object({
   phone_number: z.string().min(10, "Phone number must be at least 10 digits"),
   scheduled_at: z.string().min(1, "Please select a date and time"),
@@ -95,13 +95,18 @@ export function ScheduleInterviewForm({ careGroupId }: ScheduleInterviewFormProp
       console.log('  Local time input:', values.scheduled_at);
       console.log('  User timezone:', userTimezone);
       console.log('  Converted to UTC:', utcDateTime);
-      console.log('  Phone number:', values.phone_number);
+      console.log('  Phone number (raw):', values.phone_number);
+      const normalizedPhone = normalizePhoneToE164(values.phone_number);
+      console.log('  Phone number (normalized E.164):', normalizedPhone);
+      if (!normalizedPhone) {
+        throw new Error("Invalid phone number. Please enter a valid number including area code.");
+      }
 
       const { error } = await supabase.from("memory_interviews").insert({
         care_group_id: careGroupId,
         created_by_user_id: user.id,
-        phone_number: values.phone_number,
-        recipient_phone: values.phone_number, // Store in recipient_phone for webhook matching
+        phone_number: normalizedPhone,
+        recipient_phone: normalizedPhone, // normalized for webhook matching
         scheduled_at: utcDateTime,
         selected_question_id: values.selected_question_id || null,
         custom_instructions: values.custom_instructions || null,
