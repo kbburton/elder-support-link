@@ -207,8 +207,8 @@ Current question to ask: ${questions[0].question_text}`;
             modalities: ['text', 'audio'],
             instructions: systemInstructions,
             voice: 'alloy',
-            input_audio_format: 'mulaw_8khz',
-            output_audio_format: 'mulaw_8khz',
+            input_audio_format: 'g711_ulaw',
+            output_audio_format: 'g711_ulaw',
             input_audio_transcription: {
               model: 'whisper-1'
             },
