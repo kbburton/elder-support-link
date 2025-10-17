@@ -34,7 +34,7 @@ serve(async (req) => {
       );
     }
 
-    const wsUrl = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-voice?interview_id=${interviewIdFromQuery}${callSid ? `&call_sid=${callSid}` : ''}`;
+    const wsUrl = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co/memory-interview-voice?interview_id=${interviewIdFromQuery}${callSid ? `&call_sid=${callSid}` : ''}`;
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say voice="alice">Please hold while I connect your memory interview.</Say>\n  <Connect>\n    <Stream url="${wsUrl}"/>\n  </Connect>\n</Response>`;
 
     console.log('Responding with TwiML to connect stream:', wsUrl);
