@@ -2121,6 +2121,7 @@ export type Database = {
           interview_type: string
           is_test: boolean | null
           phone_number: string
+          raw_transcript: string | null
           recipient_phone: string | null
           recurring_completed_count: number | null
           recurring_frequency: string | null
@@ -2144,6 +2145,7 @@ export type Database = {
           interview_type?: string
           is_test?: boolean | null
           phone_number: string
+          raw_transcript?: string | null
           recipient_phone?: string | null
           recurring_completed_count?: number | null
           recurring_frequency?: string | null
@@ -2167,6 +2169,7 @@ export type Database = {
           interview_type?: string
           is_test?: boolean | null
           phone_number?: string
+          raw_transcript?: string | null
           recipient_phone?: string | null
           recurring_completed_count?: number | null
           recurring_frequency?: string | null
