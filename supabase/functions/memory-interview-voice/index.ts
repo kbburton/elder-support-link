@@ -9,8 +9,10 @@ serve(async (req) => {
   const url = new URL(req.url);
   const interviewIdFromQuery = url.searchParams.get('interview_id');
 
+  const upgradeHeaderRaw = req.headers.get("upgrade") || '';
+  const upgradeHeader = upgradeHeaderRaw.toLowerCase();
   // If this is an initial webhook request from Twilio, return TwiML that connects to our WebSocket
-  if (req.headers.get("upgrade") !== "websocket") {
+  if (upgradeHeader !== "websocket") {
     // Twilio sends x-www-form-urlencoded with CallSid
     let callSid = url.searchParams.get('call_sid') || '';
     try {
@@ -35,7 +37,7 @@ serve(async (req) => {
     }
 
     const wsUrl = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-voice?interview_id=${interviewIdFromQuery}${callSid ? `&call_sid=${callSid}` : ''}`;
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say voice="alice">Please hold while I connect your memory interview.</Say>\n  <Connect>\n    <Stream url="${wsUrl}" statusCallback="https://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-stream-status" statusCallbackMethod="POST" statusCallbackEvent="start closed error"/>\n  </Connect>\n</Response>`;
+    const twiml = `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say voice="alice">Please hold while I connect your memory interview.</Say>\n  <Connect>\n    <Stream url="${wsUrl}" statusCallback="https://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-stream-status" statusCallbackMethod="POST" statusCallbackEvent="start stop"/>\n  </Connect>\n</Response>`;
 
     console.log('Responding with TwiML to connect stream:', wsUrl);
     return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
