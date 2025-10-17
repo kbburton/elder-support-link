@@ -14,19 +14,20 @@ export function InterviewsList({ careGroupId }: InterviewsListProps) {
   const { data: interviews, isLoading } = useQuery({
     queryKey: ["memory-interviews", careGroupId],
     queryFn: async () => {
+      console.log('Fetching interviews for care group:', careGroupId);
+      
       const { data, error } = await supabase
         .from("memory_interviews")
-        .select(`
-          *,
-          interview_questions (
-            question_text,
-            category
-          )
-        `)
+        .select("*")
         .eq("care_group_id", careGroupId)
         .order("scheduled_at", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching interviews:', error);
+        throw error;
+      }
+      
+      console.log('Interviews fetched:', data?.length || 0);
       return data;
     },
   });
@@ -100,9 +101,9 @@ export function InterviewsList({ careGroupId }: InterviewsListProps) {
                 </span>
               </div>
 
-              {interview.interview_questions && Array.isArray(interview.interview_questions) && interview.interview_questions[0] && (
-                <p className="text-sm">
-                  <span className="font-medium">Question:</span> {interview.interview_questions[0].question_text}
+              {interview.selected_question_id && (
+                <p className="text-sm text-muted-foreground">
+                  <span className="font-medium">Question ID:</span> {interview.selected_question_id}
                 </p>
               )}
 

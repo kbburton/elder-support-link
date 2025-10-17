@@ -14,11 +14,15 @@ serve(async (req) => {
   const interviewId = url.searchParams.get('interview_id');
   const callSid = url.searchParams.get('call_sid');
 
+  console.log('=== VOICE SESSION STARTING ===');
+  console.log('Interview ID:', interviewId);
+  console.log('Call SID:', callSid);
+  console.log('Timestamp:', new Date().toISOString());
+
   if (!interviewId) {
+    console.error('ERROR: Missing interview_id parameter');
     return new Response("Missing interview_id", { status: 400 });
   }
-
-  console.log('Starting memory interview voice session:', { interviewId, callSid });
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -39,11 +43,20 @@ serve(async (req) => {
     .single();
 
   if (interviewError || !interview) {
-    console.error('Interview not found:', interviewError);
+    console.error('ERROR: Interview not found');
+    console.error('Error details:', interviewError);
     return new Response("Interview not found", { status: 404 });
   }
 
+  console.log('✓ Interview loaded:', {
+    id: interview.id,
+    careGroupId: interview.care_group_id,
+    status: interview.status,
+    recipientName: interview.care_groups.recipient_first_name
+  });
+
   // Get 5 random questions for this interview
+  console.log('Fetching random questions...');
   const { data: questions, error: questionsError } = await supabase
     .rpc('get_random_interview_questions', { 
       question_count: 5,
@@ -51,9 +64,12 @@ serve(async (req) => {
     });
 
   if (questionsError || !questions || questions.length === 0) {
-    console.error('Failed to get questions:', questionsError);
+    console.error('ERROR: Failed to get questions');
+    console.error('Error details:', questionsError);
     return new Response("Failed to get questions", { status: 500 });
   }
+
+  console.log(`✓ Loaded ${questions.length} questions for interview`);
 
   const { socket: twilioWs, response } = Deno.upgradeWebSocket(req);
   let openaiWs: WebSocket | null = null;
@@ -88,7 +104,7 @@ Instructions:
 Current question to ask: ${questions[0].question_text}`;
 
   twilioWs.onopen = async () => {
-    console.log('Twilio WebSocket connected');
+    console.log('✓ Twilio WebSocket connected - starting OpenAI connection');
     
     try {
       // Connect to OpenAI Realtime API
@@ -103,7 +119,7 @@ Current question to ask: ${questions[0].question_text}`;
       );
 
       openaiWs.onopen = () => {
-        console.log('OpenAI WebSocket connected');
+        console.log('✓ OpenAI WebSocket connected - configuring session');
         
         // Configure session
         openaiWs!.send(JSON.stringify({
@@ -145,12 +161,15 @@ Current question to ask: ${questions[0].question_text}`;
           // Store user's response
           const userTranscript = data.transcript;
           transcriptBuffer.push(`User: ${userTranscript}`);
-          console.log('User said:', userTranscript);
+          console.log('[User transcript]:', userTranscript);
         } else if (data.type === 'response.audio_transcript.delta') {
           // Store AI's response
           transcriptBuffer.push(`AI: ${data.delta}`);
+          console.log('[AI transcript delta]:', data.delta);
         } else if (data.type === 'error') {
-          console.error('OpenAI error:', data.error);
+          console.error('ERROR from OpenAI:', data.error);
+        } else if (data.type === 'session.created' || data.type === 'session.updated') {
+          console.log(`✓ OpenAI ${data.type}`);
         }
       };
 
@@ -159,12 +178,14 @@ Current question to ask: ${questions[0].question_text}`;
       };
 
       openaiWs.onclose = async () => {
-        console.log('OpenAI WebSocket closed, saving transcript');
+        console.log('=== INTERVIEW ENDING ===');
+        console.log('Saving transcript and wrapping up...');
         
         // Save transcript and update interview
         const fullTranscript = transcriptBuffer.join('\n');
+        console.log('Transcript length:', fullTranscript.length, 'characters');
         
-        await supabase
+        const { error: updateError } = await supabase
           .from('memory_interviews')
           .update({
             status: 'completed',
@@ -173,7 +194,14 @@ Current question to ask: ${questions[0].question_text}`;
           })
           .eq('id', interviewId);
 
+        if (updateError) {
+          console.error('ERROR updating interview status:', updateError);
+        } else {
+          console.log('✓ Interview marked as completed');
+        }
+
         // Record question usage
+        console.log('Recording question usage...');
         for (const question of questions) {
           await supabase
             .from('interview_question_usage')
@@ -182,11 +210,19 @@ Current question to ask: ${questions[0].question_text}`;
               interview_id: interviewId
             });
         }
+        console.log(`✓ Recorded ${questions.length} questions used`);
 
         // Trigger story generation
-        await supabase.functions.invoke('generate-memory-story', {
+        console.log('Triggering story generation...');
+        const { error: storyError } = await supabase.functions.invoke('generate-memory-story', {
           body: { interview_id: interviewId }
         });
+
+        if (storyError) {
+          console.error('ERROR triggering story generation:', storyError);
+        } else {
+          console.log('✓ Story generation triggered');
+        }
 
         twilioWs.close();
       };

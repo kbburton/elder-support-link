@@ -21,34 +21,57 @@ serve(async (req) => {
     const from = formData.get('From')?.toString();
     const to = formData.get('To')?.toString();
 
-    console.log('Call received - routing:', { callSid, from, to });
+    console.log('=== WEBHOOK CALL RECEIVED ===');
+    console.log('CallSid:', callSid);
+    console.log('From (raw):', from);
+    console.log('To:', to);
+    console.log('Timestamp:', new Date().toISOString());
 
     if (!from) {
+      console.error('ERROR: No caller phone number provided');
       throw new Error('No caller phone number provided');
     }
 
     // Normalize phone number
     const normalizedPhone = from.replace(/[^\d+]/g, '');
+    console.log('Normalized phone:', normalizedPhone);
 
-    // Check if there's a scheduled memory interview for this phone number
-    const { data: interview } = await supabase
+    // Check for scheduled interview with detailed logging
+    const now = new Date();
+    const windowStart = new Date(now.getTime() - 30 * 60 * 1000);
+    const windowEnd = new Date(now.getTime() + 30 * 60 * 1000);
+    
+    console.log('Searching for interview with:');
+    console.log('  Phone:', normalizedPhone);
+    console.log('  Time window:', windowStart.toISOString(), 'to', windowEnd.toISOString());
+
+    const { data: interview, error: interviewError } = await supabase
       .from('memory_interviews')
       .select(`
         *,
         care_groups (
-          recipient_first_name,
-          recipient_last_name
+          id,
+          recipient_first_name
         )
       `)
       .eq('recipient_phone', normalizedPhone)
       .eq('status', 'scheduled')
-      .gte('scheduled_for', new Date(Date.now() - 30 * 60 * 1000).toISOString())
-      .lte('scheduled_for', new Date(Date.now() + 30 * 60 * 1000).toISOString())
+      .gte('scheduled_at', windowStart.toISOString())
+      .lte('scheduled_at', windowEnd.toISOString())
       .single();
+
+    console.log('Database query result:', { 
+      found: !!interview, 
+      error: interviewError?.message,
+      interviewId: interview?.id 
+    });
 
     // If there's a scheduled interview, route to memory interview flow
     if (interview) {
-      console.log('Routing to memory interview for:', interview.id);
+      console.log('✓ INTERVIEW FOUND - Routing to memory interview');
+      console.log('  Interview ID:', interview.id);
+      console.log('  Scheduled at:', interview.scheduled_at);
+      console.log('  Care group:', interview.care_groups.id);
       
       // Update interview status
       await supabase
@@ -81,7 +104,9 @@ serve(async (req) => {
     }
 
     // No scheduled interview - route to regular voice chat
-    console.log('No interview found, routing to regular voice chat');
+    console.log('✗ NO INTERVIEW FOUND - Routing to regular voice chat');
+    console.log('  Checked phone:', normalizedPhone);
+    console.log('  Time window checked:', windowStart.toISOString(), 'to', windowEnd.toISOString());
     const enhancedPinVerifyUrl = `https://${supabaseUrl.replace('https://', '')}/functions/v1/enhanced-twilio-pin-verify`;
     
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
