@@ -1,0 +1,138 @@
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { formatDistanceToNow } from "date-fns";
+import { Calendar, Phone, Clock, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+
+interface InterviewsListProps {
+  careGroupId: string;
+}
+
+export function InterviewsList({ careGroupId }: InterviewsListProps) {
+  const { data: interviews, isLoading } = useQuery({
+    queryKey: ["memory-interviews", careGroupId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("memory_interviews")
+        .select(`
+          *,
+          interview_questions (
+            question_text,
+            category
+          )
+        `)
+        .eq("care_group_id", careGroupId)
+        .order("scheduled_at", { ascending: false });
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  if (isLoading) {
+    return <div className="text-center text-muted-foreground">Loading interviews...</div>;
+  }
+
+  if (!interviews || interviews.length === 0) {
+    return (
+      <Card className="p-8 text-center">
+        <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+        <p className="text-muted-foreground">No interviews scheduled yet</p>
+      </Card>
+    );
+  }
+
+  const getStatusBadge = (status: string, voicemailDetected: boolean) => {
+    if (voicemailDetected) {
+      return <Badge variant="outline" className="gap-1"><AlertCircle className="h-3 w-3" />Voicemail</Badge>;
+    }
+    
+    switch (status) {
+      case "scheduled":
+        return <Badge variant="outline" className="gap-1"><Clock className="h-3 w-3" />Scheduled</Badge>;
+      case "in_progress":
+        return <Badge variant="default" className="gap-1"><Phone className="h-3 w-3" />In Progress</Badge>;
+      case "completed":
+        return <Badge variant="default" className="bg-green-500 gap-1"><CheckCircle className="h-3 w-3" />Completed</Badge>;
+      case "failed":
+        return <Badge variant="destructive" className="gap-1"><XCircle className="h-3 w-3" />Failed</Badge>;
+      case "cancelled":
+        return <Badge variant="outline" className="gap-1"><XCircle className="h-3 w-3" />Cancelled</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {interviews.map((interview) => (
+        <Card key={interview.id} className="p-6">
+          <div className="flex items-start justify-between">
+            <div className="space-y-2 flex-1">
+              <div className="flex items-center gap-2">
+                {getStatusBadge(interview.status, interview.voicemail_detected || false)}
+                {interview.is_test && (
+                  <Badge variant="outline" className="bg-yellow-50">Test Mode</Badge>
+                )}
+                {interview.interview_type === "recurring" && (
+                  <Badge variant="secondary">
+                    Recurring ({interview.recurring_completed_count}/{interview.recurring_total_count})
+                  </Badge>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Phone className="h-4 w-4" />
+                <span>{interview.phone_number}</span>
+              </div>
+
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Calendar className="h-4 w-4" />
+                <span>
+                  {new Date(interview.scheduled_at).toLocaleString()} 
+                  {interview.status === "scheduled" && (
+                    <span className="ml-2">
+                      ({formatDistanceToNow(new Date(interview.scheduled_at), { addSuffix: true })})
+                    </span>
+                  )}
+                </span>
+              </div>
+
+              {interview.interview_questions && Array.isArray(interview.interview_questions) && interview.interview_questions[0] && (
+                <p className="text-sm">
+                  <span className="font-medium">Question:</span> {interview.interview_questions[0].question_text}
+                </p>
+              )}
+
+              {interview.custom_instructions && (
+                <p className="text-sm text-muted-foreground">
+                  <span className="font-medium">Instructions:</span> {interview.custom_instructions}
+                </p>
+              )}
+
+              {interview.failure_reason && (
+                <p className="text-sm text-destructive">
+                  <span className="font-medium">Failure reason:</span> {interview.failure_reason}
+                </p>
+              )}
+
+              {interview.duration_seconds && (
+                <p className="text-sm text-muted-foreground">
+                  Duration: {Math.floor(interview.duration_seconds / 60)} minutes
+                </p>
+              )}
+            </div>
+
+            {interview.status === "scheduled" && (
+              <Button variant="outline" size="sm">
+                Reschedule
+              </Button>
+            )}
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}

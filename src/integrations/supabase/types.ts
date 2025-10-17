@@ -2003,6 +2003,79 @@ export type Database = {
           },
         ]
       }
+      interview_question_usage: {
+        Row: {
+          care_group_id: string
+          id: string
+          interview_id: string
+          question_id: string
+          used_at: string | null
+        }
+        Insert: {
+          care_group_id: string
+          id?: string
+          interview_id: string
+          question_id: string
+          used_at?: string | null
+        }
+        Update: {
+          care_group_id?: string
+          id?: string
+          interview_id?: string
+          question_id?: string
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_question_usage_care_group_id_fkey"
+            columns: ["care_group_id"]
+            isOneToOne: false
+            referencedRelation: "care_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_question_usage_interview_id_fkey"
+            columns: ["interview_id"]
+            isOneToOne: false
+            referencedRelation: "memory_interviews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_question_usage_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "interview_questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_questions: {
+        Row: {
+          category: string
+          created_at: string | null
+          display_order: number
+          id: string
+          is_active: boolean | null
+          question_text: string
+        }
+        Insert: {
+          category: string
+          created_at?: string | null
+          display_order: number
+          id?: string
+          is_active?: boolean | null
+          question_text: string
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          display_order?: number
+          id?: string
+          is_active?: boolean | null
+          question_text?: string
+        }
+        Relationships: []
+      }
       invitation_nonces: {
         Row: {
           created_at: string
@@ -2031,6 +2104,196 @@ export type Database = {
             columns: ["invitation_id"]
             isOneToOne: false
             referencedRelation: "care_group_invitations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      memory_interviews: {
+        Row: {
+          care_group_id: string
+          completed_at: string | null
+          created_at: string | null
+          created_by_user_id: string
+          custom_instructions: string | null
+          duration_seconds: number | null
+          failure_reason: string | null
+          id: string
+          interview_type: string
+          is_test: boolean | null
+          phone_number: string
+          recurring_completed_count: number | null
+          recurring_frequency: string | null
+          recurring_total_count: number | null
+          scheduled_at: string
+          selected_question_id: string | null
+          status: string
+          twilio_call_sid: string | null
+          updated_at: string | null
+          voicemail_detected: boolean | null
+        }
+        Insert: {
+          care_group_id: string
+          completed_at?: string | null
+          created_at?: string | null
+          created_by_user_id: string
+          custom_instructions?: string | null
+          duration_seconds?: number | null
+          failure_reason?: string | null
+          id?: string
+          interview_type?: string
+          is_test?: boolean | null
+          phone_number: string
+          recurring_completed_count?: number | null
+          recurring_frequency?: string | null
+          recurring_total_count?: number | null
+          scheduled_at: string
+          selected_question_id?: string | null
+          status?: string
+          twilio_call_sid?: string | null
+          updated_at?: string | null
+          voicemail_detected?: boolean | null
+        }
+        Update: {
+          care_group_id?: string
+          completed_at?: string | null
+          created_at?: string | null
+          created_by_user_id?: string
+          custom_instructions?: string | null
+          duration_seconds?: number | null
+          failure_reason?: string | null
+          id?: string
+          interview_type?: string
+          is_test?: boolean | null
+          phone_number?: string
+          recurring_completed_count?: number | null
+          recurring_frequency?: string | null
+          recurring_total_count?: number | null
+          scheduled_at?: string
+          selected_question_id?: string | null
+          status?: string
+          twilio_call_sid?: string | null
+          updated_at?: string | null
+          voicemail_detected?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "memory_interviews_care_group_id_fkey"
+            columns: ["care_group_id"]
+            isOneToOne: false
+            referencedRelation: "care_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      memory_stories: {
+        Row: {
+          audio_url: string | null
+          care_group_id: string
+          created_at: string | null
+          flagged_content: Json | null
+          id: string
+          interview_id: string
+          memory_facts: Json | null
+          pii_redacted: boolean | null
+          published_at: string | null
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by_user_id: string | null
+          status: string
+          story_text: string
+          title: string
+          transcript_url: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          audio_url?: string | null
+          care_group_id: string
+          created_at?: string | null
+          flagged_content?: Json | null
+          id?: string
+          interview_id: string
+          memory_facts?: Json | null
+          pii_redacted?: boolean | null
+          published_at?: string | null
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by_user_id?: string | null
+          status?: string
+          story_text: string
+          title: string
+          transcript_url?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          audio_url?: string | null
+          care_group_id?: string
+          created_at?: string | null
+          flagged_content?: Json | null
+          id?: string
+          interview_id?: string
+          memory_facts?: Json | null
+          pii_redacted?: boolean | null
+          published_at?: string | null
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by_user_id?: string | null
+          status?: string
+          story_text?: string
+          title?: string
+          transcript_url?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "memory_stories_care_group_id_fkey"
+            columns: ["care_group_id"]
+            isOneToOne: false
+            referencedRelation: "care_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memory_stories_interview_id_fkey"
+            columns: ["interview_id"]
+            isOneToOne: false
+            referencedRelation: "memory_interviews"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      memory_story_versions: {
+        Row: {
+          created_at: string | null
+          edit_notes: string | null
+          edited_by_user_id: string
+          id: string
+          story_id: string
+          story_text: string
+          version_number: number
+        }
+        Insert: {
+          created_at?: string | null
+          edit_notes?: string | null
+          edited_by_user_id: string
+          id?: string
+          story_id: string
+          story_text: string
+          version_number: number
+        }
+        Update: {
+          created_at?: string | null
+          edit_notes?: string | null
+          edited_by_user_id?: string
+          id?: string
+          story_id?: string
+          story_text?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "memory_story_versions_story_id_fkey"
+            columns: ["story_id"]
+            isOneToOne: false
+            referencedRelation: "memory_stories"
             referencedColumns: ["id"]
           },
         ]

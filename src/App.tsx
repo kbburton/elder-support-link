@@ -38,6 +38,7 @@ import ContactDetailPage from "./pages/app/ContactDetailPage";
 import ContactFormPage from "./pages/app/ContactFormPage";
 import ContactsImportPage from "./pages/app/ContactsImportPage";
 import CreateGroupPage from "./pages/app/CreateGroupPage";
+import MemoryInterviewsPage from "./pages/app/MemoryInterviewsPage";
 import InviteAccept from "./pages/auth/InviteAccept";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
@@ -79,6 +80,7 @@ const App = () => (
                 <Route path="contacts/new" element={<ContactFormPage />} />
                 <Route path="documents" element={<DocumentsPage />} />
                 <Route path="documents-v2" element={<DocumentsV2Page />} />
+                <Route path="memory-interviews" element={<MemoryInterviewsPage />} />
                 <Route path="activity" element={<ActivityPage />} />
                 <Route path="search" element={<SearchPage />} />
                 <Route path="profile" element={<ProfilePage />} />

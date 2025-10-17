@@ -1,7 +1,7 @@
 // File: src/components/navigation/AppSidebar.tsx
 import { NavLink, useParams } from "react-router-dom";
 import { useMemo } from "react";
-import { LayoutDashboard, Calendar, FileText, ListTodo, NotebookPen, Search, MessageSquare, User, Users, Settings, UserPlus, Heart, Sparkles } from "lucide-react";
+import { LayoutDashboard, Calendar, FileText, ListTodo, NotebookPen, Search, MessageSquare, User, Users, Settings, UserPlus, Heart, Sparkles, Video } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -22,11 +22,12 @@ import { useDemo } from "@/hooks/useDemo";
 import { useDocumentsV2Access } from "@/hooks/useDocumentsV2Access";
 
 const mainItems = [
-  { title: "Dashboard", url: "dashboard", icon: LayoutDashboard },   // Added Dashboard as first menu item
+  { title: "Dashboard", url: "dashboard", icon: LayoutDashboard },
   { title: "Calendar", url: "calendar", icon: Calendar },
   { title: "Tasks", url: "tasks", icon: ListTodo },
   { title: "Contacts", url: "contacts", icon: Users },
   { title: "Documents", url: "documents", icon: FileText },
+  { title: "Memory Interviews", url: "memory-interviews", icon: Video },
   { title: "Activity Log", url: "activity", icon: NotebookPen },
   { title: "Search", url: "search", icon: Search },
   { title: "Feedback", url: "settings/feedback", icon: MessageSquare },
