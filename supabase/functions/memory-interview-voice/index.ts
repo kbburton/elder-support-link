@@ -35,7 +35,7 @@ serve(async (req) => {
     }
 
     const wsUrl = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-voice?interview_id=${interviewIdFromQuery}${callSid ? `&call_sid=${callSid}` : ''}`;
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say voice="alice">Please hold while I connect your memory interview.</Say>\n  <Connect>\n    <Stream url="${wsUrl}"/>\n  </Connect>\n</Response>`;
+    const twiml = `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say voice="alice">Please hold while I connect your memory interview.</Say>\n  <Connect>\n    <Stream url="${wsUrl}" statusCallback="https://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-stream-status" statusCallbackMethod="POST" statusCallbackEvent="start closed error"/>\n  </Connect>\n</Response>`;
 
     console.log('Responding with TwiML to connect stream:', wsUrl);
     return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
@@ -103,10 +103,11 @@ serve(async (req) => {
 
   // Negotiate Twilio subprotocol if provided (required for Twilio Media Streams)
   const requestedProtocols = req.headers.get('sec-websocket-protocol')?.split(',').map(p => p.trim()) || [];
-  const selectedProtocol = requestedProtocols[0];
-  if (selectedProtocol) console.log('Negotiating WebSocket subprotocol:', selectedProtocol);
-
-  const upgradeOpts = selectedProtocol ? { protocol: selectedProtocol } as any : undefined as any;
+  const preferredProtocol = requestedProtocols.find(p => p.toLowerCase().includes('audio')) || requestedProtocols[0];
+  if (requestedProtocols.length) console.log('Requested WebSocket subprotocols from Twilio:', requestedProtocols);
+  if (preferredProtocol) console.log('Negotiating WebSocket subprotocol:', preferredProtocol);
+ 
+  const upgradeOpts = preferredProtocol ? { protocol: preferredProtocol } as any : undefined as any;
   const { socket: twilioWs, response } = Deno.upgradeWebSocket(req, upgradeOpts);
   let openaiWs: WebSocket | null = null;
   let transcriptBuffer: string[] = [];

@@ -6,6 +6,9 @@ verify_jwt = false
 [functions.memory-interview-voice]
 verify_jwt = false
 
+[functions.memory-interview-stream-status]
+verify_jwt = false
+
 [functions.generate-memory-story]
 verify_jwt = true
 
