@@ -62,6 +62,7 @@ Enable care teams to schedule AI-powered phone interviews with care recipients t
 - **Special Instructions**: Add context for the AI (e.g., "child's name is Mike", "this happened in Portland, OR")
 - **Duration**: Select from 5, 10, 15, or 20 minutes
 - **Recurrence**: Set number of occurrences for recurring interviews
+- **Test Mode**: Toggle to mark interview as a test (saves to test row for easy identification/cleanup)
 
 #### 3.1.3 Call Retry Logic
 - **Initial Call**: At scheduled time
@@ -83,13 +84,33 @@ Enable care teams to schedule AI-powered phone interviews with care recipients t
 7. **Thank You**: Express gratitude and end call
 
 #### 3.2.2 AI Conversational Style
-- **Patient**: Allow pauses and time for thought
+- **Patient**: Allow pauses and time for thought; particularly important for elderly or hard-of-hearing participants
 - **Warm & Encouraging**: Use affirming language ("That's wonderful," "Tell me more about that")
 - **Curious**: Ask follow-up questions naturally
 - **Adaptive**: Adjust based on recipient's energy and engagement
 - **Context-Aware**: Reference memory bank facts when relevant
 
-#### 3.2.3 AI Context & Memory
+#### 3.2.3 Patience & Accessibility Features
+**Long Pause Handling**:
+- **Detection**: If silence extends beyond 15 seconds during story-telling
+- **AI Response**: "Take your time, I'm listening. Would you like me to ask the question again, or do you need a moment?"
+- **Wait Time**: Allow up to 30 seconds of silence before checking in
+
+**"Give Me a Minute" Recognition**:
+- **Trigger Phrases**: "Give me a minute", "Wait a second", "Hold on", "Let me think"
+- **AI Response**: "Of course, take all the time you need."
+- **Behavior**: AI goes silent for 45-60 seconds, then gently checks: "Ready when you are"
+
+**Memory Retrieval Support**:
+- **If struggling to remember**: "That's okay, it can be hard to remember details. What do you remember most clearly?"
+- **Alternative approach**: "How about I ask about a different memory?"
+
+**Hard of Hearing Considerations**:
+- **Clear speech**: AI speaks slowly and clearly
+- **Repetition**: If asked to repeat, AI rephrases slightly for clarity
+- **Confirmation**: AI occasionally confirms understanding: "So if I understand correctly..."
+
+#### 3.2.4 AI Context & Memory
 - **Memory Bank Access**: AI can reference consolidated memory facts from previous interviews
 - **Fact Extraction**: After each interview, AI extracts key facts (names, dates, places, relationships) and stores in JSONB field
 - **Story Continuity**: AI can reference past stories to build connections (e.g., "Last time you mentioned your father was a teacher...")
@@ -300,6 +321,7 @@ CREATE TABLE memory_interviews (
   call_sid TEXT, -- Twilio Call SID
   call_attempts INTEGER DEFAULT 0,
   last_attempt_at TIMESTAMP WITH TIME ZONE,
+  is_test BOOLEAN DEFAULT FALSE, -- Flag for test interviews
   
   -- Results
   actual_duration_seconds INTEGER,
@@ -469,6 +491,10 @@ All memory-related tables must have RLS policies enforcing:
 ┌─────────────────────────────────────────────────┐
 │ Schedule Memory Interview                       │
 ├─────────────────────────────────────────────────┤
+│                                                 │
+│ ☐ Test Mode (for testing purposes)            │
+│   └─ Test interviews are marked for easy       │
+│      identification and cleanup                 │
 │                                                 │
 │ When would you like to conduct this interview?  │
 │ ○ Call now (within 5 minutes)                  │
@@ -951,14 +977,14 @@ INTERVIEW CONTEXT:
 YOUR ROLE:
 - Be warm, encouraging, and genuinely interested
 - Ask follow-up questions naturally to get details
-- Listen patiently without rushing
+- Listen patiently without rushing - this is CRITICAL for elderly or hard-of-hearing participants
 - Make the person feel comfortable sharing
 - Focus on sensory details (sights, sounds, smells, feelings)
 
 CONVERSATION GUIDELINES:
 1. START: Introduce yourself, explain the call will be recorded to create a story to share with family, and ask for consent
-2. ASK PRIMARY QUESTION: State the main question clearly
-3. LISTEN: Let them share at their own pace
+2. ASK PRIMARY QUESTION: State the main question clearly and slowly
+3. LISTEN: Let them share at their own pace - allow long pauses without interrupting
 4. ASK FOLLOW-UPS: Ask natural follow-up questions like:
    - "What did that look like?"
    - "How did that make you feel?"
@@ -967,6 +993,27 @@ CONVERSATION GUIDELINES:
    - "Who else was there?"
 5. TIME MANAGEMENT: At 85% of time, say "We have about X minutes left, let me ask one final question"
 6. CONCLUDE: Thank them warmly, wait 1-2 minutes for final thoughts, then end gracefully
+
+PATIENCE & ACCESSIBILITY PROTOCOLS:
+- LONG PAUSES (15+ seconds of silence):
+  * Say: "Take your time, I'm listening. Would you like me to ask the question again, or do you need a moment?"
+  * Wait up to 30 seconds before checking in again
+  
+- IF THEY SAY "Give me a minute", "Wait", "Hold on", "Let me think":
+  * Respond: "Of course, take all the time you need."
+  * Go completely silent for 45-60 seconds
+  * Then gently say: "Ready when you are"
+  
+- IF STRUGGLING TO REMEMBER:
+  * Say: "That's okay, it can be hard to remember every detail. What do you remember most clearly?"
+  * Offer alternative: "How about we talk about a different aspect of this memory?"
+  
+- HARD OF HEARING CONSIDERATIONS:
+  * Speak slowly and clearly
+  * If asked to repeat, rephrase slightly for clarity
+  * Occasionally confirm: "So if I understand correctly..." then paraphrase
+  
+- NEVER RUSH: Even if time is running out, prioritize making the person feel heard over getting all details
 
 SAFETY PROTOCOLS:
 - If emotional distress detected: "I can tell this might be difficult. Would you prefer to talk about something else?"
@@ -984,7 +1031,7 @@ FOLLOW-UP QUESTION EXAMPLES:
 - "What did [place] look like back then?"
 - "How old were you when this happened?"
 
-Remember: Your goal is a warm, natural conversation that captures rich details for a compelling written story. Never rush, always show genuine interest, and make the person feel heard and valued.
+Remember: Your goal is a warm, natural conversation that captures rich details for a compelling written story. PATIENCE IS PARAMOUNT - never rush, always show genuine interest, and make the person feel heard and valued. Elderly participants may need extra time to remember and articulate their thoughts, and that's perfectly okay.
 ```
 
 ---
