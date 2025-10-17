@@ -223,24 +223,8 @@ Current question to ask: ${questions[0].question_text}`;
           }
         }));
 
-        // Set up keepalive ping to prevent connection timeout
-        const keepaliveInterval = setInterval(() => {
-          if (openaiWs && openaiWs.readyState === WebSocket.OPEN) {
-            try {
-              openaiWs.send(JSON.stringify({ type: 'ping' }));
-              console.log('Sent keepalive ping to OpenAI');
-            } catch (error) {
-              console.error('Error sending keepalive ping:', error);
-              clearInterval(keepaliveInterval);
-            }
-          } else {
-            console.log('OpenAI WebSocket not open, clearing keepalive');
-            clearInterval(keepaliveInterval);
-          }
-        }, 30000); // Send ping every 30 seconds
-
-        // Store interval ID for cleanup
-        (openaiWs as any).keepaliveInterval = keepaliveInterval;
+        // Removed invalid JSON 'ping' keepalive; OpenAI Realtime doesn't accept a 'ping' event.
+        // The connection should remain active due to continuous audio flow from Twilio.
 
         // Flush any pending input audio from Twilio
         if (pendingMediaPayloads.length) {
