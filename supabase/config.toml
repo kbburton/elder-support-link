@@ -1,5 +1,14 @@
 project_id = "yfwgegapmggwywrnzqvg"
 
+[functions.memory-interview-webhook]
+verify_jwt = false
+
+[functions.memory-interview-voice]
+verify_jwt = false
+
+[functions.generate-memory-story]
+verify_jwt = true
+
 [functions.process-document-v2]
 verify_jwt = true
 

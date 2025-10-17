@@ -1,0 +1,152 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.54.0";
+
+const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY')!;
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { interview_id } = await req.json();
+
+    if (!interview_id) {
+      throw new Error('Missing interview_id');
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Get interview with transcript
+    const { data: interview, error: interviewError } = await supabase
+      .from('memory_interviews')
+      .select(`
+        *,
+        care_groups (
+          recipient_first_name,
+          recipient_last_name,
+          date_of_birth
+        )
+      `)
+      .eq('id', interview_id)
+      .single();
+
+    if (interviewError || !interview || !interview.raw_transcript) {
+      throw new Error('Interview or transcript not found');
+    }
+
+    const recipientName = `${interview.care_groups.recipient_first_name} ${interview.care_groups.recipient_last_name}`;
+
+    // Generate story using GPT-4
+    const storyPrompt = `You are a skilled storyteller and biographer. You've just conducted a memory interview with ${recipientName}, born ${interview.care_groups.date_of_birth}.
+
+Based on the following interview transcript, create a beautiful, coherent story that captures their memories and life experiences. The story should:
+
+1. Be written in third person narrative style
+2. Organize the memories chronologically or thematically
+3. Maintain the warmth and authenticity of their voice
+4. Include specific details and anecdotes they shared
+5. Be between 800-1500 words
+6. Have a compelling title that captures the essence of their story
+7. Be emotionally resonant and suitable for family members to read
+
+Interview Transcript:
+${interview.raw_transcript}
+
+Please provide your response in JSON format with:
+{
+  "title": "The story title",
+  "content": "The full story text"
+}`;
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: 'You are an expert biographer and storyteller who creates beautiful, moving narratives from interview transcripts.' },
+          { role: 'user', content: storyPrompt }
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.7,
+        max_tokens: 3000
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('OpenAI API error:', errorText);
+      throw new Error(`OpenAI API error: ${response.status}`);
+    }
+
+    const result = await response.json();
+    const storyData = JSON.parse(result.choices[0].message.content);
+
+    // Create the story record
+    const { data: story, error: storyError } = await supabase
+      .from('memory_stories')
+      .insert({
+        interview_id: interview_id,
+        care_group_id: interview.care_group_id,
+        title: storyData.title,
+        content: storyData.content,
+        status: 'draft'
+      })
+      .select()
+      .single();
+
+    if (storyError) {
+      throw storyError;
+    }
+
+    // Create initial version
+    await supabase
+      .from('memory_story_versions')
+      .insert({
+        story_id: story.id,
+        version_number: 1,
+        title: storyData.title,
+        content: storyData.content,
+        created_by_system: true
+      });
+
+    // Update interview status
+    await supabase
+      .from('memory_interviews')
+      .update({ status: 'story_generated' })
+      .eq('id', interview_id);
+
+    console.log('Story generated successfully:', story.id);
+
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        story_id: story.id,
+        title: storyData.title 
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error) {
+    console.error('Error generating story:', error);
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
+    );
+  }
+});
