@@ -19,6 +19,13 @@ serve(async (req) => {
       callSid = callSid || params.get('CallSid') || '';
     } catch {}
 
+    console.log('Initial TwiML request', {
+      interviewIdFromQuery,
+      callSid,
+      userAgent: req.headers.get('user-agent') || 'unknown',
+      timestamp: new Date().toISOString(),
+    });
+
     if (!interviewIdFromQuery) {
       console.error('ERROR: Missing interview_id on initial TwiML request');
       return new Response(
@@ -31,7 +38,7 @@ serve(async (req) => {
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say voice="alice">Please hold while I connect your memory interview.</Say>\n  <Connect>\n    <Stream url="${wsUrl}"/>\n  </Connect>\n</Response>`;
 
     console.log('Responding with TwiML to connect stream:', wsUrl);
-    return new Response(twiml, { headers: { 'Content-Type': 'application/xml' } });
+    return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
   }
 
   const interviewId = interviewIdFromQuery;
@@ -106,6 +113,7 @@ serve(async (req) => {
   let currentQuestionIndex = 0;
   let streamSid: string | null = null;
   const pendingAudioDeltas: string[] = [];
+  let mediaCount = 0;
 
   // Build system instructions
   const recipientInfo = interview.care_groups;
@@ -269,22 +277,30 @@ Current question to ask: ${questions[0].question_text}`;
 
     if (msg.event === 'start') {
       streamSid = msg.start?.streamSid || msg.streamSid || null;
-      console.log('Twilio stream started. streamSid:', streamSid);
+      console.log('Twilio stream started. streamSid:', streamSid, 'protocol:', selectedProtocol);
       // Flush any pending audio deltas
       if (streamSid && pendingAudioDeltas.length) {
         for (const delta of pendingAudioDeltas.splice(0)) {
           twilioWs.send(JSON.stringify({ event: 'media', streamSid, media: { payload: delta } }));
         }
       }
-    } else if (msg.event === 'media' && openaiWs && openaiWs.readyState === WebSocket.OPEN) {
-      // Forward audio from Twilio (mulaw_8khz) to OpenAI
-      openaiWs.send(JSON.stringify({
-        type: 'input_audio_buffer.append',
-        audio: msg.media.payload
-      }));
+    } else if (msg.event === 'media') {
+      mediaCount++;
+      if (mediaCount % 100 === 0) {
+        console.log('Received media frames from Twilio:', mediaCount);
+      }
+      if (openaiWs && openaiWs.readyState === WebSocket.OPEN) {
+        // Forward audio from Twilio (mulaw_8khz) to OpenAI
+        openaiWs.send(JSON.stringify({
+          type: 'input_audio_buffer.append',
+          audio: msg.media.payload
+        }));
+      }
     } else if (msg.event === 'stop') {
-      console.log('Call ended by Twilio');
+      console.log('Call ended by Twilio. Total media frames received:', mediaCount);
       openaiWs?.close();
+    } else {
+      console.log('Unhandled Twilio event:', msg.event);
     }
   };
 
