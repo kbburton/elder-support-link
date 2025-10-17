@@ -223,6 +223,25 @@ Current question to ask: ${questions[0].question_text}`;
           }
         }));
 
+        // Set up keepalive ping to prevent connection timeout
+        const keepaliveInterval = setInterval(() => {
+          if (openaiWs && openaiWs.readyState === WebSocket.OPEN) {
+            try {
+              openaiWs.send(JSON.stringify({ type: 'ping' }));
+              console.log('Sent keepalive ping to OpenAI');
+            } catch (error) {
+              console.error('Error sending keepalive ping:', error);
+              clearInterval(keepaliveInterval);
+            }
+          } else {
+            console.log('OpenAI WebSocket not open, clearing keepalive');
+            clearInterval(keepaliveInterval);
+          }
+        }, 30000); // Send ping every 30 seconds
+
+        // Store interval ID for cleanup
+        (openaiWs as any).keepaliveInterval = keepaliveInterval;
+
         // Flush any pending input audio from Twilio
         if (pendingMediaPayloads.length) {
           console.log('Flushing pending media frames to OpenAI:', pendingMediaPayloads.length);
@@ -262,11 +281,21 @@ Current question to ask: ${questions[0].question_text}`;
       };
 
       openaiWs.onerror = (error) => {
-        console.error('OpenAI WebSocket error:', error);
+        console.error('!!! OpenAI WebSocket error:', error);
+        console.error('Error details:', JSON.stringify(error, null, 2));
       };
 
-      openaiWs.onclose = async () => {
-        console.log('=== INTERVIEW ENDING ===');
+      openaiWs.onclose = async (event) => {
+        console.log('=== OpenAI WebSocket CLOSED ===');
+        console.log('Close code:', event.code);
+        console.log('Close reason:', event.reason);
+        console.log('Was clean close:', event.wasClean);
+        
+        // Clear keepalive interval
+        if ((openaiWs as any).keepaliveInterval) {
+          clearInterval((openaiWs as any).keepaliveInterval);
+        }
+        
         console.log('Saving transcript and wrapping up...');
         
         // Save transcript and update interview
