@@ -113,24 +113,45 @@ serve(async (req) => {
         recipientName: interview.care_groups.recipient_first_name
       });
 
-      // Get 5 random questions for this interview (fallback to direct table query)
-      console.log('Fetching questions directly from interview_questions (is_active=true)...');
-      const { data: allQs, error: questionsError } = await supabase
-        .from('interview_questions')
-        .select('id, question_text, category, display_order')
-        .eq('is_active', true);
+      // Check if user selected a specific question
+      if (interview.selected_question_id) {
+        console.log('Fetching selected question:', interview.selected_question_id);
+        const { data: selectedQ, error: questionError } = await supabase
+          .from('interview_questions')
+          .select('id, question_text, category, display_order')
+          .eq('id', interview.selected_question_id)
+          .eq('is_active', true)
+          .single();
 
-      if (questionsError || !allQs || allQs.length === 0) {
-        console.error('ERROR: Failed to get questions');
-        console.error('Error details:', questionsError);
-        try { twilioWs.close(); } catch {}
-        return false;
+        if (questionError || !selectedQ) {
+          console.error('ERROR: Failed to get selected question');
+          console.error('Error details:', questionError);
+          try { twilioWs.close(); } catch {}
+          return false;
+        }
+
+        questions = [selectedQ];
+        console.log('✓ Using selected question:', selectedQ.question_text);
+      } else {
+        // No specific question selected, fetch 5 random questions
+        console.log('No specific question selected, fetching 5 random questions...');
+        const { data: allQs, error: questionsError } = await supabase
+          .from('interview_questions')
+          .select('id, question_text, category, display_order')
+          .eq('is_active', true);
+
+        if (questionsError || !allQs || allQs.length === 0) {
+          console.error('ERROR: Failed to get questions');
+          console.error('Error details:', questionsError);
+          try { twilioWs.close(); } catch {}
+          return false;
+        }
+
+        // Shuffle and take 5
+        const shuffled = [...allQs].sort(() => Math.random() - 0.5);
+        questions = shuffled.slice(0, 5);
+        console.log(`✓ Loaded ${questions.length} random questions for interview`);
       }
-
-      // Shuffle and take 5
-      const shuffled = [...allQs].sort(() => Math.random() - 0.5);
-      questions = shuffled.slice(0, 5);
-      console.log(`✓ Loaded ${questions.length} questions for interview`);
 
       // Build system instructions
       recipientInfo = interview.care_groups;
