@@ -72,6 +72,8 @@ serve(async (req) => {
   const pendingMediaPayloads: string[] = [];
   let mediaCount = 0;
   let sessionInitialized = false;
+  let callEnded = false;
+  let openaiConfigured = false;
 
   const initializeSession = async () => {
     try {
@@ -198,46 +200,13 @@ Current question to ask: ${questions[0].question_text}`;
       openaiWs = new WebSocket(wsUrl, ['realtime', `openai-insecure-api-key.${OPENAI_API_KEY}`, 'openai-beta.realtime-v1']);
 
       openaiWs.onopen = () => {
-        console.log('✓ OpenAI WebSocket connected - configuring session');
-        
-        // Configure session
-        openaiWs!.send(JSON.stringify({
-          type: 'session.update',
-          session: {
-            modalities: ['text', 'audio'],
-            instructions: systemInstructions,
-            voice: 'alloy',
-            input_audio_format: 'g711_ulaw',
-            output_audio_format: 'g711_ulaw',
-            input_audio_transcription: {
-              model: 'whisper-1'
-            },
-            turn_detection: {
-              type: 'server_vad',
-              threshold: 0.5,
-              prefix_padding_ms: 300,
-              silence_duration_ms: 1000
-            },
-            temperature: 0.8,
-            max_response_output_tokens: 'inf'
-          }
-        }));
-
-        // Removed invalid JSON 'ping' keepalive; OpenAI Realtime doesn't accept a 'ping' event.
-        // The connection should remain active due to continuous audio flow from Twilio.
-
-        // Flush any pending input audio from Twilio
-        if (pendingMediaPayloads.length) {
-          console.log('Flushing pending media frames to OpenAI:', pendingMediaPayloads.length);
-          for (const payload of pendingMediaPayloads.splice(0)) {
-            openaiWs!.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: payload }));
-          }
-        }
+        console.log('✓ OpenAI WebSocket connected');
+        // Wait for session.created before sending session.update
       };
 
       openaiWs.onmessage = async (event) => {
         const data = JSON.parse(event.data);
-        
+
         if (data.type === 'response.audio.delta' && data.delta) {
           if (streamSid) {
             twilioWs.send(JSON.stringify({
@@ -257,10 +226,42 @@ Current question to ask: ${questions[0].question_text}`;
           // Store AI's response
           transcriptBuffer.push(`AI: ${data.delta}`);
           console.log('[AI transcript delta]:', data.delta);
+        } else if (data.type === 'session.created') {
+          console.log('✓ OpenAI session.created - sending session.update');
+          openaiWs!.send(JSON.stringify({
+            type: 'session.update',
+            session: {
+              modalities: ['text', 'audio'],
+              instructions: systemInstructions,
+              voice: 'alloy',
+              input_audio_format: 'g711_ulaw',
+              output_audio_format: 'g711_ulaw',
+              input_audio_transcription: { model: 'whisper-1' },
+              turn_detection: {
+                type: 'server_vad',
+                threshold: 0.5,
+                prefix_padding_ms: 300,
+                silence_duration_ms: 1000
+              },
+              temperature: 0.8,
+              max_response_output_tokens: 'inf'
+            }
+          }));
+        } else if (data.type === 'session.updated') {
+          console.log('✓ OpenAI session.updated');
+          openaiConfigured = true;
+          // Flush any pending input audio from Twilio now that session is configured
+          if (pendingMediaPayloads.length) {
+            console.log('Flushing pending media frames to OpenAI:', pendingMediaPayloads.length);
+            for (const payload of pendingMediaPayloads.splice(0)) {
+              openaiWs!.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: payload }));
+            }
+          }
         } else if (data.type === 'error') {
           console.error('ERROR from OpenAI:', data.error);
-        } else if (data.type === 'session.created' || data.type === 'session.updated') {
-          console.log(`✓ OpenAI ${data.type}`);
+        } else {
+          // Other events: response.created, response.done, etc.
+          if (data.type) console.log(`OpenAI event: ${data.type}`);
         }
       };
 
@@ -274,10 +275,19 @@ Current question to ask: ${questions[0].question_text}`;
         console.log('Close code:', event.code);
         console.log('Close reason:', event.reason);
         console.log('Was clean close:', event.wasClean);
-        
-        // Clear keepalive interval
-        if ((openaiWs as any).keepaliveInterval) {
-          clearInterval((openaiWs as any).keepaliveInterval);
+
+        // Attempt to recover unless the call has actually ended
+        if (!callEnded) {
+          console.log('OpenAI closed unexpectedly; keeping Twilio stream alive and attempting reconnect...');
+          openaiWs = null;
+          try {
+            setTimeout(() => {
+              startOpenAIConnection();
+            }, 250);
+          } catch (e) {
+            console.error('Error attempting OpenAI reconnect:', e);
+          }
+          return; // Do not wrap up or close Twilio here
         }
         
         console.log('Saving transcript and wrapping up...');
