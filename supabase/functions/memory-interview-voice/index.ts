@@ -94,7 +94,13 @@ serve(async (req) => {
 
   console.log(`✓ Loaded ${questions.length} questions for interview`);
 
-  const { socket: twilioWs, response } = Deno.upgradeWebSocket(req);
+  // Negotiate Twilio subprotocol if provided (required for Twilio Media Streams)
+  const requestedProtocols = req.headers.get('sec-websocket-protocol')?.split(',').map(p => p.trim()) || [];
+  const selectedProtocol = requestedProtocols[0];
+  if (selectedProtocol) console.log('Negotiating WebSocket subprotocol:', selectedProtocol);
+
+  const upgradeOpts = selectedProtocol ? { protocol: selectedProtocol } as any : undefined as any;
+  const { socket: twilioWs, response } = Deno.upgradeWebSocket(req, upgradeOpts);
   let openaiWs: WebSocket | null = null;
   let transcriptBuffer: string[] = [];
   let currentQuestionIndex = 0;
