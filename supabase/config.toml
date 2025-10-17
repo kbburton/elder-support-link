@@ -86,3 +86,6 @@ verify_jwt = false
 
 [functions.debug-gemini-health]
 verify_jwt = false
+
+[functions.initiate-scheduled-interviews]
+verify_jwt = false
