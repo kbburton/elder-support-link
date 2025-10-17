@@ -6,12 +6,35 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 serve(async (req) => {
+  const url = new URL(req.url);
+  const interviewIdFromQuery = url.searchParams.get('interview_id');
+
+  // If this is an initial webhook request from Twilio, return TwiML that connects to our WebSocket
   if (req.headers.get("upgrade") !== "websocket") {
-    return new Response("Expected websocket", { status: 400 });
+    // Twilio sends x-www-form-urlencoded with CallSid
+    let callSid = url.searchParams.get('call_sid') || '';
+    try {
+      const bodyText = await req.text();
+      const params = new URLSearchParams(bodyText);
+      callSid = callSid || params.get('CallSid') || '';
+    } catch {}
+
+    if (!interviewIdFromQuery) {
+      console.error('ERROR: Missing interview_id on initial TwiML request');
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>\n<Response><Say voice="alice">An error occurred initializing your interview. Please try again later.</Say><Hangup/></Response>`,
+        { status: 400, headers: { 'Content-Type': 'application/xml' } }
+      );
+    }
+
+    const wsUrl = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-voice?interview_id=${interviewIdFromQuery}${callSid ? `&call_sid=${callSid}` : ''}`;
+    const twiml = `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say voice="alice">Please hold while I connect your memory interview.</Say>\n  <Connect>\n    <Stream url="${wsUrl}"/>\n  </Connect>\n</Response>`;
+
+    console.log('Responding with TwiML to connect stream:', wsUrl);
+    return new Response(twiml, { headers: { 'Content-Type': 'application/xml' } });
   }
 
-  const url = new URL(req.url);
-  const interviewId = url.searchParams.get('interview_id');
+  const interviewId = interviewIdFromQuery;
   const callSid = url.searchParams.get('call_sid');
 
   console.log('=== VOICE SESSION STARTING ===');
