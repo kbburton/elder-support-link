@@ -245,15 +245,13 @@ Current question to ask: ${questions[0].question_text}`;
               voice: 'alloy',
               input_audio_format: 'g711_ulaw',
               output_audio_format: 'g711_ulaw',
-              input_audio_transcription: { model: 'whisper-1' },
               turn_detection: {
                 type: 'server_vad',
                 threshold: 0.5,
                 prefix_padding_ms: 300,
                 silence_duration_ms: 1000
               },
-              temperature: 0.8,
-              max_response_output_tokens: 'inf'
+              temperature: 0.8
             }
           }));
           // Schedule proactive rotation in case session.updated is delayed or missing
@@ -283,7 +281,7 @@ Current question to ask: ${questions[0].question_text}`;
                   ]
                 }
               }));
-              openaiWs!.send(JSON.stringify({ type: 'response.create' }));
+          openaiWs!.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio', 'text'] } }));
               introDelivered = true;
               console.log('✓ Sent initial greeting prompt to OpenAI (requesting audio)');
             } catch (e) {
@@ -309,6 +307,9 @@ Current question to ask: ${questions[0].question_text}`;
           }
           if (data.response?.error) {
             console.error('[OpenAI] response.error:', JSON.stringify(data.response.error));
+          }
+          if (data.response?.status === 'failed') {
+            try { console.error('[OpenAI] response.failed full payload:', JSON.stringify(data)); } catch {}
           }
         } else if (data.type?.startsWith('response.')) {
           console.log(`[OpenAI] ${data.type}:`, JSON.stringify(data).substring(0, 200));
@@ -493,7 +494,7 @@ Current question to ask: ${questions[0].question_text}`;
                 content: [ { type: 'input_text', text: introText } ]
               }
             }));
-            openaiWs!.send(JSON.stringify({ type: 'response.create' }));
+            openaiWs!.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio', 'text'] } }));
             introDelivered = true;
             console.log('✓ Sent safety intro after start');
           } catch (e) {
