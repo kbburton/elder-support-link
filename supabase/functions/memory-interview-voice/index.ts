@@ -78,6 +78,7 @@ serve(async (req) => {
   let rotateTimer: number | null = null;
   let reconnecting = false;
   let introDelivered = false;
+  let heartbeatTimer: number | null = null;
 
   const initializeSession = async () => {
     try {
@@ -396,6 +397,30 @@ Current question to ask or continue discussing: ${currentQ}`;
       }
     }, 60_000);
   };
+
+  // Heartbeat to keep Twilio WebSocket alive (prevents idle timeouts)
+  const clearHeartbeat = () => {
+    if (heartbeatTimer !== null) {
+      clearInterval(heartbeatTimer as number);
+      heartbeatTimer = null;
+    }
+  };
+
+  const startHeartbeat = () => {
+    clearHeartbeat();
+    heartbeatTimer = setInterval(() => {
+      if (!streamSid || callEnded) return;
+      try {
+        twilioWs.send(JSON.stringify({
+          event: 'mark',
+          streamSid,
+          mark: { name: 'heartbeat', timestamp: new Date().toISOString() }
+        }));
+      } catch (e) {
+        console.error('Error sending heartbeat to Twilio:', e);
+      }
+    }, 20_000) as any;
+  };
   
   twilioWs.onopen = () => {
     console.log('✓ Twilio WebSocket connected - waiting for start event with customParameters');
@@ -438,6 +463,7 @@ Current question to ask or continue discussing: ${currentQ}`;
       sessionInitialized = true;
       console.log('Session initialized, starting OpenAI connection...');
       await startOpenAIConnection();
+      startHeartbeat();
 
       // Flush any pending audio deltas
       if (streamSid && pendingAudioDeltas.length) {
@@ -469,6 +495,7 @@ Current question to ask or continue discussing: ${currentQ}`;
         clearTimeout(rotateTimer as number);
         rotateTimer = null;
       }
+      clearHeartbeat();
     } else {
       console.log('Unhandled Twilio event:', msg.event);
     }
@@ -485,6 +512,7 @@ Current question to ask or continue discussing: ${currentQ}`;
       clearTimeout(rotateTimer as number);
       rotateTimer = null;
     }
+    clearHeartbeat();
     callEnded = true;
     openaiWs?.close();
   };
