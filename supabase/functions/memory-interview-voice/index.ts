@@ -211,6 +211,7 @@ Current question to ask: ${questions[0].question_text}`;
 
       openaiWs.onmessage = async (event) => {
         const data = JSON.parse(event.data);
+        console.log(`[OpenAI Event] type=${data.type}`);
 
         if (data.type === 'response.audio.delta' && data.delta) {
           if (streamSid) {
@@ -294,8 +295,17 @@ Current question to ask: ${questions[0].question_text}`;
           scheduleRotate();
         } else if (data.type === 'error') {
           console.error('ERROR from OpenAI:', data.error);
+        } else if (data.type === 'response.created') {
+          console.log(`[OpenAI] response.created - response_id=${data.response?.id}`);
+        } else if (data.type === 'response.done') {
+          console.log(`[OpenAI] response.done - status=${data.response?.status}, output_count=${data.response?.output?.length || 0}`);
+          if (data.response?.output) {
+            console.log('[OpenAI] response.output:', JSON.stringify(data.response.output));
+          }
+        } else if (data.type?.startsWith('response.')) {
+          console.log(`[OpenAI] ${data.type}:`, JSON.stringify(data).substring(0, 200));
         } else {
-          // Other events: response.created, response.done, etc.
+          // Other events
           if (data.type) console.log(`OpenAI event: ${data.type}`);
         }
       };
