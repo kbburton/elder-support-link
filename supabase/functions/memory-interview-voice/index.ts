@@ -213,6 +213,7 @@ Current question to ask: ${questions[0].question_text}`;
 
         if (data.type === 'response.audio.delta' && data.delta) {
           if (streamSid) {
+            console.log(`[OpenAI->Twilio] audio.delta bytes(base64 length): ${data.delta.length}`);
             twilioWs.send(JSON.stringify({
               event: 'media',
               streamSid: streamSid,
@@ -450,6 +451,29 @@ Current question to ask: ${questions[0].question_text}`;
           twilioWs.send(JSON.stringify({ event: 'media', streamSid, media: { payload: delta } }));
         }
       }
+
+      // Safety: if no intro was delivered yet, trigger it shortly after start
+      setTimeout(() => {
+        if (!introDelivered && openaiWs && openaiWs.readyState === WebSocket.OPEN) {
+          try {
+            const introText = `Hello ${recipientName}. I will ask you a few questions to record your memories. Let’s begin. ${questions[0]?.question_text ?? 'Can you tell me about your earliest memories?'}`;
+            openaiWs!.send(JSON.stringify({
+              type: 'conversation.item.create',
+              item: {
+                type: 'message',
+                role: 'user',
+                content: [ { type: 'input_text', text: introText } ]
+              }
+            }));
+            openaiWs!.send(JSON.stringify({ type: 'response.create' }));
+            introDelivered = true;
+            console.log('✓ Sent safety intro after start');
+          } catch (e) {
+            console.error('Failed to send safety intro:', e);
+          }
+        }
+      }, 600);
+
     } else if (msg.event === 'media') {
       mediaCount++;
       if (mediaCount % 100 === 0) {
