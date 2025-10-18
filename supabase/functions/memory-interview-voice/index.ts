@@ -216,18 +216,21 @@ Current question to ask: ${questions[0].question_text}`;
 
         if (data.type === 'response.audio.delta' && data.delta) {
           audioSendCount++;
-          if (streamSid) {
-            if (audioSendCount % 20 === 0) {
-              console.log(`[OpenAI->Twilio] audio.delta #${audioSendCount} len=${data.delta.length} (sending outbound)`);
+            if (streamSid) {
+              if (audioSendCount % 20 === 0) {
+                console.log(`[OpenAI->Twilio] audio.delta #${audioSendCount} len=${data.delta.length} (sending outbound)`);
+              }
+              twilioWs.send(JSON.stringify({
+                event: 'media',
+                streamSid: streamSid,
+                media: { payload: data.delta }
+              }));
+              if (audioSendCount % 20 === 0) {
+                twilioWs.send(JSON.stringify({ event: 'mark', streamSid: streamSid, mark: { name: `out-${audioSendCount}` } }));
+              }
+            } else {
+              pendingAudioDeltas.push(data.delta);
             }
-            twilioWs.send(JSON.stringify({
-              event: 'media',
-              streamSid: streamSid,
-              media: { payload: data.delta }
-            }));
-          } else {
-            pendingAudioDeltas.push(data.delta);
-          }
         } else if (data.type === 'conversation.item.input_audio_transcription.completed') {
           // Store user's response
           const userTranscript = data.transcript;
@@ -245,8 +248,8 @@ Current question to ask: ${questions[0].question_text}`;
               modalities: ['text', 'audio'],
               instructions: systemInstructions,
               voice: 'alloy',
-              input_audio_format: 'g711_ulaw',
-              output_audio_format: 'g711_ulaw',
+              input_audio_format: 'mulaw_8000',
+              output_audio_format: 'mulaw_8000',
               turn_detection: {
                 type: 'server_vad',
                 threshold: 0.5,
