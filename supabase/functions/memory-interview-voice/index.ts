@@ -248,8 +248,8 @@ Current question to ask: ${questions[0].question_text}`;
               modalities: ['text', 'audio'],
               instructions: systemInstructions,
               voice: 'alloy',
-              input_audio_format: 'mulaw_8000',
-              output_audio_format: 'mulaw_8000',
+              input_audio_format: 'g711_ulaw',
+              output_audio_format: 'g711_ulaw',
               turn_detection: {
                 type: 'server_vad',
                 threshold: 0.5,
