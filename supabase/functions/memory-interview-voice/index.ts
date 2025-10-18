@@ -387,15 +387,16 @@ Current question to ask or continue discussing: ${currentQ}`;
   const scheduleRotate = () => {
     if (callEnded) return;
     clearRotateTimer();
+    // Rotate at 90 seconds to reduce rotation frequency while staying under 2min TTL
     rotateTimer = setTimeout(() => {
-      console.log('Proactively rotating OpenAI session before 2min TTL...');
+      console.log('Proactively rotating OpenAI session before 2min TTL (90s)...');
       reconnecting = true;
       try {
         openaiWs?.close(4000, 'proactive-rotate');
       } catch (e) {
         console.error('Error closing OpenAI for rotation:', e);
       }
-    }, 60_000);
+    }, 90_000);
   };
 
   // Heartbeat to keep Twilio WebSocket alive (prevents idle timeouts)
@@ -506,18 +507,28 @@ Current question to ask or continue discussing: ${currentQ}`;
 
   twilioWs.onerror = (error) => {
     console.error('Twilio WebSocket error:', error);
-    openaiWs?.close();
+    console.error('Error details:', JSON.stringify(error, null, 2));
+    // Don't immediately close OpenAI - let the onclose handler decide
   };
 
-  twilioWs.onclose = () => {
-    console.log('Twilio WebSocket closed');
+  twilioWs.onclose = (event) => {
+    console.log('=== Twilio WebSocket CLOSED ===');
+    console.log('Close code:', event.code);
+    console.log('Close reason:', event.reason);
+    console.log('Was clean:', event.wasClean);
+    
     if (rotateTimer !== null) {
       clearTimeout(rotateTimer as number);
       rotateTimer = null;
     }
     clearHeartbeat();
     callEnded = true;
-    openaiWs?.close();
+    
+    try {
+      openaiWs?.close();
+    } catch (e) {
+      console.error('Error closing OpenAI on Twilio close:', e);
+    }
   };
 
   return response;
