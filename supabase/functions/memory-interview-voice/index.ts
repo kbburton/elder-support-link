@@ -411,15 +411,18 @@ Current question to ask or continue discussing: ${currentQ}`;
     heartbeatTimer = setInterval(() => {
       if (!streamSid || callEnded) return;
       try {
-        twilioWs.send(JSON.stringify({
-          event: 'mark',
-          streamSid,
-          mark: { name: 'heartbeat', timestamp: new Date().toISOString() }
-        }));
+        if (twilioWs.readyState === WebSocket.OPEN) {
+          twilioWs.send(JSON.stringify({
+            event: 'mark',
+            streamSid,
+            mark: { name: 'heartbeat', timestamp: new Date().toISOString() }
+          }));
+          console.log('Heartbeat sent to Twilio');
+        }
       } catch (e) {
         console.error('Error sending heartbeat to Twilio:', e);
       }
-    }, 20_000) as any;
+    }, 10_000) as any;
   };
   
   twilioWs.onopen = () => {
