@@ -74,6 +74,7 @@ serve(async (req) => {
   let sessionInitialized = false;
   let callEnded = false;
   let openaiConfigured = false;
+  let introDelivered = false;
   // Proactive session rotation to avoid 2-minute upstream TTLs
   let rotateTimer: number | null = null;
   let reconnecting = false;
@@ -262,6 +263,29 @@ Current question to ask: ${questions[0].question_text}`;
               openaiWs!.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: payload }));
             }
           }
+
+          // Proactively trigger an audible greeting once per session
+          if (!introDelivered) {
+            try {
+              const introText = `Hello ${recipientName}. I will ask you a few questions to record your memories. Let’s begin. ${questions[0]?.question_text ?? 'Can you tell me about your earliest memories?'}`;
+              openaiWs!.send(JSON.stringify({
+                type: 'conversation.item.create',
+                item: {
+                  type: 'message',
+                  role: 'user',
+                  content: [
+                    { type: 'input_text', text: introText }
+                  ]
+                }
+              }));
+              openaiWs!.send(JSON.stringify({ type: 'response.create' }));
+              introDelivered = true;
+              console.log('✓ Sent initial greeting prompt to OpenAI');
+            } catch (e) {
+              console.error('Failed to send initial greeting:', e);
+            }
+          }
+
           // Schedule proactive session rotation just before 2 minutes
           scheduleRotate();
         } else if (data.type === 'error') {
