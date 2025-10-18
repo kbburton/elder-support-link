@@ -214,7 +214,8 @@ Current question to ask: ${questions[0].question_text}`;
 
         if (data.type === 'response.audio.delta' && data.delta) {
           if (streamSid) {
-            console.log(`[OpenAI->Twilio] audio.delta bytes(base64 length): ${data.delta.length}`);
+            const len = data.delta.length;
+            console.log(`[OpenAI->Twilio] audio.delta len=${len} (sending outbound)`);
             twilioWs.send(JSON.stringify({
               event: 'media',
               streamSid: streamSid,
@@ -281,9 +282,9 @@ Current question to ask: ${questions[0].question_text}`;
                   ]
                 }
               }));
-              openaiWs!.send(JSON.stringify({ type: 'response.create' }));
+              openaiWs!.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio'] } }));
               introDelivered = true;
-              console.log('✓ Sent initial greeting prompt to OpenAI');
+              console.log('✓ Sent initial greeting prompt to OpenAI (requesting audio)');
             } catch (e) {
               console.error('Failed to send initial greeting:', e);
             }
@@ -470,7 +471,7 @@ Current question to ask: ${questions[0].question_text}`;
                 content: [ { type: 'input_text', text: introText } ]
               }
             }));
-            openaiWs!.send(JSON.stringify({ type: 'response.create' }));
+            openaiWs!.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio'] } }));
             introDelivered = true;
             console.log('✓ Sent safety intro after start');
           } catch (e) {
