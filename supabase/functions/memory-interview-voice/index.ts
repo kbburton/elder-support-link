@@ -78,7 +78,6 @@ serve(async (req) => {
   let rotateTimer: number | null = null;
   let reconnecting = false;
   let introDelivered = false;
-  let heartbeatTimer: number | null = null;
 
   const initializeSession = async () => {
     try {
@@ -276,7 +275,6 @@ Current question to ask or continue discussing: ${currentQ}`;
           console.log('✓ OpenAI session.updated');
           openaiConfigured = true;
           reconnecting = false;
-          
           // Flush any pending input audio from Twilio now that session is configured
           if (pendingMediaPayloads.length) {
             console.log('Flushing pending media frames to OpenAI:', pendingMediaPayloads.length);
@@ -284,13 +282,6 @@ Current question to ask or continue discussing: ${currentQ}`;
               openaiWs!.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: payload }));
             }
           }
-          
-          // Trigger initial greeting if this is a new session (not a reconnect)
-          if (!reconnecting && !introDelivered) {
-            console.log('Triggering initial AI greeting via response.create');
-            openaiWs!.send(JSON.stringify({ type: 'response.create' }));
-          }
-          
           // Schedule proactive session rotation just before 2 minutes
           scheduleRotate();
         } else if (data.type === 'error') {
@@ -395,43 +386,15 @@ Current question to ask or continue discussing: ${currentQ}`;
   const scheduleRotate = () => {
     if (callEnded) return;
     clearRotateTimer();
-    // Rotate at 90 seconds to reduce rotation frequency while staying under 2min TTL
     rotateTimer = setTimeout(() => {
-      console.log('Proactively rotating OpenAI session before 2min TTL (90s)...');
+      console.log('Proactively rotating OpenAI session before 2min TTL...');
       reconnecting = true;
       try {
         openaiWs?.close(4000, 'proactive-rotate');
       } catch (e) {
         console.error('Error closing OpenAI for rotation:', e);
       }
-    }, 90_000);
-  };
-
-  // Heartbeat to keep Twilio WebSocket alive (prevents idle timeouts)
-  const clearHeartbeat = () => {
-    if (heartbeatTimer !== null) {
-      clearInterval(heartbeatTimer as number);
-      heartbeatTimer = null;
-    }
-  };
-
-  const startHeartbeat = () => {
-    clearHeartbeat();
-    heartbeatTimer = setInterval(() => {
-      if (!streamSid || callEnded) return;
-      try {
-        if (twilioWs.readyState === WebSocket.OPEN) {
-          twilioWs.send(JSON.stringify({
-            event: 'mark',
-            streamSid,
-            mark: { name: 'heartbeat', timestamp: new Date().toISOString() }
-          }));
-          console.log('Heartbeat sent to Twilio');
-        }
-      } catch (e) {
-        console.error('Error sending heartbeat to Twilio:', e);
-      }
-    }, 10_000) as any;
+    }, 60_000);
   };
   
   twilioWs.onopen = () => {
@@ -475,7 +438,6 @@ Current question to ask or continue discussing: ${currentQ}`;
       sessionInitialized = true;
       console.log('Session initialized, starting OpenAI connection...');
       await startOpenAIConnection();
-      startHeartbeat();
 
       // Flush any pending audio deltas
       if (streamSid && pendingAudioDeltas.length) {
@@ -507,7 +469,6 @@ Current question to ask or continue discussing: ${currentQ}`;
         clearTimeout(rotateTimer as number);
         rotateTimer = null;
       }
-      clearHeartbeat();
     } else {
       console.log('Unhandled Twilio event:', msg.event);
     }
@@ -515,28 +476,17 @@ Current question to ask or continue discussing: ${currentQ}`;
 
   twilioWs.onerror = (error) => {
     console.error('Twilio WebSocket error:', error);
-    console.error('Error details:', JSON.stringify(error, null, 2));
-    // Don't immediately close OpenAI - let the onclose handler decide
+    openaiWs?.close();
   };
 
-  twilioWs.onclose = (event) => {
-    console.log('=== Twilio WebSocket CLOSED ===');
-    console.log('Close code:', event.code);
-    console.log('Close reason:', event.reason);
-    console.log('Was clean:', event.wasClean);
-    
+  twilioWs.onclose = () => {
+    console.log('Twilio WebSocket closed');
     if (rotateTimer !== null) {
       clearTimeout(rotateTimer as number);
       rotateTimer = null;
     }
-    clearHeartbeat();
     callEnded = true;
-    
-    try {
-      openaiWs?.close();
-    } catch (e) {
-      console.error('Error closing OpenAI on Twilio close:', e);
-    }
+    openaiWs?.close();
   };
 
   return response;
