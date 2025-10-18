@@ -276,6 +276,7 @@ Current question to ask or continue discussing: ${currentQ}`;
           console.log('✓ OpenAI session.updated');
           openaiConfigured = true;
           reconnecting = false;
+          
           // Flush any pending input audio from Twilio now that session is configured
           if (pendingMediaPayloads.length) {
             console.log('Flushing pending media frames to OpenAI:', pendingMediaPayloads.length);
@@ -283,6 +284,13 @@ Current question to ask or continue discussing: ${currentQ}`;
               openaiWs!.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: payload }));
             }
           }
+          
+          // Trigger initial greeting if this is a new session (not a reconnect)
+          if (!reconnecting && !introDelivered) {
+            console.log('Triggering initial AI greeting via response.create');
+            openaiWs!.send(JSON.stringify({ type: 'response.create' }));
+          }
+          
           // Schedule proactive session rotation just before 2 minutes
           scheduleRotate();
         } else if (data.type === 'error') {
