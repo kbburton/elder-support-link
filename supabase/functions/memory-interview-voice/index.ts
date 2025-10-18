@@ -74,6 +74,9 @@ serve(async (req) => {
   let sessionInitialized = false;
   let callEnded = false;
   let openaiConfigured = false;
+  // Proactive session rotation to avoid 2-minute upstream TTLs
+  let rotateTimer: number | null = null;
+  let reconnecting = false;
 
   const initializeSession = async () => {
     try {
@@ -257,6 +260,8 @@ Current question to ask: ${questions[0].question_text}`;
               openaiWs!.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: payload }));
             }
           }
+          // Schedule proactive session rotation just before 2 minutes
+          scheduleRotate();
         } else if (data.type === 'error') {
           console.error('ERROR from OpenAI:', data.error);
         } else {
@@ -275,6 +280,11 @@ Current question to ask: ${questions[0].question_text}`;
         console.log('Close code:', event.code);
         console.log('Close reason:', event.reason);
         console.log('Was clean close:', event.wasClean);
+        // Clear any proactive rotation timer
+        if (rotateTimer !== null) {
+          clearTimeout(rotateTimer as number);
+          rotateTimer = null;
+        }
 
         // Attempt to recover unless the call has actually ended
         if (!callEnded) {
@@ -343,6 +353,28 @@ Current question to ask: ${questions[0].question_text}`;
     }
   };
 
+  // Manage proactive OpenAI session rotation
+  const clearRotateTimer = () => {
+    if (rotateTimer !== null) {
+      clearTimeout(rotateTimer as number);
+      rotateTimer = null;
+    }
+  };
+
+  const scheduleRotate = () => {
+    if (callEnded) return;
+    clearRotateTimer();
+    rotateTimer = setTimeout(() => {
+      console.log('Proactively rotating OpenAI session before 2min TTL...');
+      reconnecting = true;
+      try {
+        openaiWs?.close(4000, 'proactive-rotate');
+      } catch (e) {
+        console.error('Error closing OpenAI for rotation:', e);
+      }
+    }, 95_000);
+  };
+  
   twilioWs.onopen = () => {
     console.log('✓ Twilio WebSocket connected - waiting for start event with customParameters');
   };
@@ -409,7 +441,12 @@ Current question to ask: ${questions[0].question_text}`;
       }
     } else if (msg.event === 'stop') {
       console.log('Call ended by Twilio. Total media frames received:', mediaCount);
-      openaiWs?.close();
+      callEnded = true;
+      try { openaiWs?.close(); } catch {}
+      if (rotateTimer !== null) {
+        clearTimeout(rotateTimer as number);
+        rotateTimer = null;
+      }
     } else {
       console.log('Unhandled Twilio event:', msg.event);
     }
@@ -422,6 +459,11 @@ Current question to ask: ${questions[0].question_text}`;
 
   twilioWs.onclose = () => {
     console.log('Twilio WebSocket closed');
+    if (rotateTimer !== null) {
+      clearTimeout(rotateTimer as number);
+      rotateTimer = null;
+    }
+    callEnded = true;
     openaiWs?.close();
   };
 
