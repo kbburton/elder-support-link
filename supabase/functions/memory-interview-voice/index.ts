@@ -283,7 +283,7 @@ Current question to ask: ${questions[0].question_text}`;
                   ]
                 }
               }));
-              openaiWs!.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio'] } }));
+              openaiWs!.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio','text'] } }));
               introDelivered = true;
               console.log('✓ Sent initial greeting prompt to OpenAI (requesting audio)');
             } catch (e) {
@@ -295,6 +295,11 @@ Current question to ask: ${questions[0].question_text}`;
           scheduleRotate();
         } else if (data.type === 'error') {
           console.error('ERROR from OpenAI:', data.error);
+        } else if (data.type === 'response.output_text.delta') {
+          transcriptBuffer.push(`AI: ${data.delta}`);
+          console.log('[AI output_text delta]:', data.delta);
+        } else if (data.type === 'response.output_text.done') {
+          console.log('[AI output_text done]');
         } else if (data.type === 'response.created') {
           console.log(`[OpenAI] response.created - response_id=${data.response?.id}`);
         } else if (data.type === 'response.done') {
@@ -374,16 +379,20 @@ Current question to ask: ${questions[0].question_text}`;
         }
         console.log(`✓ Recorded ${questions.length} questions used`);
 
-        // Trigger story generation
-        console.log('Triggering story generation...');
-        const { error: storyError } = await supabase.functions.invoke('generate-memory-story', {
-          body: { interview_id: interviewId }
-        });
+        // Trigger story generation only if we captured any transcript text
+        if (fullTranscript.trim().length > 0) {
+          console.log('Triggering story generation...');
+          const { error: storyError } = await supabase.functions.invoke('generate-memory-story', {
+            body: { interview_id: interviewId }
+          });
 
-        if (storyError) {
-          console.error('ERROR triggering story generation:', storyError);
+          if (storyError) {
+            console.error('ERROR triggering story generation:', storyError);
+          } else {
+            console.log('✓ Story generation triggered');
+          }
         } else {
-          console.log('✓ Story generation triggered');
+          console.warn('Transcript empty; skipping story generation to avoid 500 error');
         }
 
         twilioWs.close();
@@ -481,7 +490,7 @@ Current question to ask: ${questions[0].question_text}`;
                 content: [ { type: 'input_text', text: introText } ]
               }
             }));
-            openaiWs!.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio'] } }));
+            openaiWs!.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio','text'] } }));
             introDelivered = true;
             console.log('✓ Sent safety intro after start');
           } catch (e) {
