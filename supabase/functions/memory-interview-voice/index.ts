@@ -198,15 +198,13 @@ Current question to ask: ${questions[0].question_text}`;
       console.log('Using API key:', OPENAI_API_KEY ? 'Present' : 'Missing');
       
       // Connect to OpenAI Realtime API with header-based auth (more reliable)
-      const wsUrl = `wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17`;
+      const wsUrl = `wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01`;
       console.log('Connecting to:', wsUrl);
       
-      openaiWs = new WebSocket(wsUrl, {
-        headers: {
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
-          'OpenAI-Beta': 'realtime=v1'
-        }
-      });
+      openaiWs = new WebSocket(
+        wsUrl,
+        ['realtime', `openai-insecure-api-key.${OPENAI_API_KEY}`, 'openai-beta.realtime-v1']
+      );
 
       openaiWs.onopen = () => {
         console.log('✓ OpenAI WebSocket connected - waiting for session.created');
