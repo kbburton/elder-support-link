@@ -250,6 +250,8 @@ Current question to ask: ${questions[0].question_text}`;
               max_response_output_tokens: 'inf'
             }
           }));
+          // Schedule proactive rotation in case session.updated is delayed or missing
+          scheduleRotate();
         } else if (data.type === 'session.updated') {
           console.log('✓ OpenAI session.updated');
           openaiConfigured = true;
@@ -372,7 +374,7 @@ Current question to ask: ${questions[0].question_text}`;
       } catch (e) {
         console.error('Error closing OpenAI for rotation:', e);
       }
-    }, 95_000);
+    }, 85_000);
   };
   
   twilioWs.onopen = () => {
