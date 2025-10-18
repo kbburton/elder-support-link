@@ -72,12 +72,11 @@ serve(async (req) => {
   const pendingAudioDeltas: string[] = [];
   const pendingMediaPayloads: string[] = [];
   let mediaCount = 0;
+  let audioSendCount = 0;
   let sessionInitialized = false;
   let callEnded = false;
   let openaiConfigured = false;
   let introDelivered = false;
-  // Proactive session rotation to avoid 2-minute upstream TTLs
-  let rotateTimer: number | null = null;
   let reconnecting = false;
 
   const initializeSession = async () => {
@@ -198,15 +197,19 @@ Current question to ask: ${questions[0].question_text}`;
       console.log('Starting OpenAI connection...');
       console.log('Using API key:', OPENAI_API_KEY ? 'Present' : 'Missing');
       
-      // Connect to OpenAI Realtime API with API key in URL
-      const wsUrl = `wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01`;
+      // Connect to OpenAI Realtime API with header-based auth (more reliable)
+      const wsUrl = `wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17`;
       console.log('Connecting to:', wsUrl);
       
-      openaiWs = new WebSocket(wsUrl, ['realtime', `openai-insecure-api-key.${OPENAI_API_KEY}`, 'openai-beta.realtime-v1']);
+      openaiWs = new WebSocket(wsUrl, {
+        headers: {
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'OpenAI-Beta': 'realtime=v1'
+        }
+      });
 
       openaiWs.onopen = () => {
-        console.log('✓ OpenAI WebSocket connected');
-        // Wait for session.created before sending session.update
+        console.log('✓ OpenAI WebSocket connected - waiting for session.created');
       };
 
       openaiWs.onmessage = async (event) => {
@@ -214,9 +217,11 @@ Current question to ask: ${questions[0].question_text}`;
         console.log(`[OpenAI Event] type=${data.type}`);
 
         if (data.type === 'response.audio.delta' && data.delta) {
+          audioSendCount++;
           if (streamSid) {
-            const len = data.delta.length;
-            console.log(`[OpenAI->Twilio] audio.delta len=${len} (sending outbound)`);
+            if (audioSendCount % 20 === 0) {
+              console.log(`[OpenAI->Twilio] audio.delta #${audioSendCount} len=${data.delta.length} (sending outbound)`);
+            }
             twilioWs.send(JSON.stringify({
               event: 'media',
               streamSid: streamSid,
@@ -236,7 +241,7 @@ Current question to ask: ${questions[0].question_text}`;
           transcriptBuffer.push(`AI: ${data.delta}`);
           console.log('[AI transcript delta]:', data.delta);
         } else if (data.type === 'session.created') {
-          console.log('✓ OpenAI session.created - sending session.update');
+          console.log('✓ OpenAI session.created - sending session.update with g711_ulaw');
           openaiWs!.send(JSON.stringify({
             type: 'session.update',
             session: {
@@ -254,10 +259,8 @@ Current question to ask: ${questions[0].question_text}`;
               temperature: 0.8
             }
           }));
-          // Schedule proactive rotation in case session.updated is delayed or missing
-          scheduleRotate();
         } else if (data.type === 'session.updated') {
-          console.log('✓ OpenAI session.updated');
+          console.log('✓ OpenAI session.updated - flushing pending media and triggering greeting');
           openaiConfigured = true;
           // Flush any pending input audio from Twilio now that session is configured
           if (pendingMediaPayloads.length) {
@@ -267,10 +270,11 @@ Current question to ask: ${questions[0].question_text}`;
             }
           }
 
-          // Proactively trigger an audible greeting once per session
+          // Immediately trigger audible greeting
           if (!introDelivered) {
             try {
-              const introText = `Hello ${recipientName}. I will ask you a few questions to record your memories. Let’s begin. ${questions[0]?.question_text ?? 'Can you tell me about your earliest memories?'}`;
+              const introText = `Hello ${recipientName}. I will ask you a few questions to record your memories. Let's begin. ${questions[0]?.question_text ?? 'Can you tell me about your earliest memories?'}`;
+              console.log('→ Sending initial greeting to OpenAI:', introText.substring(0, 80) + '...');
               openaiWs!.send(JSON.stringify({
                 type: 'conversation.item.create',
                 item: {
@@ -281,16 +285,25 @@ Current question to ask: ${questions[0].question_text}`;
                   ]
                 }
               }));
-          openaiWs!.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio', 'text'] } }));
+              openaiWs!.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio', 'text'] } }));
               introDelivered = true;
-              console.log('✓ Sent initial greeting prompt to OpenAI (requesting audio)');
+              console.log('✓ Initial greeting sent - expecting response.created and audio.delta events');
+              
+              // Fallback: if no response.created after 1s, try again
+              setTimeout(() => {
+                if (openaiWs && openaiWs.readyState === WebSocket.OPEN && audioSendCount === 0) {
+                  console.log('[Fallback] Re-sending response.create after 1s (no audio.delta yet)');
+                  try {
+                    openaiWs!.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio', 'text'] } }));
+                  } catch (e) {
+                    console.error('Fallback response.create failed:', e);
+                  }
+                }
+              }, 1000);
             } catch (e) {
               console.error('Failed to send initial greeting:', e);
             }
           }
-
-          // Schedule proactive session rotation just before 2 minutes
-          scheduleRotate();
         } else if (data.type === 'error') {
           console.error('ERROR from OpenAI:', data.error);
         } else if (data.type === 'response.output_text.delta') {
@@ -299,7 +312,7 @@ Current question to ask: ${questions[0].question_text}`;
         } else if (data.type === 'response.output_text.done') {
           console.log('[AI output_text done]');
         } else if (data.type === 'response.created') {
-          console.log(`[OpenAI] response.created - response_id=${data.response?.id}`);
+          console.log(`✓ [OpenAI] response.created - response_id=${data.response?.id} - expecting audio.delta next`);
         } else if (data.type === 'response.done') {
           console.log(`[OpenAI] response.done - status=${data.response?.status}, output_count=${data.response?.output?.length || 0}`);
           if (data.response?.output) {
@@ -329,22 +342,20 @@ Current question to ask: ${questions[0].question_text}`;
         console.log('Close code:', event.code);
         console.log('Close reason:', event.reason);
         console.log('Was clean close:', event.wasClean);
-        // Clear any proactive rotation timer
-        if (rotateTimer !== null) {
-          clearTimeout(rotateTimer as number);
-          rotateTimer = null;
-        }
 
         // Attempt to recover unless the call has actually ended
-        if (!callEnded) {
-          console.log('OpenAI closed unexpectedly; keeping Twilio stream alive and attempting reconnect...');
+        if (!callEnded && !reconnecting) {
+          console.log('OpenAI closed unexpectedly; attempting reconnect in 250ms...');
           openaiWs = null;
+          reconnecting = true;
           try {
             setTimeout(() => {
+              reconnecting = false;
               startOpenAIConnection();
             }, 250);
           } catch (e) {
             console.error('Error attempting OpenAI reconnect:', e);
+            reconnecting = false;
           }
           return; // Do not wrap up or close Twilio here
         }
@@ -407,27 +418,7 @@ Current question to ask: ${questions[0].question_text}`;
     }
   };
 
-  // Manage proactive OpenAI session rotation
-  const clearRotateTimer = () => {
-    if (rotateTimer !== null) {
-      clearTimeout(rotateTimer as number);
-      rotateTimer = null;
-    }
-  };
-
-  const scheduleRotate = () => {
-    if (callEnded) return;
-    clearRotateTimer();
-    rotateTimer = setTimeout(() => {
-      console.log('Proactively rotating OpenAI session before 2min TTL...');
-      reconnecting = true;
-      try {
-        openaiWs?.close(4000, 'proactive-rotate');
-      } catch (e) {
-        console.error('Error closing OpenAI for rotation:', e);
-      }
-    }, 85_000);
-  };
+  // Removed proactive session rotation - reconnect only on actual failures
   
   twilioWs.onopen = () => {
     console.log('✓ Twilio WebSocket connected - waiting for start event with customParameters');
@@ -446,7 +437,6 @@ Current question to ask: ${questions[0].question_text}`;
       console.log('customParameters:', customParameters);
       console.log('protocol:', preferredProtocol);
       console.log('tracks:', msg.start?.tracks, 'mediaFormat:', msg.start?.mediaFormat);
-      console.log('Note: Connect Stream should provide inbound track only.');
 
       // Extract interview_id and call_sid from customParameters
       interviewId = customParameters.interview_id || null;
@@ -481,11 +471,12 @@ Current question to ask: ${questions[0].question_text}`;
         }
       }
 
-      // Safety: if no intro was delivered yet, trigger it shortly after start
+      // Safety fallback: if session.updated hasn't triggered intro after 1.5s, force it
       setTimeout(() => {
-        if (!introDelivered && openaiWs && openaiWs.readyState === WebSocket.OPEN) {
+        if (!introDelivered && openaiWs && openaiWs.readyState === WebSocket.OPEN && openaiConfigured) {
           try {
-            const introText = `Hello ${recipientName}. I will ask you a few questions to record your memories. Let’s begin. ${questions[0]?.question_text ?? 'Can you tell me about your earliest memories?'}`;
+            const introText = `Hello ${recipientName}. I will ask you a few questions to record your memories. Let's begin. ${questions[0]?.question_text ?? 'Can you tell me about your earliest memories?'}`;
+            console.log('[Safety fallback] Sending intro 1.5s after start');
             openaiWs!.send(JSON.stringify({
               type: 'conversation.item.create',
               item: {
@@ -496,12 +487,12 @@ Current question to ask: ${questions[0].question_text}`;
             }));
             openaiWs!.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio', 'text'] } }));
             introDelivered = true;
-            console.log('✓ Sent safety intro after start');
+            console.log('✓ Safety intro sent after 1.5s');
           } catch (e) {
             console.error('Failed to send safety intro:', e);
           }
         }
-      }, 600);
+      }, 1500);
 
     } else if (msg.event === 'media') {
       mediaCount++;
@@ -519,13 +510,9 @@ Current question to ask: ${questions[0].question_text}`;
         pendingMediaPayloads.push(msg.media.payload);
       }
     } else if (msg.event === 'stop') {
-      console.log('Call ended by Twilio. Total media frames received:', mediaCount);
+      console.log('Call ended by Twilio. Total media frames received:', mediaCount, 'Total audio sent:', audioSendCount);
       callEnded = true;
       try { openaiWs?.close(); } catch {}
-      if (rotateTimer !== null) {
-        clearTimeout(rotateTimer as number);
-        rotateTimer = null;
-      }
     } else {
       console.log('Unhandled Twilio event:', msg.event);
     }
@@ -538,10 +525,6 @@ Current question to ask: ${questions[0].question_text}`;
 
   twilioWs.onclose = () => {
     console.log('Twilio WebSocket closed');
-    if (rotateTimer !== null) {
-      clearTimeout(rotateTimer as number);
-      rotateTimer = null;
-    }
     callEnded = true;
     openaiWs?.close();
   };
