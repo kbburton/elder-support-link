@@ -77,6 +77,7 @@ serve(async (req) => {
   // Proactive session rotation to avoid 2-minute upstream TTLs
   let rotateTimer: number | null = null;
   let reconnecting = false;
+  let introDelivered = false;
 
   const initializeSession = async () => {
     try {
@@ -191,6 +192,21 @@ Current question to ask: ${questions[0].question_text}`;
     }
   };
 
+  // Build instructions to resume mid-conversation without repeating greeting
+  const buildResumeInstructions = (): string => {
+    const lastExchanges = transcriptBuffer.slice(-6).join('\n');
+    const currentQ = questions[currentQuestionIndex]?.question_text || questions[0]?.question_text || '';
+    return `You are resuming an ongoing memory interview with ${recipientName}.
+
+Do NOT greet again or repeat your introduction. Continue naturally from the current point in the conversation.
+
+Context so far (most recent first):\n${lastExchanges || 'No prior transcript captured yet.'}
+
+Keep responses concise and empathetic. Ask ONE question at a time. If the user is speaking, wait. If there is silence, gently prompt based on the current question.
+
+Current question to ask or continue discussing: ${currentQ}`;
+  };
+
   const startOpenAIConnection = async () => {
     try {
       console.log('Starting OpenAI connection...');
@@ -229,13 +245,16 @@ Current question to ask: ${questions[0].question_text}`;
           // Store AI's response
           transcriptBuffer.push(`AI: ${data.delta}`);
           console.log('[AI transcript delta]:', data.delta);
+        } else if (data.type === 'response.audio.done') {
+          introDelivered = true;
+          console.log('✓ AI audio segment completed (introDelivered set)');
         } else if (data.type === 'session.created') {
           console.log('✓ OpenAI session.created - sending session.update');
           openaiWs!.send(JSON.stringify({
             type: 'session.update',
             session: {
               modalities: ['text', 'audio'],
-              instructions: systemInstructions,
+              instructions: (reconnecting || introDelivered) ? buildResumeInstructions() : systemInstructions,
               voice: 'alloy',
               input_audio_format: 'g711_ulaw',
               output_audio_format: 'g711_ulaw',
@@ -255,6 +274,7 @@ Current question to ask: ${questions[0].question_text}`;
         } else if (data.type === 'session.updated') {
           console.log('✓ OpenAI session.updated');
           openaiConfigured = true;
+          reconnecting = false;
           // Flush any pending input audio from Twilio now that session is configured
           if (pendingMediaPayloads.length) {
             console.log('Flushing pending media frames to OpenAI:', pendingMediaPayloads.length);
@@ -374,7 +394,7 @@ Current question to ask: ${questions[0].question_text}`;
       } catch (e) {
         console.error('Error closing OpenAI for rotation:', e);
       }
-    }, 85_000);
+    }, 60_000);
   };
   
   twilioWs.onopen = () => {
