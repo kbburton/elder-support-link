@@ -282,9 +282,9 @@ Current question to ask: ${questions[0].question_text}`;
                   ]
                 }
               }));
-              openaiWs!.send(JSON.stringify({ type: 'response.create' }));
+              openaiWs!.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio'] } }));
               introDelivered = true;
-              console.log('✓ Sent initial greeting prompt to OpenAI');
+              console.log('✓ Sent initial greeting prompt to OpenAI (requesting audio)');
             } catch (e) {
               console.error('Failed to send initial greeting:', e);
             }
@@ -471,7 +471,7 @@ Current question to ask: ${questions[0].question_text}`;
                 content: [ { type: 'input_text', text: introText } ]
               }
             }));
-            openaiWs!.send(JSON.stringify({ type: 'response.create' }));
+            openaiWs!.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio'] } }));
             introDelivered = true;
             console.log('✓ Sent safety intro after start');
           } catch (e) {
