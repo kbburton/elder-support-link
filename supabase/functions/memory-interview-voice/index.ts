@@ -37,7 +37,7 @@ serve(async (req) => {
     }
 
     const wsUrlBase = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-voice`;
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say voice=\"alice\">Please hold while I connect your memory interview.</Say>\n  <Connect>\n    <Stream url=\"${wsUrlBase}\" statusCallback=\"https://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-stream-status\" statusCallbackMethod=\"POST\">\n      <Parameter name=\"interview_id\" value=\"${interviewIdFromQuery}\"/>\n      ${callSid ? `<Parameter name=\"call_sid\" value=\"${callSid}\"/>` : ''}\n    </Stream>\n  </Connect>\n</Response>`;
+    const twiml = `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say voice=\"alice\">Please hold while I connect your memory interview.</Say>\n  <Connect>\n    <Stream url=\"${wsUrlBase}\" track=\"both\" statusCallback=\"https://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-stream-status\" statusCallbackMethod=\"POST\">\n      <Parameter name=\"interview_id\" value=\"${interviewIdFromQuery}\"/>\n      ${callSid ? `<Parameter name=\"call_sid\" value=\"${callSid}\"/>` : ''}\n    </Stream>\n  </Connect>\n</Response>`;
 
     console.log('Responding with TwiML to connect stream:', wsUrlBase, { interviewIdFromQuery, callSid });
     return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
@@ -337,7 +337,7 @@ Current question to ask: ${questions[0].question_text}`;
           .from('memory_interviews')
           .update({
             status: 'completed',
-            actual_end_time: new Date().toISOString(),
+            completed_at: new Date().toISOString(),
             raw_transcript: fullTranscript
           })
           .eq('id', interviewId);
@@ -355,7 +355,8 @@ Current question to ask: ${questions[0].question_text}`;
             .from('interview_question_usage')
             .insert({
               question_id: question.id,
-              interview_id: interviewId
+              interview_id: interviewId,
+              care_group_id: interview.care_group_id
             });
         }
         console.log(`✓ Recorded ${questions.length} questions used`);
