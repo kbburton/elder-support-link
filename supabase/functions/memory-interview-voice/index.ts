@@ -37,7 +37,8 @@ serve(async (req) => {
     }
 
     const wsUrlBase = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-voice`;
-    const twiml = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Response>\n  <Say voice=\"alice\">Please hold while I connect your memory interview.</Say>\n  <Connect>\n    <Stream url=\"${wsUrlBase}\" track=\"both_tracks\" statusCallback=\"https://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-stream-status\" statusCallbackMethod=\"POST\">\n      <Parameter name=\"interview_id\" value=\"${interviewIdFromQuery}\"/>\n      ${callSid ? `<Parameter name=\"call_sid\" value=\"${callSid}\"/>` : ''}\n    </Stream>\n  </Connect>\n</Response>`;
+    // Twilio <Connect><Stream> supports only inbound_track. Using both/both_tracks causes 31941 (Invalid Track configuration) and immediate hangup.
+    const twiml = `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say voice="alice">Please hold while I connect your memory interview.</Say>\n  <Connect>\n    <Stream url="${wsUrlBase}" track="inbound_track" statusCallback="https://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-stream-status" statusCallbackMethod="POST">\n      <Parameter name="interview_id" value="${interviewIdFromQuery}"/>\n      ${callSid ? `<Parameter name="call_sid" value="${callSid}"/>` : ''}\n    </Stream>\n  </Connect>\n</Response>`;
 
     console.log('Responding with TwiML to connect stream:', wsUrlBase, { interviewIdFromQuery, callSid });
     return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
@@ -419,6 +420,8 @@ Current question to ask: ${questions[0].question_text}`;
       console.log('streamSid:', streamSid);
       console.log('customParameters:', customParameters);
       console.log('protocol:', preferredProtocol);
+      console.log('tracks:', msg.start?.tracks, 'mediaFormat:', msg.start?.mediaFormat);
+      console.log('Note: Connect Stream should provide inbound track only.');
 
       // Extract interview_id and call_sid from customParameters
       interviewId = customParameters.interview_id || null;
