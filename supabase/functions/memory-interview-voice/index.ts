@@ -283,7 +283,7 @@ Current question to ask: ${questions[0].question_text}`;
                   ]
                 }
               }));
-              openaiWs!.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio','text'] } }));
+              openaiWs!.send(JSON.stringify({ type: 'response.create' }));
               introDelivered = true;
               console.log('✓ Sent initial greeting prompt to OpenAI (requesting audio)');
             } catch (e) {
@@ -306,6 +306,9 @@ Current question to ask: ${questions[0].question_text}`;
           console.log(`[OpenAI] response.done - status=${data.response?.status}, output_count=${data.response?.output?.length || 0}`);
           if (data.response?.output) {
             console.log('[OpenAI] response.output:', JSON.stringify(data.response.output));
+          }
+          if (data.response?.error) {
+            console.error('[OpenAI] response.error:', JSON.stringify(data.response.error));
           }
         } else if (data.type?.startsWith('response.')) {
           console.log(`[OpenAI] ${data.type}:`, JSON.stringify(data).substring(0, 200));
@@ -490,7 +493,7 @@ Current question to ask: ${questions[0].question_text}`;
                 content: [ { type: 'input_text', text: introText } ]
               }
             }));
-            openaiWs!.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio','text'] } }));
+            openaiWs!.send(JSON.stringify({ type: 'response.create' }));
             introDelivered = true;
             console.log('✓ Sent safety intro after start');
           } catch (e) {
