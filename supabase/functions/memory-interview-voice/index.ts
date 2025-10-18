@@ -223,6 +223,7 @@ Current question to ask: ${questions[0].question_text}`;
               twilioWs.send(JSON.stringify({
                 event: 'media',
                 streamSid: streamSid,
+                track: 'outbound',
                 media: { payload: data.delta }
               }));
               if (audioSendCount % 20 === 0) {
@@ -467,7 +468,7 @@ Current question to ask: ${questions[0].question_text}`;
       if (streamSid && pendingAudioDeltas.length) {
         console.log('Flushing pending audio deltas to Twilio:', pendingAudioDeltas.length);
         for (const delta of pendingAudioDeltas.splice(0)) {
-          twilioWs.send(JSON.stringify({ event: 'media', streamSid, media: { payload: delta } }));
+          twilioWs.send(JSON.stringify({ event: 'media', streamSid, track: 'outbound', media: { payload: delta } }));
         }
       }
 
