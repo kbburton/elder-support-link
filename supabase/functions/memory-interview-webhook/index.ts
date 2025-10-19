@@ -101,7 +101,7 @@ serve(async (req) => {
     Let me connect you now.
   </Say>
   <Connect>
-    <Stream url="${voiceUrl}"/>
+    <Stream url="${voiceUrl}" track="both_tracks" statusCallbackEvent="start stop" statusCallback="https://${supabaseUrl.replace('https://', '')}/functions/v1/memory-interview-stream-status"/>
   </Connect>
 </Response>`;
 
