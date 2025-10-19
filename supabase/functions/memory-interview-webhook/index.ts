@@ -100,9 +100,7 @@ serve(async (req) => {
     We're going to have a wonderful conversation about your life and memories.
     Let me connect you now.
   </Say>
-  <Connect>
-    <Stream url="${voiceUrl}" track="both_tracks" statusCallbackEvent="start stop" statusCallback="https://${supabaseUrl.replace('https://', '')}/functions/v1/memory-interview-stream-status"/>
-  </Connect>
+  <Redirect>${voiceUrl}</Redirect>
 </Response>`;
 
       return new Response(twiml, {
