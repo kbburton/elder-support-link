@@ -91,7 +91,7 @@ serve(async (req) => {
         .eq('id', interview.id);
 
       const recipientName = interview.care_groups.recipient_first_name;
-      const voiceUrl = `wss://${supabaseUrl.replace('https://', '')}/functions/v1/memory-interview-voice?interview_id=${interview.id}&call_sid=${callSid}`;
+      const voiceUrl = `${supabaseUrl}/functions/v1/memory-interview-voice?interview_id=${interview.id}&call_sid=${callSid}`;
 
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
