@@ -119,11 +119,11 @@ Please provide your response in JSON format with:
     const { data: story, error: storyError } = await supabase
       .from('memory_stories')
       .insert({
-        interview_id: interview_id,
+        interview_id,
         care_group_id: interview.care_group_id,
         title: storyData.title,
-        content: storyData.content,
-        status: 'draft'
+        story_text: storyData.content,
+        status: 'pending_review'
       })
       .select()
       .single();
@@ -142,9 +142,9 @@ Please provide your response in JSON format with:
       .insert({
         story_id: story.id,
         version_number: 1,
-        title: storyData.title,
-        content: storyData.content,
-        created_by_system: true
+        story_text: storyData.content,
+        edited_by_user_id: interview.created_by_user_id,
+        edit_notes: 'Initial AI-generated draft'
       });
 
     if (versionError) {
