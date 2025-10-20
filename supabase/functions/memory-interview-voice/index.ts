@@ -606,6 +606,15 @@ Current question to ask: ${questions[0].question_text}`;
       // Start paced outbound sender
       startOutboundSender();
 
+      // Immediately play a short ready tone so the caller knows we're connected
+      try {
+        const beepB64 = generateUlawBeepBase64(250, 440);
+        enqueueUlawFrames(beepB64);
+        console.log('✓ Beep enqueued right after Twilio start');
+      } catch (e) {
+        console.warn('Failed to enqueue initial beep:', e);
+      }
+
       // Safety fallback: if session.updated hasn't triggered intro after 1.5s, force it
       setTimeout(() => {
         if (!introDelivered && openaiWs && openaiWs.readyState === WebSocket.OPEN && openaiConfigured) {
