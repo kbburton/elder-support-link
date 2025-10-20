@@ -36,7 +36,7 @@ serve(async (req) => {
       );
     }
 
-    const wsUrlBase = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-voice?interview_id=${interviewIdFromQuery}`;
+    const wsUrlBase = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-voice?interview_id=${interviewIdFromQuery}${callSid ? `&call_sid=${callSid}` : ''}`;
     // Enable bidirectional audio from server to caller
     const twiml = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Response>\n  <Say voice=\"alice\">Please hold while I connect your memory interview.</Say>\n  <Start>\n    <Stream url=\"${wsUrlBase}\" track=\"both_tracks\" statusCallback=\"https://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-stream-status\" statusCallbackMethod=\"POST\">\n      <Parameter name=\"interview_id\" value=\"${interviewIdFromQuery}\"/>\n      ${callSid ? `<Parameter name=\"call_sid\" value=\"${callSid}\"/>` : ''}\n    </Stream>\n  </Start>\n  <Pause length=\"3600\"/>\n</Response>`;
 
@@ -49,6 +49,17 @@ serve(async (req) => {
 
   console.log('=== WEBSOCKET UPGRADE REQUEST ===');
   console.log('Timestamp:', new Date().toISOString());
+  // Parse query params on WS URL as fallback
+  try {
+    const wsUrlInfo = new URL(req.url);
+    const qpInterview = wsUrlInfo.searchParams.get('interview_id');
+    const qpCallSid = wsUrlInfo.searchParams.get('call_sid');
+    if (qpInterview) interviewId = qpInterview;
+    if (qpCallSid) callSid = qpCallSid;
+    console.log('WS URL params:', { interviewIdFromQuery: qpInterview, callSidFromQuery: qpCallSid });
+  } catch (e) {
+    console.warn('Failed parsing WS URL params', e instanceof Error ? e.message : e);
+  }
   
   let interview: any = null;
   let questions: any[] = [];
