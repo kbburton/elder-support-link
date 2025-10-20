@@ -1,6 +1,6 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -50,14 +50,12 @@ serve(async (req) => {
       // Connect to OpenAI
       console.log('🤖 Connecting to OpenAI Realtime API...');
       try {
-        openaiWs = new WebSocket(
-          'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01',
-          [
-            'realtime',
-            `openai-insecure-api-key.${OPENAI_API_KEY}`,
-            'openai-beta.realtime=v1',
-          ],
-        );
+        openaiWs = new WebSocket('wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01', {
+          headers: {
+            'Authorization': `Bearer ${OPENAI_API_KEY}`,
+            'OpenAI-Beta': 'realtime=v1',
+          },
+        });
       } catch (e) {
         console.error('❌ Failed to create OpenAI WebSocket:', e);
         // Do not crash the function; log and keep Twilio socket open so Twilio doesn't report 31921 immediately
