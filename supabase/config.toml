@@ -95,3 +95,6 @@ verify_jwt = false
 
 [functions.test-twilio-audio]
 verify_jwt = false
+
+[functions.test-twilio-audio-connect]
+verify_jwt = false
