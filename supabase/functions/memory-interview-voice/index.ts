@@ -249,6 +249,7 @@ Current question to ask: ${questions[0].question_text}`;
               twilioWs.send(JSON.stringify({
                 event: 'media',
                 streamSid: streamSid,
+                track: 'outbound',
                 media: { payload: data.delta }
               }));
               if (audioSendCount % 20 === 0) {
@@ -299,6 +300,10 @@ Current question to ask: ${questions[0].question_text}`;
           // Immediately trigger audible greeting
           if (!introDelivered) {
             try {
+              // Ensure Twilio outbound buffer is clear before we start sending audio
+              if (streamSid) {
+                try { twilioWs.send(JSON.stringify({ event: 'clear', streamSid })); } catch {}
+              }
               const introText = `Hello ${recipientName}. I will ask you a few questions to record your memories. Let's begin. ${questions[0]?.question_text ?? 'Can you tell me about your earliest memories?'}`;
               console.log('→ Sending initial greeting to OpenAI:', introText.substring(0, 80) + '...');
               openaiWs!.send(JSON.stringify({
@@ -493,7 +498,7 @@ Current question to ask: ${questions[0].question_text}`;
       if (streamSid && pendingAudioDeltas.length) {
         console.log('Flushing pending audio deltas to Twilio:', pendingAudioDeltas.length);
         for (const delta of pendingAudioDeltas.splice(0)) {
-          twilioWs.send(JSON.stringify({ event: 'media', streamSid, media: { payload: delta } }));
+          twilioWs.send(JSON.stringify({ event: 'media', streamSid, track: 'outbound', media: { payload: delta } }));
         }
       }
 
