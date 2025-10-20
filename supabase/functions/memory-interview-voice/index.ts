@@ -462,11 +462,11 @@ Current question to ask: ${questions[0].question_text}`;
       console.log('protocol:', preferredProtocol);
       console.log('tracks:', msg.start?.tracks, 'mediaFormat:', msg.start?.mediaFormat);
 
-      // Extract interview_id and call_sid from customParameters
-      interviewId = customParameters.interview_id || null;
-      callSid = customParameters.call_sid || null;
+      // Extract interview_id and call_sid from customParameters (fallback to WS query params if missing)
+      if (customParameters.interview_id) interviewId = customParameters.interview_id;
+      if (customParameters.call_sid) callSid = customParameters.call_sid;
 
-      console.log('Extracted from customParameters:', { interviewId, callSid });
+      console.log('Extracted after fallback:', { interviewId, callSid });
 
       if (!interviewId) {
         console.error('ERROR: Missing interview_id in customParameters');
