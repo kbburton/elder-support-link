@@ -126,6 +126,45 @@ serve(async (req) => {
     return btoa(bin);
   };
 
+  // Helper: PCM16 -> μ-law conversion and tone generation
+  const linear2ulaw = (sample: number): number => {
+    const BIAS = 0x84;
+    const CLIP = 32635;
+    let sign = (sample >> 8) & 0x80;
+    if (sign !== 0) sample = -sample;
+    if (sample > CLIP) sample = CLIP;
+    sample = sample + BIAS;
+
+    // Determine segment
+    let exponent = 7;
+    for (let expMask = 0x4000; (sample & expMask) === 0 && exponent > 0; expMask >>= 1) {
+      exponent--;
+    }
+
+    const mantissa = (sample >> (exponent + 3)) & 0x0F;
+    let ulawByte = ~(sign | (exponent << 4) | mantissa) & 0xFF;
+    return ulawByte;
+  };
+
+  const pcm16ToUlaw = (pcm: Int16Array): Uint8Array => {
+    const out = new Uint8Array(pcm.length);
+    for (let i = 0; i < pcm.length; i++) {
+      out[i] = linear2ulaw(pcm[i]);
+    }
+    return out;
+  };
+
+  const generateUlawBeepBase64 = (durationMs = 300, freq = 440, sampleRate = 8000): string => {
+    const length = Math.max(1, Math.floor((durationMs / 1000) * sampleRate));
+    const pcm = new Int16Array(length);
+    const amplitude = 10000; // conservative to avoid clipping
+    for (let i = 0; i < length; i++) {
+      pcm[i] = Math.floor(amplitude * Math.sin((2 * Math.PI * freq * i) / sampleRate));
+    }
+    const ulaw = pcm16ToUlaw(pcm);
+    return bytesToBase64(ulaw);
+  };
+
   // Enqueue raw g711_ulaw bytes, split into 20ms frames (160 bytes)
   const enqueueUlawFrames = (payloadB64: string) => {
     try {
@@ -357,6 +396,14 @@ Current question to ask: ${questions[0].question_text}`;
               // Ensure Twilio outbound buffer is clear before we start sending audio
               if (streamSid) {
                 try { twilioWs.send(JSON.stringify({ event: 'clear', streamSid })); } catch {}
+              }
+              // Queue a short connection tone so the caller hears readiness
+              try {
+                const beepB64 = generateUlawBeepBase64(300, 440);
+                enqueueUlawFrames(beepB64);
+                console.log('✓ Queued connection tone (μ-law)', beepB64.length, 'chars');
+              } catch (e) {
+                console.warn('Failed to queue connection tone:', e);
               }
               const introText = `Hello ${recipientName}. I will ask you a few questions to record your memories. Let's begin. ${questions[0]?.question_text ?? 'Can you tell me about your earliest memories?'}`;
               console.log('→ Sending initial greeting to OpenAI:', introText.substring(0, 80) + '...');
