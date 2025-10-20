@@ -52,7 +52,7 @@ serve(async (req) => {
         const msg = JSON.parse(event.data);
         console.log('📨 Message from Twilio:', msg.event);
 
-        if (msg.event === 'start') {
+        if (msg.event === 'start' || msg.event === 'connected') {
           streamSid = msg.start.streamSid;
           console.log('🎬 Stream started:', streamSid);
 
@@ -66,40 +66,59 @@ serve(async (req) => {
           });
 
           openaiWs.onopen = () => {
-            console.log('✅ Connected to OpenAI');
-            
-            // Configure the session
-            const sessionConfig = {
-              type: 'session.update',
-              session: {
-                turn_detection: { type: 'server_vad' },
-                input_audio_format: 'g711_ulaw',
-                output_audio_format: 'g711_ulaw',
-                voice: 'alloy',
-                instructions: 'You are a compassionate interviewer conducting a memory preservation interview. Ask the person to share stories and memories from their life. Be warm, patient, and encouraging. Ask follow-up questions to help them elaborate on their experiences.',
-                modalities: ['text', 'audio'],
-                temperature: 0.8,
-              }
-            };
-            
-            console.log('📤 Sending session config to OpenAI');
-            openaiWs!.send(JSON.stringify(sessionConfig));
+            console.log('✅ Connected to OpenAI (awaiting session.created)');
           };
 
           openaiWs.onmessage = (event) => {
             try {
               const response = JSON.parse(event.data);
-              
-              if (response.type === 'response.audio.delta' && response.delta) {
+
+              if (response.type === 'session.created') {
+                console.log('🆗 OpenAI session.created');
+                const sessionConfig = {
+                  type: 'session.update',
+                  session: {
+                    modalities: ['text', 'audio'],
+                    instructions:
+                      'You are a compassionate interviewer conducting a memory preservation interview. Ask the person to share stories and memories from their life. Be warm, patient, and encouraging. Ask follow-up questions to help them elaborate on their experiences. Start proactively with a warm greeting and first question.',
+                    voice: 'alloy',
+                    input_audio_format: 'g711_ulaw',
+                    output_audio_format: 'g711_ulaw',
+                    turn_detection: { type: 'server_vad' },
+                    temperature: 0.8,
+                  },
+                };
+                console.log('📤 Sending session.update to OpenAI');
+                openaiWs!.send(JSON.stringify(sessionConfig));
+
+                // Proactively kick off the conversation so users hear a greeting immediately
+                openaiWs!.send(
+                  JSON.stringify({
+                    type: 'conversation.item.create',
+                    item: {
+                      type: 'message',
+                      role: 'user',
+                      content: [
+                        {
+                          type: 'input_text',
+                          text:
+                            'Please begin the memory interview with a warm greeting and your first question.',
+                        },
+                      ],
+                    },
+                  })
+                );
+                openaiWs!.send(JSON.stringify({ type: 'response.create' }));
+              } else if (response.type === 'response.audio.delta' && response.delta) {
                 // Forward audio from OpenAI to Twilio
                 const audioMessage = {
                   event: 'media',
                   streamSid: streamSid,
-                  media: {
-                    payload: response.delta
-                  }
+                  media: { payload: response.delta },
                 };
                 twilioWs.send(JSON.stringify(audioMessage));
+              } else if (response.type === 'response.audio_transcript.delta' && response.delta) {
+                console.log('📝 Partial transcript:', response.delta);
               } else if (response.type === 'error') {
                 console.error('❌ OpenAI error:', response.error);
               } else {
@@ -118,14 +137,23 @@ serve(async (req) => {
             console.log('🔌 OpenAI WebSocket closed');
           };
 
-        } else if (msg.event === 'media' && openaiWs && openaiWs.readyState === WebSocket.OPEN) {
-          // Forward audio from Twilio to OpenAI
-          const audioAppend = {
-            type: 'input_audio_buffer.append',
-            audio: msg.media.payload
-          };
-          openaiWs.send(JSON.stringify(audioAppend));
-          
+        } else if (msg.event === 'media') {
+          if (!streamSid && (msg.streamSid || msg?.start?.streamSid)) {
+            streamSid = msg.streamSid || msg?.start?.streamSid;
+            console.log('🔎 Captured streamSid from media:', streamSid);
+          }
+
+          if (openaiWs && openaiWs.readyState === WebSocket.OPEN) {
+            // Forward audio from Twilio to OpenAI
+            const audioAppend = {
+              type: 'input_audio_buffer.append',
+              audio: msg.media.payload,
+            };
+            openaiWs.send(JSON.stringify(audioAppend));
+          } else {
+            console.warn('⚠️ Received media before OpenAI connection was ready');
+          }
+
         } else if (msg.event === 'stop') {
           console.log('🛑 Stream stopped');
           if (openaiWs && openaiWs.readyState === WebSocket.OPEN) {
@@ -161,7 +189,7 @@ serve(async (req) => {
 <Response>
   <Say voice="alice">Please hold while we connect your memory interview.</Say>
   <Connect>
-    <Stream url="${wsUrl}" />
+    <Stream url="${wsUrl}" statusCallback="https://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-stream-status" statusCallbackMethod="POST" />
   </Connect>
 </Response>`;
 
