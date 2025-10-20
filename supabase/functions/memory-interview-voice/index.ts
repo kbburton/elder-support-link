@@ -49,6 +49,9 @@ serve(async (req) => {
 
   console.log('=== WEBSOCKET UPGRADE REQUEST ===');
   console.log('Timestamp:', new Date().toISOString());
+  console.log('Request URL:', req.url);
+  console.log('Request headers:', Object.fromEntries(req.headers.entries()));
+  
   // Parse query params on WS URL as fallback
   try {
     const wsUrlInfo = new URL(req.url);
@@ -70,15 +73,21 @@ serve(async (req) => {
 
   // Negotiate Twilio subprotocol if provided (required for Twilio Media Streams)
   const requestedProtocols = req.headers.get('sec-websocket-protocol')?.split(',').map(p => p.trim()) || [];
-  // Prefer JSON subprotocol to ensure Twilio treats frames as JSON events for bidirectional audio
-  const preferredProtocol = requestedProtocols.find(p => p.toLowerCase() === 'application/json')
-    || requestedProtocols.find(p => p.toLowerCase().includes('json'))
-    || requestedProtocols[0];
-  if (requestedProtocols.length) console.log('Requested WebSocket subprotocols from Twilio:', requestedProtocols);
-  if (preferredProtocol) console.log('Negotiating WebSocket subprotocol:', preferredProtocol);
+  console.log('Requested WebSocket subprotocols from Twilio:', requestedProtocols.length ? requestedProtocols : 'NONE');
+  
+  // Accept whatever protocol Twilio sends, or none if not specified
+  const preferredProtocol = requestedProtocols.length > 0 ? requestedProtocols[0] : undefined;
+  if (preferredProtocol) {
+    console.log('Accepting WebSocket subprotocol:', preferredProtocol);
+  } else {
+    console.log('No subprotocol negotiation (accepting default)');
+  }
  
   const upgradeOpts = preferredProtocol ? { protocol: preferredProtocol } as any : undefined as any;
+  console.log('Attempting WebSocket upgrade with options:', upgradeOpts || 'none');
+  
   const { socket: twilioWs, response } = Deno.upgradeWebSocket(req, upgradeOpts);
+  console.log('✓ WebSocket upgrade successful');
   let openaiWs: WebSocket | null = null;
   let transcriptBuffer: string[] = [];
   let currentQuestionIndex = 0;
