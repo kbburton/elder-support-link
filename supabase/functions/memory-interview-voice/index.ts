@@ -49,12 +49,14 @@ serve(async (req) => {
       // With <Connect><Stream>, there is no "start" event - we must connect immediately
       // Connect to OpenAI
       console.log('🤖 Connecting to OpenAI Realtime API...');
-      openaiWs = new WebSocket('wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01', {
-        headers: {
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
-          'OpenAI-Beta': 'realtime=v1',
-        },
-      });
+      openaiWs = new WebSocket(
+        'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01',
+        [
+          'realtime',
+          `openai-insecure-api-key.${OPENAI_API_KEY}`,
+          'openai-beta.realtime=v1',
+        ],
+      );
 
       openaiWs.onopen = () => {
         console.log('✅ Connected to OpenAI (awaiting session.created)');
