@@ -539,6 +539,10 @@ Current question to ask: ${questions[0].question_text}`;
       console.log('Call ended by Twilio. Total media frames received:', mediaCount, 'Total audio sent:', audioSendCount);
       callEnded = true;
       try { openaiWs?.close(); } catch {}
+    } else if (msg.event === 'mark') {
+      console.log('Twilio mark ack:', msg.mark?.name || JSON.stringify(msg.mark));
+    } else if (msg.event === 'error') {
+      console.error('Twilio stream error:', msg.streamSid, msg.error || msg);
     } else {
       console.log('Unhandled Twilio event:', msg.event);
     }
