@@ -70,7 +70,10 @@ serve(async (req) => {
 
   // Negotiate Twilio subprotocol if provided (required for Twilio Media Streams)
   const requestedProtocols = req.headers.get('sec-websocket-protocol')?.split(',').map(p => p.trim()) || [];
-  const preferredProtocol = requestedProtocols.find(p => p.toLowerCase().includes('audio')) || requestedProtocols[0];
+  // Prefer JSON subprotocol to ensure Twilio treats frames as JSON events for bidirectional audio
+  const preferredProtocol = requestedProtocols.find(p => p.toLowerCase() === 'application/json')
+    || requestedProtocols.find(p => p.toLowerCase().includes('json'))
+    || requestedProtocols[0];
   if (requestedProtocols.length) console.log('Requested WebSocket subprotocols from Twilio:', requestedProtocols);
   if (preferredProtocol) console.log('Negotiating WebSocket subprotocol:', preferredProtocol);
  
