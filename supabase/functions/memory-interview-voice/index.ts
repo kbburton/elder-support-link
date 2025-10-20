@@ -21,15 +21,17 @@ serve(async (req) => {
       callSid = callSid || params.get('CallSid') || '';
     } catch {}
 
-    console.log('Initial TwiML request', {
-      interviewIdFromQuery,
-      callSid,
-      userAgent: req.headers.get('user-agent') || 'unknown',
-      timestamp: new Date().toISOString(),
-    });
+    console.log('=== INITIAL TWIML HTTP REQUEST ===');
+    console.log('Timestamp:', new Date().toISOString());
+    console.log('Method:', req.method);
+    console.log('URL:', req.url);
+    console.log('Headers:', Object.fromEntries(req.headers.entries()));
+    console.log('interview_id from query:', interviewIdFromQuery);
+    console.log('callSid from query/body:', callSid);
+    console.log('User-Agent:', req.headers.get('user-agent') || 'unknown');
 
     if (!interviewIdFromQuery) {
-      console.error('ERROR: Missing interview_id on initial TwiML request');
+      console.error('ERROR: Missing interview_id on initial TwiML request - CANNOT PROCEED');
       return new Response(
         `<?xml version="1.0" encoding="UTF-8"?>\n<Response><Say voice="alice">An error occurred initializing your interview. Please try again later.</Say><Hangup/></Response>`,
         { status: 400, headers: { 'Content-Type': 'text/xml' } }
@@ -40,7 +42,8 @@ serve(async (req) => {
     // Enable bidirectional audio from server to caller
     const twiml = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Response>\n  <Say voice=\"alice\">Please hold while I connect your memory interview.</Say>\n  <Start>\n    <Stream url=\"${wsUrlBase}\" track=\"both_tracks\" statusCallback=\"https://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-stream-status\" statusCallbackMethod=\"POST\">\n      <Parameter name=\"interview_id\" value=\"${interviewIdFromQuery}\"/>\n      ${callSid ? `<Parameter name=\"call_sid\" value=\"${callSid}\"/>` : ''}\n    </Stream>\n  </Start>\n  <Pause length=\"3600\"/>\n</Response>`;
 
-    console.log('Responding with TwiML to start bidirectional stream:', wsUrlBase, { interviewIdFromQuery, callSid });
+    console.log('✓ Generated TwiML with WebSocket URL:', wsUrlBase);
+    console.log('✓ Returning TwiML response with Content-Type: text/xml');
     return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
   }
 
