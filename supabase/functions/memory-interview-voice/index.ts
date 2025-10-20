@@ -42,11 +42,12 @@ serve(async (req) => {
     
     let openaiWs: WebSocket | null = null;
     let streamSid: string | null = null;
+    let openaiReady = false;
+    const mediaBuffer: any[] = [];
 
     twilioWs.onopen = () => {
       console.log('✅ Twilio WebSocket connected, creating OpenAI connection immediately');
 
-      // With <Connect><Stream>, there is no "start" event - we must connect immediately
       // Connect to OpenAI
       console.log('🤖 Connecting to OpenAI Realtime API...');
       try {
@@ -58,37 +59,53 @@ serve(async (req) => {
         });
       } catch (e) {
         console.error('❌ Failed to create OpenAI WebSocket:', e);
-        // Do not crash the function; log and keep Twilio socket open so Twilio doesn't report 31921 immediately
         return;
       }
 
       openaiWs.onopen = () => {
-        console.log('✅ Connected to OpenAI (awaiting session.created)');
+        console.log('✅ OpenAI WebSocket connected, awaiting session.created');
       };
 
       openaiWs.onmessage = (event) => {
         try {
           const response = JSON.parse(event.data);
+          console.log('📨 OpenAI event:', response.type);
 
           if (response.type === 'session.created') {
-            console.log('🆗 OpenAI session.created');
+            console.log('🆗 OpenAI session.created, configuring session');
             const sessionConfig = {
               type: 'session.update',
               session: {
                 modalities: ['text', 'audio'],
                 instructions:
-                  'You are a compassionate interviewer conducting a memory preservation interview. Ask the person to share stories and memories from their life. Be warm, patient, and encouraging. Ask follow-up questions to help them elaborate on their experiences. Start proactively with a warm greeting and first question.',
+                  'You are a compassionate interviewer conducting a memory preservation interview. Ask the person to share stories and memories from their life. Be warm, patient, and encouraging. Ask follow-up questions to help them elaborate on their experiences. Start with a warm greeting and your first question.',
                 voice: 'alloy',
                 input_audio_format: 'g711_ulaw',
                 output_audio_format: 'g711_ulaw',
-                turn_detection: { type: 'server_vad' },
+                turn_detection: {
+                  type: 'server_vad',
+                  threshold: 0.5,
+                  prefix_padding_ms: 300,
+                  silence_duration_ms: 500,
+                },
                 temperature: 0.8,
               },
             };
-            console.log('📤 Sending session.update to OpenAI');
             openaiWs!.send(JSON.stringify(sessionConfig));
+          } else if (response.type === 'session.updated') {
+            console.log('✅ Session configured, starting conversation');
+            openaiReady = true;
+            
+            // Send buffered media
+            if (mediaBuffer.length > 0) {
+              console.log(`📤 Sending ${mediaBuffer.length} buffered media chunks`);
+              mediaBuffer.forEach(audioAppend => {
+                openaiWs!.send(JSON.stringify(audioAppend));
+              });
+              mediaBuffer.length = 0;
+            }
 
-            // Proactively kick off the conversation so users hear a greeting immediately
+            // Start the conversation
             openaiWs!.send(
               JSON.stringify({
                 type: 'conversation.item.create',
@@ -98,8 +115,7 @@ serve(async (req) => {
                   content: [
                     {
                       type: 'input_text',
-                      text:
-                        'Please begin the memory interview with a warm greeting and your first question.',
+                      text: 'Please greet me and ask your first question to begin the memory interview.',
                     },
                   ],
                 },
@@ -108,18 +124,24 @@ serve(async (req) => {
             openaiWs!.send(JSON.stringify({ type: 'response.create' }));
           } else if (response.type === 'response.audio.delta' && response.delta) {
             // Forward audio from OpenAI to Twilio
+            if (!streamSid) {
+              console.warn('⚠️ No streamSid available yet, cannot send audio to Twilio');
+              return;
+            }
             const audioMessage = {
               event: 'media',
               streamSid: streamSid,
               media: { payload: response.delta },
             };
             twilioWs.send(JSON.stringify(audioMessage));
-          } else if (response.type === 'response.audio_transcript.delta' && response.delta) {
-            console.log('📝 Partial transcript:', response.delta);
+          } else if (response.type === 'response.audio_transcript.delta') {
+            console.log('📝 AI transcript:', response.delta);
+          } else if (response.type === 'input_audio_buffer.speech_started') {
+            console.log('🎤 User started speaking');
+          } else if (response.type === 'input_audio_buffer.speech_stopped') {
+            console.log('🎤 User stopped speaking');
           } else if (response.type === 'error') {
-            console.error('❌ OpenAI error:', response.error);
-          } else {
-            console.log('📨 OpenAI event:', response.type);
+            console.error('❌ OpenAI error:', JSON.stringify(response.error));
           }
         } catch (error) {
           console.error('❌ Error processing OpenAI message:', error);
@@ -152,14 +174,23 @@ serve(async (req) => {
           }
 
           if (openaiWs && openaiWs.readyState === WebSocket.OPEN) {
-            // Forward audio from Twilio to OpenAI
             const audioAppend = {
               type: 'input_audio_buffer.append',
               audio: msg.media.payload,
             };
-            openaiWs.send(JSON.stringify(audioAppend));
+            
+            if (openaiReady) {
+              // OpenAI is ready, send immediately
+              openaiWs.send(JSON.stringify(audioAppend));
+            } else {
+              // Buffer media until session is configured
+              mediaBuffer.push(audioAppend);
+              if (mediaBuffer.length === 1) {
+                console.log('📦 Buffering media until OpenAI session is ready');
+              }
+            }
           } else {
-            console.warn('⚠️ Received media before OpenAI connection was ready');
+            console.warn('⚠️ OpenAI WebSocket not open yet');
           }
 
         } else if (msg.event === 'stop') {
