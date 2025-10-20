@@ -105,6 +105,75 @@ serve(async (req) => {
   let introDelivered = false;
   let reconnecting = false;
 
+  // Outbound audio pacing and framing for Twilio (G.711 u-law @ 8kHz)
+  let outboundFramesQueue: string[] = [];
+  let outboundSenderTimer: number | null = null;
+  let ulawRemainder: Uint8Array = new Uint8Array(0);
+  let outboundFramesSent = 0;
+
+  const base64ToBytes = (b64: string): Uint8Array => {
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  };
+  const bytesToBase64 = (bytes: Uint8Array): string => {
+    let bin = '';
+    const CHUNK = 0x8000;
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      const slice = bytes.subarray(i, Math.min(i + CHUNK, bytes.length));
+      bin += String.fromCharCode.apply(null, Array.from(slice));
+    }
+    return btoa(bin);
+  };
+
+  // Enqueue raw g711_ulaw bytes, split into 20ms frames (160 bytes)
+  const enqueueUlawFrames = (payloadB64: string) => {
+    try {
+      const incoming = base64ToBytes(payloadB64);
+      const combined = new Uint8Array(ulawRemainder.length + incoming.length);
+      combined.set(ulawRemainder, 0);
+      combined.set(incoming, ulawRemainder.length);
+
+      const FRAME_SIZE = 160; // 20ms at 8kHz
+      let offset = 0;
+      while (offset + FRAME_SIZE <= combined.length) {
+        const frame = combined.subarray(offset, offset + FRAME_SIZE);
+        outboundFramesQueue.push(bytesToBase64(frame));
+        offset += FRAME_SIZE;
+      }
+      ulawRemainder = combined.subarray(offset);
+    } catch (e) {
+      console.error('enqueueUlawFrames error:', e);
+    }
+  };
+
+  const startOutboundSender = () => {
+    if (outboundSenderTimer !== null) return;
+    outboundSenderTimer = setInterval(() => {
+      try {
+        if (!streamSid || twilioWs.readyState !== WebSocket.OPEN) return;
+        const next = outboundFramesQueue.shift();
+        if (!next) return;
+        twilioWs.send(JSON.stringify({ event: 'media', streamSid, track: 'outbound', media: { payload: next } }));
+        outboundFramesSent++;
+        if (outboundFramesSent % 50 === 0) {
+          console.log(`[Outbound] Sent ${outboundFramesSent} frames, queue=${outboundFramesQueue.length}`);
+          try { twilioWs.send(JSON.stringify({ event: 'mark', streamSid, mark: { name: `out-${outboundFramesSent}` } })); } catch {}
+        }
+      } catch (e) {
+        console.error('Outbound sender error:', e);
+      }
+    }, 20) as unknown as number;
+  };
+
+  const stopOutboundSender = () => {
+    if (outboundSenderTimer !== null) {
+      clearInterval(outboundSenderTimer);
+      outboundSenderTimer = null;
+    }
+  };
+
   const initializeSession = async () => {
     try {
       if (!interviewId) {
@@ -242,22 +311,8 @@ Current question to ask: ${questions[0].question_text}`;
 
         if (data.type === 'response.audio.delta' && data.delta) {
           audioSendCount++;
-            if (streamSid) {
-              if (audioSendCount % 20 === 0) {
-                console.log(`[OpenAI->Twilio] audio.delta #${audioSendCount} len=${data.delta.length} (sending outbound)`);
-              }
-              twilioWs.send(JSON.stringify({
-                event: 'media',
-                streamSid: streamSid,
-                track: 'outbound',
-                media: { payload: data.delta }
-              }));
-              if (audioSendCount % 20 === 0) {
-                twilioWs.send(JSON.stringify({ event: 'mark', streamSid: streamSid, mark: { name: `out-${audioSendCount}` } }));
-              }
-            } else {
-              pendingAudioDeltas.push(data.delta);
-            }
+            enqueueUlawFrames(data.delta);
+
         } else if (data.type === 'conversation.item.input_audio_transcription.completed') {
           // Store user's response
           const userTranscript = data.transcript;
@@ -496,11 +551,14 @@ Current question to ask: ${questions[0].question_text}`;
 
       // Flush any pending audio deltas
       if (streamSid && pendingAudioDeltas.length) {
-        console.log('Flushing pending audio deltas to Twilio:', pendingAudioDeltas.length);
+        console.log('Flushing pending audio deltas to queue:', pendingAudioDeltas.length);
         for (const delta of pendingAudioDeltas.splice(0)) {
-          twilioWs.send(JSON.stringify({ event: 'media', streamSid, track: 'outbound', media: { payload: delta } }));
+          enqueueUlawFrames(delta);
         }
       }
+
+      // Start paced outbound sender
+      startOutboundSender();
 
       // Safety fallback: if session.updated hasn't triggered intro after 1.5s, force it
       setTimeout(() => {
@@ -543,6 +601,7 @@ Current question to ask: ${questions[0].question_text}`;
     } else if (msg.event === 'stop') {
       console.log('Call ended by Twilio. Total media frames received:', mediaCount, 'Total audio sent:', audioSendCount);
       callEnded = true;
+      stopOutboundSender();
       try { openaiWs?.close(); } catch {}
     } else if (msg.event === 'mark') {
       console.log('Twilio mark ack:', msg.mark?.name || JSON.stringify(msg.mark));
@@ -561,6 +620,7 @@ Current question to ask: ${questions[0].question_text}`;
   twilioWs.onclose = () => {
     console.log('Twilio WebSocket closed');
     callEnded = true;
+    stopOutboundSender();
     openaiWs?.close();
   };
 
