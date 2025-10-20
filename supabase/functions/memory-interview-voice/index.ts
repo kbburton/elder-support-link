@@ -43,7 +43,34 @@ serve(async (req) => {
     let openaiWs: WebSocket | null = null;
     let streamSid: string | null = null;
     let openaiReady = false;
+    let twilioReady = false;
+    let interviewStarted = false;
     const mediaBuffer: any[] = [];
+
+    // Start interview only when both OpenAI and Twilio are ready
+    const startInterviewIfReady = () => {
+      if (openaiReady && twilioReady && streamSid && !interviewStarted && openaiWs) {
+        console.log('🎙️ Both connections ready - starting interview');
+        interviewStarted = true;
+        
+        openaiWs.send(
+          JSON.stringify({
+            type: 'conversation.item.create',
+            item: {
+              type: 'message',
+              role: 'user',
+              content: [
+                {
+                  type: 'input_text',
+                  text: 'Please greet me and ask your first question to begin the memory interview.',
+                },
+              ],
+            },
+          })
+        );
+        openaiWs.send(JSON.stringify({ type: 'response.create' }));
+      }
+    };
 
     twilioWs.onopen = () => {
       console.log('✅ Twilio WebSocket connected, creating OpenAI connection immediately');
@@ -86,14 +113,14 @@ serve(async (req) => {
                   type: 'server_vad',
                   threshold: 0.5,
                   prefix_padding_ms: 300,
-                  silence_duration_ms: 500,
+                  silence_duration_ms: 800,
                 },
                 temperature: 0.8,
               },
             };
             openaiWs!.send(JSON.stringify(sessionConfig));
           } else if (response.type === 'session.updated') {
-            console.log('✅ Session configured, starting conversation');
+            console.log('✅ Session configured');
             openaiReady = true;
             
             // Send buffered media
@@ -105,23 +132,8 @@ serve(async (req) => {
               mediaBuffer.length = 0;
             }
 
-            // Start the conversation
-            openaiWs!.send(
-              JSON.stringify({
-                type: 'conversation.item.create',
-                item: {
-                  type: 'message',
-                  role: 'user',
-                  content: [
-                    {
-                      type: 'input_text',
-                      text: 'Please greet me and ask your first question to begin the memory interview.',
-                    },
-                  ],
-                },
-              })
-            );
-            openaiWs!.send(JSON.stringify({ type: 'response.create' }));
+            // Try to start interview if Twilio is also ready
+            startInterviewIfReady();
           } else if (response.type === 'response.audio.delta' && response.delta) {
             // Forward audio from OpenAI to Twilio
             if (!streamSid) {
@@ -163,14 +175,21 @@ serve(async (req) => {
         console.log('📨 Message from Twilio:', msg.event);
 
         if (msg.event === 'start') {
-          // Capture streamSid from start event if present
+          // Capture streamSid from start event
           streamSid = msg.start?.streamSid || streamSid;
           console.log('🎬 Stream start event received, streamSid:', streamSid);
+          twilioReady = true;
+          
+          // Try to start interview if OpenAI is also ready
+          startInterviewIfReady();
 
         } else if (msg.event === 'media') {
+          // Backup: capture streamSid from media if we missed the start event
           if (!streamSid && (msg.streamSid || msg?.start?.streamSid)) {
             streamSid = msg.streamSid || msg?.start?.streamSid;
             console.log('🔎 Captured streamSid from media:', streamSid);
+            twilioReady = true;
+            startInterviewIfReady();
           }
 
           if (openaiWs && openaiWs.readyState === WebSocket.OPEN) {
