@@ -92,3 +92,6 @@ verify_jwt = false
 
 [functions.initiate-scheduled-interviews]
 verify_jwt = false
+
+[functions.test-twilio-audio]
+verify_jwt = false
