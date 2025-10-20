@@ -39,10 +39,10 @@ serve(async (req) => {
     }
 
     const wsUrlBase = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-voice?interview_id=${interviewIdFromQuery}${callSid ? `&amp;call_sid=${callSid}` : ''}`;
-    // Use Connect/Stream for bidirectional audio (Twilio plays outbound frames only with Connect)
-    const twiml = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Response>\n  <Say voice=\"alice\">Please hold while I connect your memory interview.</Say>\n  <Connect>\n    <Stream url=\"${wsUrlBase}\" track=\"both_tracks\" statusCallback=\"https://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-stream-status\" statusCallbackMethod=\"POST\">\n      <Parameter name=\"interview_id\" value=\"${interviewIdFromQuery}\"/>\n      ${callSid ? `<Parameter name=\"call_sid\" value=\"${callSid}\"/>` : ''}\n    </Stream>\n  </Connect>\n</Response>`;
+    // Use Start/Stream with bidirectional track and keep call alive with Pause
+    const twiml = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Response>\n  <Say voice=\"alice\">Connecting to your interview assistant now.</Say>\n  <Start>\n    <Stream url=\"${wsUrlBase}\" track=\"both_tracks\" statusCallback=\"https://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-stream-status\" statusCallbackMethod=\"POST\">\n      <Parameter name=\"interview_id\" value=\"${interviewIdFromQuery}\"/>\n      ${callSid ? `<Parameter name=\"call_sid\" value=\"${callSid}\"/>` : ''}\n    </Stream>\n  </Start>\n  <Pause length=\"3600\"/>\n</Response>`;
 
-    console.log('✓ Generated TwiML (Connect/Stream) with WebSocket URL:', wsUrlBase);
+    console.log('✓ Generated TwiML with WebSocket URL:', wsUrlBase);
     console.log('✓ Returning TwiML response with Content-Type: text/xml');
     return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
   }
@@ -155,7 +155,7 @@ serve(async (req) => {
         if (!streamSid || twilioWs.readyState !== WebSocket.OPEN) return;
         const next = outboundFramesQueue.shift();
         if (!next) return;
-        twilioWs.send(JSON.stringify({ event: 'media', streamSid, track: 'outbound', media: { payload: next } }));
+        twilioWs.send(JSON.stringify({ event: 'media', streamSid, media: { payload: next } }));
         outboundFramesSent++;
         if (outboundFramesSent % 50 === 0) {
           console.log(`[Outbound] Sent ${outboundFramesSent} frames, queue=${outboundFramesQueue.length}`);
