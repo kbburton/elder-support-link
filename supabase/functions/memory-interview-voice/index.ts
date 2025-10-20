@@ -75,15 +75,14 @@ serve(async (req) => {
     twilioWs.onopen = () => {
       console.log('✅ Twilio WebSocket connected, creating OpenAI connection immediately');
 
-      // Connect to OpenAI
-      console.log('🤖 Connecting to OpenAI Realtime API...');
+      // Construct OpenAI WebSocket URL with API key as query parameter
+      // Deno doesn't support WebSocket headers, so we pass auth via URL
+      const openaiUrl = `wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01&api_key=${OPENAI_API_KEY}`;
+      
+      console.log('🤖 Connecting to OpenAI Realtime API with API key in URL...');
       try {
-        openaiWs = new WebSocket('wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01', {
-          headers: {
-            'Authorization': `Bearer ${OPENAI_API_KEY}`,
-            'OpenAI-Beta': 'realtime=v1',
-          },
-        });
+        openaiWs = new WebSocket(openaiUrl);
+        console.log('✅ OpenAI WebSocket object created, waiting for connection...');
       } catch (e) {
         console.error('❌ Failed to create OpenAI WebSocket:', e);
         return;
