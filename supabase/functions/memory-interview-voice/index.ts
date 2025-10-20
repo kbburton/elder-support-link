@@ -39,7 +39,7 @@ serve(async (req) => {
     }
 
     const wsUrlBase = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-voice?interview_id=${interviewIdFromQuery}${callSid ? `&amp;call_sid=${callSid}` : ''}`;
-    const twiml = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Response>\n  <Say voice=\"alice\">Connecting to your interview assistant now.</Say>\n  <Start>\n    <Stream url=\"${wsUrlBase}\" track=\"both_tracks\" statusCallback=\"https://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-stream-status\" statusCallbackMethod=\"POST\">\n      <Parameter name=\"interview_id\" value=\"${interviewIdFromQuery}\"/>\n      ${callSid ? `<Parameter name=\"call_sid\" value=\"${callSid}\"/>` : ''}\n    </Stream>\n  </Start>\n  <Pause length=\"3600\"/>\n</Response>`;
+    const twiml = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Response>\n  <Say voice=\"alice\">Please hold while we connect your memory interview.</Say>\n  <Connect>\n    <Stream url=\"${wsUrlBase}\" />\n  </Connect>\n</Response>`;
 
     console.log('✓ Generated TwiML with WebSocket URL:', wsUrlBase);
     console.log('✓ Returning TwiML response with Content-Type: text/xml');
