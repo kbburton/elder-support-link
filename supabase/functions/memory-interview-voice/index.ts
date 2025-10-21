@@ -74,9 +74,9 @@ serve(async (req) => {
   let sessionInitialized = false;
   let callEnded = false;
   let openaiConfigured = false;
-  // Proactive session rotation to avoid 2-minute upstream TTLs
-  // Keepalive to prevent Twilio from closing the connection
-  let keepaliveInterval: number | null = null;
+  // Keepalive to prevent Twilio and OpenAI from closing the connection
+  let twilioKeepaliveInterval: number | null = null;
+  let openaiKeepaliveInterval: number | null = null;
 
   const initializeSession = async () => {
     try {
@@ -260,16 +260,19 @@ Current question to ask: ${questions[0].question_text}`;
               openaiWs!.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: payload }));
             }
           }
-          // Start keepalive after session is ready
-          if (!keepaliveInterval) {
-            keepaliveInterval = setInterval(() => {
-              if (twilioWs.readyState === WebSocket.OPEN && streamSid) {
-                twilioWs.send(JSON.stringify({
-                  event: 'mark',
-                  streamSid: streamSid,
-                  mark: { name: 'keepalive' }
+          // Start OpenAI keepalive - send 20ms of silence every 15 seconds to prevent timeout
+          if (!openaiKeepaliveInterval) {
+            // Create 20ms of μ-law silence (160 samples at 8kHz = 20ms)
+            const silenceFrame = new Uint8Array(160).fill(0xFF); // μ-law silence value
+            const silenceBase64 = btoa(String.fromCharCode(...silenceFrame));
+            
+            openaiKeepaliveInterval = setInterval(() => {
+              if (openaiWs && openaiWs.readyState === WebSocket.OPEN) {
+                openaiWs.send(JSON.stringify({
+                  type: 'input_audio_buffer.append',
+                  audio: silenceBase64
                 }));
-                console.log('Sent keepalive mark to Twilio');
+                console.log('Sent silence frame to OpenAI as keepalive');
               }
             }, 15000); // Every 15 seconds
           }
@@ -290,9 +293,13 @@ Current question to ask: ${questions[0].question_text}`;
         console.log('=== OpenAI WebSocket CLOSED ===');
         console.log('Close code:', event.code, 'Reason:', event.reason);
 
-        if (keepaliveInterval) {
-          clearInterval(keepaliveInterval as number);
-          keepaliveInterval = null;
+        if (openaiKeepaliveInterval) {
+          clearInterval(openaiKeepaliveInterval as number);
+          openaiKeepaliveInterval = null;
+        }
+        if (twilioKeepaliveInterval) {
+          clearInterval(twilioKeepaliveInterval as number);
+          twilioKeepaliveInterval = null;
         }
 
         if (!callEnded) {
@@ -382,6 +389,20 @@ Current question to ask: ${questions[0].question_text}`;
       console.log('Session initialized, starting OpenAI connection...');
       await startOpenAIConnection();
 
+      // Start Twilio keepalive immediately
+      if (!twilioKeepaliveInterval) {
+        twilioKeepaliveInterval = setInterval(() => {
+          if (twilioWs.readyState === WebSocket.OPEN && streamSid) {
+            twilioWs.send(JSON.stringify({
+              event: 'mark',
+              streamSid: streamSid,
+              mark: { name: 'keepalive' }
+            }));
+            console.log('Sent keepalive mark to Twilio');
+          }
+        }, 15000); // Every 15 seconds
+      }
+
       // Flush any pending audio deltas
       if (streamSid && pendingAudioDeltas.length) {
         console.log('Flushing pending audio deltas to Twilio:', pendingAudioDeltas.length);
@@ -409,9 +430,13 @@ Current question to ask: ${questions[0].question_text}`;
       console.log('Call ended by Twilio. Total media frames received:', mediaCount);
       callEnded = true;
       try { openaiWs?.close(); } catch {}
-      if (keepaliveInterval !== null) {
-        clearInterval(keepaliveInterval as number);
-        keepaliveInterval = null;
+      if (openaiKeepaliveInterval !== null) {
+        clearInterval(openaiKeepaliveInterval as number);
+        openaiKeepaliveInterval = null;
+      }
+      if (twilioKeepaliveInterval !== null) {
+        clearInterval(twilioKeepaliveInterval as number);
+        twilioKeepaliveInterval = null;
       }
     } else if (msg.event === 'mark') {
       // Acknowledge keepalive marks from Twilio
@@ -423,18 +448,26 @@ Current question to ask: ${questions[0].question_text}`;
 
   twilioWs.onerror = (error) => {
     console.error('Twilio WebSocket error:', error);
-    if (keepaliveInterval !== null) {
-      clearInterval(keepaliveInterval as number);
-      keepaliveInterval = null;
+    if (openaiKeepaliveInterval !== null) {
+      clearInterval(openaiKeepaliveInterval as number);
+      openaiKeepaliveInterval = null;
+    }
+    if (twilioKeepaliveInterval !== null) {
+      clearInterval(twilioKeepaliveInterval as number);
+      twilioKeepaliveInterval = null;
     }
     openaiWs?.close();
   };
 
   twilioWs.onclose = () => {
     console.log('Twilio WebSocket closed');
-    if (keepaliveInterval !== null) {
-      clearInterval(keepaliveInterval as number);
-      keepaliveInterval = null;
+    if (openaiKeepaliveInterval !== null) {
+      clearInterval(openaiKeepaliveInterval as number);
+      openaiKeepaliveInterval = null;
+    }
+    if (twilioKeepaliveInterval !== null) {
+      clearInterval(twilioKeepaliveInterval as number);
+      twilioKeepaliveInterval = null;
     }
     callEnded = true;
     openaiWs?.close();
