@@ -75,8 +75,6 @@ serve(async (req) => {
   let callEnded = false;
   let openaiConfigured = false;
   // Proactive session rotation to avoid 2-minute upstream TTLs
-  let rotateTimer: number | null = null;
-  let reconnecting = false;
   // Keepalive to prevent Twilio from closing the connection
   let keepaliveInterval: number | null = null;
 
@@ -262,8 +260,19 @@ Current question to ask: ${questions[0].question_text}`;
               openaiWs!.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: payload }));
             }
           }
-          // Schedule proactive session rotation just before 2 minutes
-          scheduleRotate();
+          // Start keepalive after session is ready
+          if (!keepaliveInterval) {
+            keepaliveInterval = setInterval(() => {
+              if (twilioWs.readyState === WebSocket.OPEN && streamSid) {
+                twilioWs.send(JSON.stringify({
+                  event: 'mark',
+                  streamSid: streamSid,
+                  mark: { name: 'keepalive' }
+                }));
+                console.log('Sent keepalive mark to Twilio');
+              }
+            }, 15000); // Every 15 seconds
+          }
         } else if (data.type === 'error') {
           console.error('ERROR from OpenAI:', data.error);
         } else {
@@ -279,75 +288,48 @@ Current question to ask: ${questions[0].question_text}`;
 
       openaiWs.onclose = async (event) => {
         console.log('=== OpenAI WebSocket CLOSED ===');
-        console.log('Close code:', event.code);
-        console.log('Close reason:', event.reason);
-        console.log('Was clean close:', event.wasClean);
-        // Clear any proactive rotation timer
-        if (rotateTimer !== null) {
-          clearTimeout(rotateTimer as number);
-          rotateTimer = null;
+        console.log('Close code:', event.code, 'Reason:', event.reason);
+
+        if (keepaliveInterval) {
+          clearInterval(keepaliveInterval as number);
+          keepaliveInterval = null;
         }
 
-        // Attempt to recover unless the call has actually ended
         if (!callEnded) {
-          console.log('OpenAI closed unexpectedly; keeping Twilio stream alive and attempting reconnect...');
-          openaiWs = null;
-          try {
-            setTimeout(() => {
-              startOpenAIConnection();
-            }, 250);
-          } catch (e) {
-            console.error('Error attempting OpenAI reconnect:', e);
+          console.log('Saving transcript and wrapping up...');
+
+          const fullTranscript = transcriptBuffer.join('\n');
+          console.log('Transcript length:', fullTranscript.length, 'characters');
+
+          const { error: updateError } = await supabase
+            .from('memory_interviews')
+            .update({
+              status: 'completed',
+              actual_end_time: new Date().toISOString(),
+              raw_transcript: fullTranscript
+            })
+            .eq('id', interviewId);
+
+          if (updateError) {
+            console.error('ERROR updating interview:', updateError);
+          } else {
+            console.log('✓ Interview marked as completed');
           }
-          return; // Do not wrap up or close Twilio here
-        }
-        
-        console.log('Saving transcript and wrapping up...');
-        
-        // Save transcript and update interview
-        const fullTranscript = transcriptBuffer.join('\n');
-        console.log('Transcript length:', fullTranscript.length, 'characters');
-        
-        const { error: updateError } = await supabase
-          .from('memory_interviews')
-          .update({
-            status: 'completed',
-            actual_end_time: new Date().toISOString(),
-            raw_transcript: fullTranscript
-          })
-          .eq('id', interviewId);
 
-        if (updateError) {
-          console.error('ERROR updating interview status:', updateError);
-        } else {
-          console.log('✓ Interview marked as completed');
-        }
-
-        // Record question usage
-        console.log('Recording question usage...');
-        for (const question of questions) {
-          await supabase
-            .from('interview_question_usage')
-            .insert({
+          for (const question of questions) {
+            await supabase.from('interview_question_usage').insert({
               question_id: question.id,
               interview_id: interviewId
             });
+          }
+
+          console.log('Triggering story generation...');
+          await supabase.functions.invoke('generate-memory-story', {
+            body: { interview_id: interviewId }
+          });
+
+          twilioWs.close();
         }
-        console.log(`✓ Recorded ${questions.length} questions used`);
-
-        // Trigger story generation
-        console.log('Triggering story generation...');
-        const { error: storyError } = await supabase.functions.invoke('generate-memory-story', {
-          body: { interview_id: interviewId }
-        });
-
-        if (storyError) {
-          console.error('ERROR triggering story generation:', storyError);
-        } else {
-          console.log('✓ Story generation triggered');
-        }
-
-        twilioWs.close();
       };
 
     } catch (error) {
@@ -356,26 +338,7 @@ Current question to ask: ${questions[0].question_text}`;
   };
 
   // Manage proactive OpenAI session rotation
-  const clearRotateTimer = () => {
-    if (rotateTimer !== null) {
-      clearTimeout(rotateTimer as number);
-      rotateTimer = null;
-    }
-  };
 
-  const scheduleRotate = () => {
-    if (callEnded) return;
-    clearRotateTimer();
-    rotateTimer = setTimeout(() => {
-      console.log('Proactively rotating OpenAI session before 2min TTL...');
-      reconnecting = true;
-      try {
-        openaiWs?.close(4000, 'proactive-rotate');
-      } catch (e) {
-        console.error('Error closing OpenAI for rotation:', e);
-      }
-    }, 95_000);
-  };
   
   twilioWs.onopen = () => {
     console.log('✓ Twilio WebSocket connected - waiting for start event with customParameters');
@@ -427,21 +390,6 @@ Current question to ask: ${questions[0].question_text}`;
         }
       }
 
-      // Start keepalive to prevent Twilio from closing the connection
-      if (keepaliveInterval !== null) {
-        clearInterval(keepaliveInterval as number);
-      }
-      keepaliveInterval = setInterval(() => {
-        if (streamSid && twilioWs.readyState === WebSocket.OPEN) {
-          twilioWs.send(JSON.stringify({
-            event: 'mark',
-            streamSid: streamSid,
-            mark: { name: 'keepalive' }
-          }));
-          console.log('Sent keepalive mark to Twilio');
-        }
-      }, 20000); // Send keepalive every 20 seconds
-      console.log('✓ Keepalive interval started');
     } else if (msg.event === 'media') {
       mediaCount++;
       if (mediaCount % 100 === 0) {
@@ -461,10 +409,6 @@ Current question to ask: ${questions[0].question_text}`;
       console.log('Call ended by Twilio. Total media frames received:', mediaCount);
       callEnded = true;
       try { openaiWs?.close(); } catch {}
-      if (rotateTimer !== null) {
-        clearTimeout(rotateTimer as number);
-        rotateTimer = null;
-      }
       if (keepaliveInterval !== null) {
         clearInterval(keepaliveInterval as number);
         keepaliveInterval = null;
@@ -488,10 +432,6 @@ Current question to ask: ${questions[0].question_text}`;
 
   twilioWs.onclose = () => {
     console.log('Twilio WebSocket closed');
-    if (rotateTimer !== null) {
-      clearTimeout(rotateTimer as number);
-      rotateTimer = null;
-    }
     if (keepaliveInterval !== null) {
       clearInterval(keepaliveInterval as number);
       keepaliveInterval = null;
