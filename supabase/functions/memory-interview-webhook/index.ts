@@ -91,7 +91,7 @@ serve(async (req) => {
         .eq('id', interview.id);
 
       const recipientName = interview.care_groups.recipient_first_name;
-      const voiceUrl = `${supabaseUrl}/functions/v1/memory-interview-voice?interview_id=${interview.id}&call_sid=${callSid}`;
+      const voiceUrl = `https://${supabaseUrl.replace('https://', '')}/functions/v1/memory-interview-voice?interview_id=${interview.id}&call_sid=${callSid}`;
 
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -100,7 +100,9 @@ serve(async (req) => {
     We're going to have a wonderful conversation about your life and memories.
     Let me connect you now.
   </Say>
-  <Redirect>${voiceUrl}</Redirect>
+  <Connect>
+    <Stream url="${voiceUrl}"/>
+  </Connect>
 </Response>`;
 
       return new Response(twiml, {
