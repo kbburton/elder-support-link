@@ -77,6 +77,8 @@ serve(async (req) => {
   // Proactive session rotation to avoid 2-minute upstream TTLs
   let rotateTimer: number | null = null;
   let reconnecting = false;
+  // Keepalive to prevent Twilio from closing the connection
+  let keepaliveInterval: number | null = null;
 
   const initializeSession = async () => {
     try {
@@ -424,6 +426,22 @@ Current question to ask: ${questions[0].question_text}`;
           twilioWs.send(JSON.stringify({ event: 'media', streamSid, media: { payload: delta } }));
         }
       }
+
+      // Start keepalive to prevent Twilio from closing the connection
+      if (keepaliveInterval !== null) {
+        clearInterval(keepaliveInterval as number);
+      }
+      keepaliveInterval = setInterval(() => {
+        if (streamSid && twilioWs.readyState === WebSocket.OPEN) {
+          twilioWs.send(JSON.stringify({
+            event: 'mark',
+            streamSid: streamSid,
+            mark: { name: 'keepalive' }
+          }));
+          console.log('Sent keepalive mark to Twilio');
+        }
+      }, 20000); // Send keepalive every 20 seconds
+      console.log('✓ Keepalive interval started');
     } else if (msg.event === 'media') {
       mediaCount++;
       if (mediaCount % 100 === 0) {
@@ -447,6 +465,13 @@ Current question to ask: ${questions[0].question_text}`;
         clearTimeout(rotateTimer as number);
         rotateTimer = null;
       }
+      if (keepaliveInterval !== null) {
+        clearInterval(keepaliveInterval as number);
+        keepaliveInterval = null;
+      }
+    } else if (msg.event === 'mark') {
+      // Acknowledge keepalive marks from Twilio
+      console.log('Received mark event from Twilio:', msg.mark?.name);
     } else {
       console.log('Unhandled Twilio event:', msg.event);
     }
@@ -454,6 +479,10 @@ Current question to ask: ${questions[0].question_text}`;
 
   twilioWs.onerror = (error) => {
     console.error('Twilio WebSocket error:', error);
+    if (keepaliveInterval !== null) {
+      clearInterval(keepaliveInterval as number);
+      keepaliveInterval = null;
+    }
     openaiWs?.close();
   };
 
@@ -462,6 +491,10 @@ Current question to ask: ${questions[0].question_text}`;
     if (rotateTimer !== null) {
       clearTimeout(rotateTimer as number);
       rotateTimer = null;
+    }
+    if (keepaliveInterval !== null) {
+      clearInterval(keepaliveInterval as number);
+      keepaliveInterval = null;
     }
     callEnded = true;
     openaiWs?.close();
