@@ -189,12 +189,12 @@ ${interview.custom_instructions}`;
         }
       }));
 
-      // Send initial greeting
+      // Send initial greeting - don't override with generic instruction
+      // The session instructions already contain the specific question and guidance
       openAiWs.send(JSON.stringify({
         type: 'response.create',
         response: {
-          modalities: ['text', 'audio'],
-          instructions: 'Greet the person warmly and begin the memory interview.'
+          modalities: ['text', 'audio']
         }
       }));
     });
