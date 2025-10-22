@@ -126,6 +126,7 @@ app.ws('/media-stream', async (ws, req) => {
               recipient: recipientName,
               question: questionText || 'None selected - AI will choose',
               selected_question_id: interview.selected_question_id || null,
+              custom_instructions: interview.custom_instructions || 'None'
             });
             
             // Base instructions depending on question presence
