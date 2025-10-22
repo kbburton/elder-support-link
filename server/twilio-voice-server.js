@@ -189,7 +189,7 @@ app.ws('/media-stream', async (ws, req) => {
                 .from('memory_interviews')
                 .update({
                   status: 'completed',
-                  actual_end_time: new Date().toISOString(),
+                  completed_at: new Date().toISOString(),
                   raw_transcript: conversationHistory.map(msg => 
                     `${msg.role === 'assistant' ? '🤖 Assistant' : '👤 User'}: ${msg.content}`
                   ).join('\n')
