@@ -38,19 +38,6 @@ export function InterviewsList({ careGroupId }: InterviewsListProps) {
     },
   });
 
-  if (isLoading) {
-    return <div className="text-center text-muted-foreground">Loading interviews...</div>;
-  }
-
-  if (!interviews || interviews.length === 0) {
-    return (
-      <Card className="p-8 text-center">
-        <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-        <p className="text-muted-foreground">No interviews scheduled yet</p>
-      </Card>
-    );
-  }
-
   const generateStoryMutation = useMutation({
     mutationFn: async (interviewId: string) => {
       const { data, error } = await supabase.functions.invoke('generate-memory-story', {
@@ -84,6 +71,19 @@ export function InterviewsList({ careGroupId }: InterviewsListProps) {
     setGeneratingStoryFor(interviewId);
     generateStoryMutation.mutate(interviewId);
   };
+
+  if (isLoading) {
+    return <div className="text-center text-muted-foreground">Loading interviews...</div>;
+  }
+
+  if (!interviews || interviews.length === 0) {
+    return (
+      <Card className="p-8 text-center">
+        <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+        <p className="text-muted-foreground">No interviews scheduled yet</p>
+      </Card>
+    );
+  }
 
   const getStatusBadge = (status: string, voicemailDetected: boolean) => {
     if (voicemailDetected) {
