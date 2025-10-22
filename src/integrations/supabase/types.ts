@@ -2123,6 +2123,7 @@ export type Database = {
           interview_type: string
           is_test: boolean | null
           phone_number: string
+          prompt_id: string | null
           raw_transcript: string | null
           recipient_phone: string | null
           recurring_completed_count: number | null
@@ -2149,6 +2150,7 @@ export type Database = {
           interview_type?: string
           is_test?: boolean | null
           phone_number: string
+          prompt_id?: string | null
           raw_transcript?: string | null
           recipient_phone?: string | null
           recurring_completed_count?: number | null
@@ -2175,6 +2177,7 @@ export type Database = {
           interview_type?: string
           is_test?: boolean | null
           phone_number?: string
+          prompt_id?: string | null
           raw_transcript?: string | null
           recipient_phone?: string | null
           recurring_completed_count?: number | null
@@ -2195,6 +2198,13 @@ export type Database = {
             referencedRelation: "care_groups"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "memory_interviews_prompt_id_fkey"
+            columns: ["prompt_id"]
+            isOneToOne: false
+            referencedRelation: "story_generation_prompts"
+            referencedColumns: ["id"]
+          },
         ]
       }
       memory_stories: {
@@ -2207,6 +2217,8 @@ export type Database = {
           interview_id: string
           memory_facts: Json | null
           pii_redacted: boolean | null
+          prompt_id: string | null
+          prompt_text_used: string | null
           published_at: string | null
           review_notes: string | null
           reviewed_at: string | null
@@ -2226,6 +2238,8 @@ export type Database = {
           interview_id: string
           memory_facts?: Json | null
           pii_redacted?: boolean | null
+          prompt_id?: string | null
+          prompt_text_used?: string | null
           published_at?: string | null
           review_notes?: string | null
           reviewed_at?: string | null
@@ -2245,6 +2259,8 @@ export type Database = {
           interview_id?: string
           memory_facts?: Json | null
           pii_redacted?: boolean | null
+          prompt_id?: string | null
+          prompt_text_used?: string | null
           published_at?: string | null
           review_notes?: string | null
           reviewed_at?: string | null
@@ -2270,6 +2286,13 @@ export type Database = {
             referencedRelation: "memory_interviews"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "memory_stories_prompt_id_fkey"
+            columns: ["prompt_id"]
+            isOneToOne: false
+            referencedRelation: "story_generation_prompts"
+            referencedColumns: ["id"]
+          },
         ]
       }
       memory_story_versions: {
@@ -2278,6 +2301,8 @@ export type Database = {
           edit_notes: string | null
           edited_by_user_id: string
           id: string
+          prompt_id: string | null
+          prompt_text_used: string | null
           story_id: string
           story_text: string
           version_number: number
@@ -2287,6 +2312,8 @@ export type Database = {
           edit_notes?: string | null
           edited_by_user_id: string
           id?: string
+          prompt_id?: string | null
+          prompt_text_used?: string | null
           story_id: string
           story_text: string
           version_number: number
@@ -2296,11 +2323,20 @@ export type Database = {
           edit_notes?: string | null
           edited_by_user_id?: string
           id?: string
+          prompt_id?: string | null
+          prompt_text_used?: string | null
           story_id?: string
           story_text?: string
           version_number?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "memory_story_versions_prompt_id_fkey"
+            columns: ["prompt_id"]
+            isOneToOne: false
+            referencedRelation: "story_generation_prompts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "memory_story_versions_story_id_fkey"
             columns: ["story_id"]
@@ -2614,6 +2650,36 @@ export type Database = {
           title?: string
           updated_at?: string | null
           url_path?: string
+        }
+        Relationships: []
+      }
+      story_generation_prompts: {
+        Row: {
+          created_at: string | null
+          created_by_user_id: string | null
+          id: string
+          is_default: boolean | null
+          prompt_text: string
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by_user_id?: string | null
+          id?: string
+          is_default?: boolean | null
+          prompt_text: string
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by_user_id?: string | null
+          id?: string
+          is_default?: boolean | null
+          prompt_text?: string
+          title?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
