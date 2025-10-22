@@ -118,7 +118,8 @@ serve(async (req) => {
           id: interview.id,
           careGroupId: interview.care_group_id,
           status: interview.status,
-          recipientName: interview.care_groups.recipient_first_name
+          recipientName: interview.care_groups.recipient_first_name,
+          selectedQuestionId: interview.selected_question_id || 'None - AI will choose randomly'
         });
 
         // Check if user selected a specific question
