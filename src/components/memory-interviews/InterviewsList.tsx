@@ -29,9 +29,11 @@ export function InterviewsList({ careGroupId }: InterviewsListProps) {
         .from("memory_interviews")
         .select(`
           *,
-          interview_questions (
-            question_text,
-            category
+          interview_question_usage (
+            interview_questions (
+              question_text,
+              category
+            )
           )
         `)
         .eq("care_group_id", careGroupId)
@@ -198,11 +200,11 @@ export function InterviewsList({ careGroupId }: InterviewsListProps) {
                 </div>
               </div>
 
-              {interview.selected_question_id && interview.interview_questions && Array.isArray(interview.interview_questions) && interview.interview_questions[0] && (
+              {interview.interview_question_usage && Array.isArray(interview.interview_question_usage) && interview.interview_question_usage[0]?.interview_questions && (
                 <div className="text-sm text-muted-foreground">
-                  <span className="font-medium">Question:</span> {interview.interview_questions[0].question_text}
-                  {interview.interview_questions[0].category && (
-                    <Badge variant="outline" className="ml-2 text-xs">{interview.interview_questions[0].category}</Badge>
+                  <span className="font-medium">Question:</span> {interview.interview_question_usage[0].interview_questions.question_text}
+                  {interview.interview_question_usage[0].interview_questions.category && (
+                    <Badge variant="outline" className="ml-2 text-xs">{interview.interview_question_usage[0].interview_questions.category.replace(/_/g, ' ')}</Badge>
                   )}
                 </div>
               )}
