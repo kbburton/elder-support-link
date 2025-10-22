@@ -29,6 +29,15 @@ import { ProfileImageUpload } from "@/components/profile/ProfileImageUpload";
 import { LovedOneHeaderStrip } from "@/components/lovedone/LovedOneHeaderStrip";
 import { AllergiesModal } from "@/components/lovedone/AllergiesModal";
 import { PreferencesModal } from "@/components/lovedone/PreferencesModal";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const CareGroupSchema = z.object({
   name: z.string().min(1, "Care group name is required"),
@@ -39,10 +48,7 @@ const CareGroupSchema = z.object({
   recipient_state: z.string().min(1, "State is required"),
   recipient_zip: z.string().min(1, "ZIP code is required"),
   recipient_phone: z.string().min(1, "Phone number is required"),
-  recipient_email: z.union([
-    z.string().email("Invalid email address"),
-    z.literal("")
-  ]),
+  recipient_email: z.string().email("Invalid email address").min(1, "Email is required"),
   date_of_birth: z.string().min(1, "Date of birth is required"),
   living_situation: z.string().optional(),
   profile_description: z.string().optional(),
@@ -69,6 +75,12 @@ interface CareGroupFormTabsProps {
 export function CareGroupFormTabs({ mode, groupId, onSuccess }: CareGroupFormTabsProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [showResultModal, setShowResultModal] = useState(false);
+  const [saveResult, setSaveResult] = useState<{
+    success: boolean;
+    message: string;
+    errors?: string[];
+  } | null>(null);
   const [allergiesOpen, setAllergiesOpen] = useState(false);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [joinGroupCode, setJoinGroupCode] = useState("");
@@ -270,10 +282,11 @@ export function CareGroupFormTabs({ mode, groupId, onSuccess }: CareGroupFormTab
         queryClient.invalidateQueries({ queryKey: ["care_group_header", groupId] });
         queryClient.invalidateQueries({ queryKey: ["care_group_name", groupId] });
         queryClient.invalidateQueries({ queryKey: ["user_membership", groupId] });
-        toast({
-          title: "Saved",
-          description: "Care recipient information updated successfully.",
+        setSaveResult({
+          success: true,
+          message: "Care recipient information has been updated successfully!"
         });
+        setShowResultModal(true);
       } else {
         toast({
           title: "Care group created",
@@ -283,11 +296,20 @@ export function CareGroupFormTabs({ mode, groupId, onSuccess }: CareGroupFormTab
       }
     },
     onError: (err: any) => {
-      toast({
-        title: mode === "editing" ? "Update failed" : "Failed to create group",
-        description: err.message ?? "Please try again.",
-        variant: "destructive",
-      });
+      if (mode === "editing") {
+        setSaveResult({
+          success: false,
+          message: "Failed to save care group information.",
+          errors: [err.message || "An unexpected error occurred"]
+        });
+        setShowResultModal(true);
+      } else {
+        toast({
+          title: "Failed to create group",
+          description: err.message ?? "Please try again.",
+          variant: "destructive",
+        });
+      }
     },
   });
 
@@ -384,15 +406,17 @@ export function CareGroupFormTabs({ mode, groupId, onSuccess }: CareGroupFormTab
           </TabsList>
           
           <TabsContent value="create">
-            <CareGroupFormCard 
-              form={form}
-              onSubmit={onSubmit}
-              isLoading={saveOrCreateMutation.isPending || isLoading}
-              livingSituationOptions={livingSituationOptions}
-              careGroupData={careGroupData}
-              mode={mode}
-              toast={toast}
-            />
+          <CareGroupFormCard 
+            form={form}
+            onSubmit={onSubmit}
+            isLoading={saveOrCreateMutation.isPending || isLoading}
+            livingSituationOptions={livingSituationOptions}
+            careGroupData={careGroupData}
+            mode={mode}
+            toast={toast}
+            setSaveResult={setSaveResult}
+            setShowResultModal={setShowResultModal}
+          />
           </TabsContent>
           
           <TabsContent value="join">
@@ -446,6 +470,8 @@ export function CareGroupFormTabs({ mode, groupId, onSuccess }: CareGroupFormTab
           mode={mode}
           groupId={groupId}
           toast={toast}
+          setSaveResult={setSaveResult}
+          setShowResultModal={setShowResultModal}
         />
       )}
 
@@ -464,6 +490,30 @@ export function CareGroupFormTabs({ mode, groupId, onSuccess }: CareGroupFormTab
           />
         </>
       )}
+      
+      {/* Result modal for save operations */}
+      <AlertDialog open={showResultModal} onOpenChange={setShowResultModal}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {saveResult?.success ? "Success" : "Validation Error"}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>{saveResult?.message}</p>
+              {saveResult?.errors && saveResult.errors.length > 0 && (
+                <ul className="list-disc list-inside space-y-1 mt-2">
+                  {saveResult.errors.map((error, index) => (
+                    <li key={index} className="text-sm">{error}</li>
+                  ))}
+                </ul>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction>OK</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -477,6 +527,8 @@ interface CareGroupFormCardProps {
   mode: "onboarding" | "creating" | "editing";
   groupId?: string;
   toast: any;
+  setSaveResult?: (result: { success: boolean; message: string; errors?: string[] }) => void;
+  setShowResultModal?: (show: boolean) => void;
 }
 
 function CareGroupFormCard({ 
@@ -487,7 +539,9 @@ function CareGroupFormCard({
   careGroupData, 
   mode,
   groupId,
-  toast
+  toast,
+  setSaveResult,
+  setShowResultModal
 }: CareGroupFormCardProps) {
   return (
     <Card>
@@ -905,20 +959,37 @@ function CareGroupFormCard({
       </CardContent>
       <CardFooter>
         <Button
-          onClick={(e) => {
+          onClick={async (e) => {
             e.preventDefault();
-            console.log("Save button clicked");
-            console.log("Form state:", form.formState);
-            console.log("Form values:", form.getValues());
-            console.log("Form errors:", form.formState.errors);
-            form.handleSubmit(onSubmit, (errors) => {
-              console.error("Form validation errors:", errors);
-              toast({
-                title: "Validation Error",
-                description: "Please check all required fields are filled correctly.",
-                variant: "destructive",
+            
+            // Trigger validation
+            const isValid = await form.trigger();
+            
+            if (!isValid) {
+              const errors = form.formState.errors;
+              const errorMessages = Object.entries(errors).map(([field, error]: [string, any]) => {
+                const fieldLabel = field.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
+                return `${fieldLabel}: ${error.message}`;
               });
-            })();
+              
+              if (setSaveResult && setShowResultModal) {
+                setSaveResult({
+                  success: false,
+                  message: "Please fix the following errors:",
+                  errors: errorMessages
+                });
+                setShowResultModal(true);
+              } else {
+                toast({
+                  title: "Validation Error",
+                  description: "Please check all required fields are filled correctly.",
+                  variant: "destructive",
+                });
+              }
+              return;
+            }
+
+            form.handleSubmit(onSubmit)();
           }}
           disabled={isLoading}
         >
