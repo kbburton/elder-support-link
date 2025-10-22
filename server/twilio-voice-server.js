@@ -65,6 +65,8 @@ app.ws('/media-stream', async (ws, req) => {
   let interviewId = null;
   let conversationHistory = [];
   let callStartTime = null;
+  let greetingTimeout = null;
+  let userHasSpoken = false;
 
   // Connect to OpenAI Realtime API
   const connectToOpenAI = () => {
@@ -190,14 +192,19 @@ ${interview.custom_instructions}`;
         }
       }));
 
-      // Send initial greeting - don't override with generic instruction
-      // The session instructions already contain the specific question and guidance
-      openAiWs.send(JSON.stringify({
-        type: 'response.create',
-        response: {
-          modalities: ['text', 'audio']
+      // Set up 5-second timeout for AI to greet if user doesn't speak
+      console.log('⏳ Waiting 5 seconds for user to speak...');
+      greetingTimeout = setTimeout(() => {
+        if (!userHasSpoken && openAiWs && openAiWs.readyState === WebSocket.OPEN) {
+          console.log('🤖 User silent for 5 seconds, AI starting conversation...');
+          openAiWs.send(JSON.stringify({
+            type: 'response.create',
+            response: {
+              modalities: ['text', 'audio']
+            }
+          }));
         }
-      }));
+      }, 5000);
     });
 
     openAiWs.on('message', (data) => {
@@ -208,6 +215,14 @@ ${interview.custom_instructions}`;
         // This enables natural barge-in functionality
         if (response.type === 'input_audio_buffer.speech_started') {
           console.log('🎤 User started speaking - canceling AI response');
+          
+          // Mark that user has spoken (cancel greeting timeout)
+          if (greetingTimeout) {
+            clearTimeout(greetingTimeout);
+            greetingTimeout = null;
+            console.log('✓ User spoke first - cancelled AI greeting timeout');
+          }
+          userHasSpoken = true;
           
           // Cancel the current AI response immediately
           openAiWs.send(JSON.stringify({
@@ -289,6 +304,9 @@ ${interview.custom_instructions}`;
 
     openAiWs.on('close', () => {
       console.log('🔌 OpenAI connection closed');
+      if (greetingTimeout) {
+        clearTimeout(greetingTimeout);
+      }
     });
   };
 
@@ -391,6 +409,9 @@ ${interview.custom_instructions}`;
 
   ws.on('close', () => {
     console.log('🔌 Twilio connection closed');
+    if (greetingTimeout) {
+      clearTimeout(greetingTimeout);
+    }
     if (openAiWs) {
       openAiWs.close();
     }
