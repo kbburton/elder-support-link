@@ -39,10 +39,10 @@ const CareGroupSchema = z.object({
   recipient_state: z.string().min(1, "State is required"),
   recipient_zip: z.string().min(1, "ZIP code is required"),
   recipient_phone: z.string().min(1, "Phone number is required"),
-  recipient_email: z
-    .string()
-    .email("Invalid email address")
-    .min(1, "Email is required"),
+  recipient_email: z.union([
+    z.string().email("Invalid email address"),
+    z.literal("")
+  ]),
   date_of_birth: z.string().min(1, "Date of birth is required"),
   living_situation: z.string().optional(),
   profile_description: z.string().optional(),
@@ -192,16 +192,16 @@ export function CareGroupFormTabs({ mode, groupId, onSuccess }: CareGroupFormTab
 
       if (mode === "editing" && groupId) {
         // Update existing care group
-        const cleanedValues = {
-          ...careGroupValues,
-          date_of_birth: careGroupValues.date_of_birth || null,
-          recipient_email: careGroupValues.recipient_email || null,
-          recipient_last_name: careGroupValues.recipient_last_name || null,
-          living_situation: careGroupValues.living_situation || null,
-          other_important_information: careGroupValues.other_important_information || null,
-          gender: careGroupValues.gender || null,
-          profile_picture_url: careGroupValues.profile_picture_url || null,
-          mobility: careGroupValues.mobility || null,
+          const cleanedValues = {
+            ...careGroupValues,
+            date_of_birth: careGroupValues.date_of_birth || null,
+            recipient_email: careGroupValues.recipient_email,
+            recipient_last_name: careGroupValues.recipient_last_name || null,
+            living_situation: careGroupValues.living_situation || null,
+            other_important_information: careGroupValues.other_important_information || null,
+            gender: careGroupValues.gender || null,
+            profile_picture_url: careGroupValues.profile_picture_url || null,
+            mobility: careGroupValues.mobility || null,
           memory: careGroupValues.memory || null,
           hearing: careGroupValues.hearing || null,
           vision: careGroupValues.vision || null,
