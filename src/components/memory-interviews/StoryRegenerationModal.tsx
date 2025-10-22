@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, ChevronDown } from "lucide-react";
+import { useStoryPrompts } from "@/hooks/useStoryPrompts";
 
 interface StoryRegenerationModalProps {
   isOpen: boolean;
@@ -14,24 +16,6 @@ interface StoryRegenerationModalProps {
   onComplete: (newStory: { title: string; story_text: string; memory_facts: any[] }) => void;
 }
 
-const DEFAULT_PROMPT = `You are a factual family biographer who writes short third-person vignettes about a person's life based on interview transcripts with an AI interviewer.
-
-Your job:
-- Write an engaging short story that feels human, warm, and vivid but always grounded in facts stated or logically inferred from the transcript.
-- You may infer timing and context (e.g., if he was six in 1942, mention wartime life), but you must not invent fictional people, dialogue, or events.
-- Treat each story as part of a larger biography but make it self-contained.
-- Never begin with birth details unless relevant to that vignette.
-- Maintain a consistent, respectful tone suitable for a family storybook.
-- If details are missing, write naturally around the gaps rather than fabricating content.
-- The narrator's voice is third-person.
-
-Return your response as a JSON object with this structure:
-{
-  "title": "A short, evocative title for the story",
-  "story": "The complete story text",
-  "memory_facts": ["fact1", "fact2", "fact3"]
-}`;
-
 export function StoryRegenerationModal({ 
   isOpen, 
   onClose, 
@@ -39,16 +23,36 @@ export function StoryRegenerationModal({
   onComplete 
 }: StoryRegenerationModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [customPrompt, setCustomPrompt] = useState(DEFAULT_PROMPT);
+  const [selectedPromptId, setSelectedPromptId] = useState<string>('');
+  const [previewOpen, setPreviewOpen] = useState(false);
+  
+  const { data: prompts, isLoading: promptsLoading } = useStoryPrompts();
+  
+  const selectedPrompt = prompts?.find(p => p.id === selectedPromptId);
+  
+  // Set default prompt when prompts load
+  useEffect(() => {
+    if (prompts && prompts.length > 0 && !selectedPromptId) {
+      const defaultPrompt = prompts.find(p => p.is_default);
+      if (defaultPrompt) {
+        setSelectedPromptId(defaultPrompt.id);
+      }
+    }
+  }, [prompts, selectedPromptId]);
 
   const handleRegenerate = async () => {
+    if (!selectedPromptId) {
+      toast.error('Please select a prompt');
+      return;
+    }
+    
     setIsSubmitting(true);
 
     try {
       const { data, error } = await supabase.functions.invoke('regenerate-story', {
         body: { 
           storyId,
-          customPrompt: customPrompt.trim() || undefined,
+          promptId: selectedPromptId,
         }
       });
 
@@ -79,24 +83,49 @@ export function StoryRegenerationModal({
         <DialogHeader>
           <DialogTitle>Regenerate Story</DialogTitle>
           <DialogDescription>
-            Customize the prompt to regenerate the story with different instructions
+            Select a generation prompt to regenerate the story with different instructions
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="prompt">Custom Prompt</Label>
-            <Textarea
-              id="prompt"
-              value={customPrompt}
-              onChange={(e) => setCustomPrompt(e.target.value)}
-              placeholder="Enter custom prompt..."
-              className="min-h-[300px] font-mono text-sm"
-            />
-            <p className="text-xs text-muted-foreground">
-              Edit the prompt above to change how the story is generated. The prompt should include instructions for the AI biographer.
-            </p>
+            <Label htmlFor="prompt">Select Generation Prompt</Label>
+            <Select value={selectedPromptId} onValueChange={setSelectedPromptId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choose a prompt..." />
+              </SelectTrigger>
+              <SelectContent>
+                {promptsLoading ? (
+                  <div className="p-2 text-sm text-muted-foreground">Loading prompts...</div>
+                ) : (
+                  prompts?.map((prompt) => (
+                    <SelectItem key={prompt.id} value={prompt.id}>
+                      {prompt.title}
+                      {prompt.is_default && ' (Default)'}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
           </div>
+          
+          {selectedPrompt && (
+            <Collapsible open={previewOpen} onOpenChange={setPreviewOpen}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm" className="w-full justify-between">
+                  <span>Preview Prompt Text</span>
+                  <ChevronDown className={`w-4 h-4 transition-transform ${previewOpen ? 'rotate-180' : ''}`} />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="mt-2 p-4 bg-muted rounded-md">
+                  <pre className="text-sm whitespace-pre-wrap font-mono">
+                    {selectedPrompt.prompt_text}
+                  </pre>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
 
           <div className="flex gap-2 justify-end">
             <Button
@@ -108,7 +137,7 @@ export function StoryRegenerationModal({
             </Button>
             <Button
               onClick={handleRegenerate}
-              disabled={isSubmitting}
+              disabled={isSubmitting || !selectedPromptId}
             >
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Regenerate Story
