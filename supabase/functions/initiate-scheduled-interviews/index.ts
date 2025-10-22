@@ -42,7 +42,13 @@ serve(async (req) => {
           *,
           care_groups (
             id,
-            recipient_first_name
+            recipient_first_name,
+            recipient_last_name,
+            date_of_birth
+          ),
+          interview_questions (
+            id,
+            question_text
           )
         `)
         .eq('id', body.interview_id)
@@ -75,7 +81,13 @@ serve(async (req) => {
           *,
           care_groups (
             id,
-            recipient_first_name
+            recipient_first_name,
+            recipient_last_name,
+            date_of_birth
+          ),
+          interview_questions (
+            id,
+            question_text
           )
         `)
         .eq('status', 'scheduled')
@@ -101,8 +113,18 @@ serve(async (req) => {
         const maskedPhone = interview.recipient_phone.replace(/(\+\d{1})(\d+)(\d{4})/, '$1***$3');
         console.log(`Initiating call for interview ${interview.id} to ${maskedPhone}`);
         
+        // Get question text if one was selected
+        const questionText = interview.interview_questions?.question_text || null;
+        const recipientName = `${interview.care_groups.recipient_first_name} ${interview.care_groups.recipient_last_name}`;
+        
         // Construct the TwiML URL that Twilio will fetch when the call is answered
-        const voiceUrl = `${supabaseUrl}/functions/v1/memory-interview-voice?interview_id=${interview.id}`;
+        // Pass question and recipient info as URL parameters
+        const voiceUrl = new URL(`${supabaseUrl}/functions/v1/memory-interview-voice`);
+        voiceUrl.searchParams.set('interview_id', interview.id);
+        if (questionText) {
+          voiceUrl.searchParams.set('question', questionText);
+        }
+        voiceUrl.searchParams.set('recipient_name', recipientName);
         
         // Make Twilio API call to initiate the call
         const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Calls.json`;
@@ -111,7 +133,7 @@ serve(async (req) => {
         const formData = new URLSearchParams({
           To: interview.recipient_phone,
           From: twilioPhoneNumber,
-          Url: voiceUrl,
+          Url: voiceUrl.toString(),
           Method: 'POST',
         });
 

@@ -47,10 +47,77 @@ app.ws('/media-stream', async (ws, req) => {
       }
     });
 
-    openAiWs.on('open', () => {
+    openAiWs.on('open', async () => {
       console.log('✅ Connected to OpenAI Realtime API');
       
-      // Configure the session
+      // Fetch interview details to get the selected question
+      let instructions = 'You are conducting a memory interview. Ask thoughtful questions about the person\'s life experiences and memories. Be empathetic and engaging.';
+      
+      if (interviewId) {
+        try {
+          const { data: interview, error } = await supabase
+            .from('memory_interviews')
+            .select(`
+              *,
+              care_groups (
+                recipient_first_name,
+                recipient_last_name,
+                date_of_birth
+              ),
+              interview_questions (
+                question_text
+              )
+            `)
+            .eq('id', interviewId)
+            .single();
+          
+          if (error) {
+            console.error('❌ Error fetching interview:', error);
+          } else if (interview) {
+            const recipientName = `${interview.care_groups.recipient_first_name} ${interview.care_groups.recipient_last_name}`;
+            const questionText = interview.interview_questions?.question_text;
+            
+            console.log('📋 Interview details loaded:', {
+              recipient: recipientName,
+              question: questionText || 'None selected - AI will choose'
+            });
+            
+            if (questionText) {
+              instructions = `You are conducting a memory interview with ${recipientName}, born ${interview.care_groups.date_of_birth}.
+
+Your goal is to ask them about this specific memory and capture their story in a warm, conversational way:
+
+"${questionText}"
+
+Instructions:
+- Start by introducing yourself warmly and explaining you'll be asking them about their life
+- Ask the question naturally, not reading it word-for-word
+- Listen actively and ask gentle follow-up questions to encourage them to share more details
+- Be empathetic, patient, and encouraging
+- If they seem confused, gently rephrase the question
+- Keep responses concise and conversational
+- Use their first name (${interview.care_groups.recipient_first_name}) occasionally to make it personal
+- When they've fully answered and you've explored the memory with follow-ups, thank them warmly`;
+            } else {
+              instructions = `You are conducting a memory interview with ${recipientName}, born ${interview.care_groups.date_of_birth}.
+
+Your goal is to ask them about their life experiences and capture their memories in a warm, conversational way.
+
+Instructions:
+- Start by introducing yourself warmly
+- Ask thoughtful questions about their childhood, family, life milestones, or meaningful experiences
+- Listen actively and ask gentle follow-up questions
+- Be empathetic, patient, and encouraging
+- Keep responses concise and conversational
+- Use their first name (${interview.care_groups.recipient_first_name}) occasionally`;
+            }
+          }
+        } catch (err) {
+          console.error('❌ Error loading interview details:', err);
+        }
+      }
+      
+      // Configure the session with the instructions
       openAiWs.send(JSON.stringify({
         type: 'session.update',
         session: {
@@ -58,7 +125,7 @@ app.ws('/media-stream', async (ws, req) => {
           input_audio_format: 'g711_ulaw',
           output_audio_format: 'g711_ulaw',
           voice: 'alloy',
-          instructions: 'You are conducting a memory interview. Ask thoughtful questions about the person\'s life experiences and memories. Be empathetic and engaging.',
+          instructions: instructions,
           modalities: ['text', 'audio'],
           temperature: 0.8,
           input_audio_transcription: {
