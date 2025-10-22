@@ -93,10 +93,8 @@ app.ws('/media-stream', async (ws, req) => {
           recipient_last_name,
           date_of_birth
         ),
-        interview_question_usage (
-          interview_questions (
-            question_text
-          )
+        interview_questions (
+          question_text
         )
       `)
       .eq('id', interviewId)
@@ -106,7 +104,7 @@ app.ws('/media-stream', async (ws, req) => {
             console.error('❌ Error fetching interview:', error);
           } else if (interview) {
             const recipientName = `${interview.care_groups.recipient_first_name} ${interview.care_groups.recipient_last_name}`;
-            const questionText = interview.interview_question_usage?.[0]?.interview_questions?.question_text;
+            const questionText = interview.interview_questions?.question_text;
             
             console.log('📋 Interview details loaded:', {
               recipient: recipientName,
