@@ -123,7 +123,13 @@ serve(async (req) => {
     const storyPrompt = `${storyPromptText}
 
 Interview Transcript:
-${interview.raw_transcript}`;
+${interview.raw_transcript}
+
+IMPORTANT: You must respond with a JSON object in this exact format:
+{
+  "title": "A compelling title for the story",
+  "content": "The full story text here"
+}`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -134,7 +140,7 @@ ${interview.raw_transcript}`;
       body: JSON.stringify({
         model: 'gpt-4o',
         messages: [
-          { role: 'system', content: 'You are an expert biographer and storyteller who creates narratives from interview transcripts.' },
+          { role: 'system', content: 'You are an expert biographer and storyteller who creates narratives from interview transcripts. You always respond with valid JSON containing both a title and content field.' },
           { role: 'user', content: storyPrompt }
         ],
         response_format: { type: 'json_object' },
@@ -156,6 +162,12 @@ ${interview.raw_transcript}`;
     const storyData = JSON.parse(result.choices[0].message.content);
     console.log('Story title:', storyData.title);
     console.log('Story length:', storyData.content?.length || 0, 'characters');
+
+    // Validate that we have both title and content
+    if (!storyData.content || storyData.content.trim().length === 0) {
+      console.error('ERROR: OpenAI returned empty content');
+      throw new Error('Story generation failed: No content returned from AI');
+    }
 
     // Create the story record - auto-publish if no concerns
     console.log('Saving story to database...');
