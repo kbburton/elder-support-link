@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { formatDistanceToNow, format } from "date-fns";
 import { Calendar, Phone, Clock, CheckCircle, XCircle, AlertCircle, Globe, Sparkles, FileText, Volume2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 interface InterviewsListProps {
@@ -48,6 +48,25 @@ export function InterviewsList({ careGroupId }: InterviewsListProps) {
       return data;
     },
   });
+
+  const { data: allQuestions } = useQuery({
+    queryKey: ["interview-questions-map"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("interview_questions")
+        .select("id, question_text, category");
+      if (error) throw error;
+      return data as { id: string; question_text: string; category: string | null }[];
+    },
+  });
+
+  const questionLookup = useMemo(() => {
+    const map: Record<string, { question_text: string; category: string | null }> = {};
+    allQuestions?.forEach((q) => {
+      map[q.id] = { question_text: q.question_text, category: q.category };
+    });
+    return map;
+  }, [allQuestions]);
 
   const generateStoryMutation = useMutation({
     mutationFn: async (interviewId: string) => {
@@ -200,14 +219,21 @@ export function InterviewsList({ careGroupId }: InterviewsListProps) {
                 </div>
               </div>
 
-              {interview.interview_question_usage && Array.isArray(interview.interview_question_usage) && interview.interview_question_usage[0]?.interview_questions && (
-                <div className="text-sm text-muted-foreground">
-                  <span className="font-medium">Question:</span> {interview.interview_question_usage[0].interview_questions.question_text}
-                  {interview.interview_question_usage[0].interview_questions.category && (
-                    <Badge variant="outline" className="ml-2 text-xs">{interview.interview_question_usage[0].interview_questions.category.replace(/_/g, ' ')}</Badge>
-                  )}
-                </div>
-              )}
+              {(() => {
+                const usage = interview.interview_question_usage && Array.isArray(interview.interview_question_usage)
+                  ? interview.interview_question_usage[0]?.interview_questions
+                  : undefined;
+                const qText = usage?.question_text || (interview.selected_question_id ? questionLookup[interview.selected_question_id]?.question_text : undefined);
+                const cat = usage?.category || (interview.selected_question_id ? questionLookup[interview.selected_question_id]?.category : undefined);
+                return qText ? (
+                  <div className="text-sm text-muted-foreground">
+                    <span className="font-medium">Question:</span> {qText}
+                    {cat && (
+                      <Badge variant="outline" className="ml-2 text-xs">{cat.replace(/_/g, ' ')}</Badge>
+                    )}
+                  </div>
+                ) : null;
+              })()}
 
               {interview.custom_instructions && (
                 <p className="text-sm text-muted-foreground">
