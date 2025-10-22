@@ -296,6 +296,23 @@ Current question to ask: ${questions[0].question_text}`;
                 }
               }, 15000); // Every 15 seconds
             }
+          } else if (data.type === 'input_audio_buffer.speech_started') {
+            // User started speaking - interrupt the AI's current response
+            console.log('🎤 User started speaking - canceling AI response');
+            
+            // Cancel the current AI response
+            openaiWs!.send(JSON.stringify({
+              type: 'response.cancel'
+            }));
+            
+            // Clear Twilio's audio buffer to stop playing queued audio immediately
+            if (streamSid) {
+              twilioWs.send(JSON.stringify({
+                event: 'clear',
+                streamSid: streamSid
+              }));
+              console.log('✓ Cleared Twilio audio buffer');
+            }
           } else if (data.type === 'error') {
             console.error('ERROR from OpenAI:', data.error);
           } else {
@@ -713,6 +730,23 @@ Current question to ask: ${questions[0].question_text}`;
                 console.log('Sent silence frame to OpenAI as keepalive');
               }
             }, 15000); // Every 15 seconds
+          }
+        } else if (data.type === 'input_audio_buffer.speech_started') {
+          // User started speaking - interrupt the AI's current response
+          console.log('🎤 User started speaking - canceling AI response');
+          
+          // Cancel the current AI response
+          openaiWs!.send(JSON.stringify({
+            type: 'response.cancel'
+          }));
+          
+          // Clear Twilio's audio buffer to stop playing queued audio immediately
+          if (streamSid) {
+            twilioWs.send(JSON.stringify({
+              event: 'clear',
+              streamSid: streamSid
+            }));
+            console.log('✓ Cleared Twilio audio buffer');
           }
         } else if (data.type === 'error') {
           console.error('ERROR from OpenAI:', data.error);
