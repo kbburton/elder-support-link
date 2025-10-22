@@ -358,7 +358,10 @@ export function CareGroupFormTabs({ mode, groupId, onSuccess }: CareGroupFormTab
     }
   };
 
-  const onSubmit = (values: CareGroupFormValues) => saveOrCreateMutation.mutate(values);
+  const onSubmit = (values: CareGroupFormValues) => {
+    console.log("Form submitted with values:", values);
+    saveOrCreateMutation.mutate(values);
+  };
 
   const showTabs = mode === "onboarding" || mode === "creating";
   const showAllergiesPreferences = mode === "editing";
@@ -388,6 +391,7 @@ export function CareGroupFormTabs({ mode, groupId, onSuccess }: CareGroupFormTab
               livingSituationOptions={livingSituationOptions}
               careGroupData={careGroupData}
               mode={mode}
+              toast={toast}
             />
           </TabsContent>
           
@@ -441,6 +445,7 @@ export function CareGroupFormTabs({ mode, groupId, onSuccess }: CareGroupFormTab
           careGroupData={careGroupData}
           mode={mode}
           groupId={groupId}
+          toast={toast}
         />
       )}
 
@@ -471,6 +476,7 @@ interface CareGroupFormCardProps {
   careGroupData?: any;
   mode: "onboarding" | "creating" | "editing";
   groupId?: string;
+  toast: any;
 }
 
 function CareGroupFormCard({ 
@@ -480,7 +486,8 @@ function CareGroupFormCard({
   livingSituationOptions, 
   careGroupData, 
   mode,
-  groupId 
+  groupId,
+  toast
 }: CareGroupFormCardProps) {
   return (
     <Card>
@@ -898,7 +905,21 @@ function CareGroupFormCard({
       </CardContent>
       <CardFooter>
         <Button
-          onClick={form.handleSubmit(onSubmit)}
+          onClick={(e) => {
+            e.preventDefault();
+            console.log("Save button clicked");
+            console.log("Form state:", form.formState);
+            console.log("Form values:", form.getValues());
+            console.log("Form errors:", form.formState.errors);
+            form.handleSubmit(onSubmit, (errors) => {
+              console.error("Form validation errors:", errors);
+              toast({
+                title: "Validation Error",
+                description: "Please check all required fields are filled correctly.",
+                variant: "destructive",
+              });
+            })();
+          }}
           disabled={isLoading}
         >
           {isLoading 
