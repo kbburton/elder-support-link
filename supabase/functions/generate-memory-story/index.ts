@@ -57,6 +57,24 @@ serve(async (req) => {
       transcriptLength: interview.raw_transcript?.length || 0
     });
 
+    // Validate transcript has meaningful user content
+    const transcript = interview.raw_transcript;
+    const userLines = transcript.split('\n').filter((line: string) => line.startsWith('User:')).length;
+    const aiLines = transcript.split('\n').filter((line: string) => line.startsWith('AI:')).length;
+    
+    console.log('Transcript analysis:', { userLines, aiLines });
+    console.log('First 500 chars of transcript:', transcript.substring(0, 500));
+    
+    if (userLines === 0) {
+      console.error('ERROR: Transcript contains no user responses - cannot generate meaningful story');
+      throw new Error('Transcript incomplete: No user responses captured. Please conduct the interview again.');
+    }
+    
+    if (userLines < 3) {
+      console.warn('⚠️ WARNING: Transcript has very few user responses:', userLines);
+      console.warn('Story quality may be poor. Consider re-conducting the interview.');
+    }
+
     const recipientName = `${interview.care_groups.recipient_first_name} ${interview.care_groups.recipient_last_name}`;
 
     // Generate story using GPT-4

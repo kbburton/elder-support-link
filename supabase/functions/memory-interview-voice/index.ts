@@ -649,6 +649,10 @@ Current question to ask: ${questions[0].question_text}`;
           const userTranscript = data.transcript;
           transcriptBuffer.push(`User: ${userTranscript}`);
           console.log('[User transcript]:', userTranscript);
+          console.log('User transcript length:', userTranscript?.length || 0, 'chars');
+          if (!userTranscript || userTranscript.trim().length === 0) {
+            console.warn('⚠️ Empty user transcript received');
+          }
         } else if (data.type === 'response.audio_transcript.delta') {
           // Store AI's response
           transcriptBuffer.push(`AI: ${data.delta}`);
@@ -728,9 +732,24 @@ Current question to ask: ${questions[0].question_text}`;
 
         if (!callEnded) {
           console.log('Saving transcript and wrapping up...');
+          console.log('Transcript buffer entries:', transcriptBuffer.length);
 
           const fullTranscript = transcriptBuffer.join('\n');
-          console.log('Transcript length:', fullTranscript.length, 'characters');
+          console.log('Full transcript length:', fullTranscript.length, 'characters');
+          
+          // Count user vs AI entries
+          const userEntries = transcriptBuffer.filter(line => line.startsWith('User:')).length;
+          const aiEntries = transcriptBuffer.filter(line => line.startsWith('AI:')).length;
+          console.log('Transcript analysis:', { userEntries, aiEntries });
+          
+          // Log first 500 chars of transcript for debugging
+          console.log('Transcript preview:', fullTranscript.substring(0, 500));
+          
+          if (userEntries === 0) {
+            console.warn('⚠️ WARNING: No user responses captured in transcript!');
+          } else if (userEntries < 3) {
+            console.warn('⚠️ WARNING: Very few user responses captured:', userEntries);
+          }
 
           const { error: updateError } = await supabase
             .from('memory_interviews')
@@ -755,9 +774,17 @@ Current question to ask: ${questions[0].question_text}`;
           }
 
           console.log('Triggering story generation...');
-          await supabase.functions.invoke('generate-memory-story', {
-            body: { interview_id: interviewId }
-          });
+          
+          // Only trigger story generation if we have meaningful user content
+          if (userEntries >= 3) {
+            await supabase.functions.invoke('generate-memory-story', {
+              body: { interview_id: interviewId }
+            });
+            console.log('✓ Story generation triggered');
+          } else {
+            console.warn('⚠️ Skipping story generation - insufficient user responses');
+            console.warn('Interview completed but needs to be re-conducted for story generation');
+          }
 
           twilioWs.close();
         }
