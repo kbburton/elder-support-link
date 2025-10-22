@@ -221,11 +221,15 @@ Current question to ask: ${questions[0].question_text}`;
             } else {
               pendingAudioDeltas.push(data.delta);
             }
-          } else if (data.type === 'conversation.item.input_audio_transcription.completed') {
+          } else if (data.type === 'input_audio_transcription.completed') {
             // Store user's response
             const userTranscript = data.transcript;
             transcriptBuffer.push(`User: ${userTranscript}`);
             console.log('[User transcript]:', userTranscript);
+            console.log('User transcript length:', userTranscript?.length || 0, 'chars');
+            if (!userTranscript || userTranscript.trim().length === 0) {
+              console.warn('⚠️ Empty user transcript received');
+            }
           } else if (data.type === 'response.audio_transcript.delta') {
             // Store AI's response
             transcriptBuffer.push(`AI: ${data.delta}`);
@@ -644,11 +648,15 @@ Current question to ask: ${questions[0].question_text}`;
           } else {
             pendingAudioDeltas.push(data.delta);
           }
-        } else if (data.type === 'conversation.item.input_audio_transcription.completed') {
-          // Store user's response
-          const userTranscript = data.transcript;
-          transcriptBuffer.push(`User: ${userTranscript}`);
-          console.log('[User transcript]:', userTranscript);
+          } else if (data.type === 'input_audio_transcription.completed') {
+            // Store user's response
+            const userTranscript = data.transcript;
+            transcriptBuffer.push(`User: ${userTranscript}`);
+            console.log('[User transcript]:', userTranscript);
+            console.log('User transcript length:', userTranscript?.length || 0, 'chars');
+            if (!userTranscript || userTranscript.trim().length === 0) {
+              console.warn('⚠️ Empty user transcript received');
+            }
           console.log('User transcript length:', userTranscript?.length || 0, 'chars');
           if (!userTranscript || userTranscript.trim().length === 0) {
             console.warn('⚠️ Empty user transcript received');
