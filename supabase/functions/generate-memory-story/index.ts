@@ -136,7 +136,7 @@ Please provide your response in JSON format with:
     console.log('Story title:', storyData.title);
     console.log('Story length:', storyData.content?.length || 0, 'characters');
 
-    // Create the story record
+    // Create the story record - auto-publish if no concerns
     console.log('Saving story to database...');
     const { data: story, error: storyError } = await supabase
       .from('memory_stories')
@@ -145,7 +145,7 @@ Please provide your response in JSON format with:
         care_group_id: interview.care_group_id,
         title: storyData.title,
         story_text: storyData.content,
-        status: 'pending_review'
+        status: 'published' // Auto-publish clean stories, only flag if concerns detected
       })
       .select()
       .single();

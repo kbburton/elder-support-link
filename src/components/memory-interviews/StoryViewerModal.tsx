@@ -57,8 +57,10 @@ export function StoryViewerModal({ storyId, onClose }: StoryViewerModalProps) {
       if (error) throw error;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["memory-story", storyId] });
-      queryClient.invalidateQueries({ queryKey: ["memory-stories"] });
+      queryClient.invalidateQueries({ 
+        predicate: (query) => 
+          query.queryKey[0] === "memory-story" || query.queryKey[0] === "memory-stories"
+      });
       toast({
         title: "Review Submitted",
         description: `Story ${variables.status === "approved" ? "approved" : "rejected"}`,
