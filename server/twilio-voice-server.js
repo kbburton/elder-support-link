@@ -1,3 +1,32 @@
+/**
+ * ARCHITECTURE: Memory Interview Voice Server (LOCAL)
+ * 
+ * This local server handles real-time WebSocket connections for memory interviews.
+ * 
+ * CRITICAL FLOW:
+ * 1. Twilio calls the edge function (memory-interview-voice) to get TwiML instructions
+ * 2. Edge function returns TwiML pointing to THIS server (via ngrok)
+ * 3. Twilio connects to this server's WebSocket endpoint: /media-stream
+ * 4. This server manages bidirectional audio: Twilio ↔ Local Server ↔ OpenAI
+ * 
+ * INTERRUPT HANDLING (CRITICAL):
+ * - The interrupt logic (response.cancel, clear audio buffer) MUST be in this server
+ * - This is where the OpenAI WebSocket connection lives
+ * - Allows immediate response to speech_started events when user interrupts AI
+ * - Easier to debug and iterate compared to edge function
+ * 
+ * WHY LOCAL SERVER:
+ * - Maintains stateful WebSocket connections
+ * - Handles real-time audio streaming
+ * - Implements interrupt logic for natural conversations
+ * - Direct console access for debugging
+ * - Can restart/iterate quickly without redeployment
+ * 
+ * WARNING: DO NOT move interrupt logic to edge function!
+ * In production, Twilio connects here, not to the edge function.
+ * The edge function only generates TwiML instructions.
+ */
+
 import 'dotenv/config';
 import express from 'express';
 import expressWs from 'express-ws';
@@ -149,6 +178,28 @@ Instructions:
     openAiWs.on('message', (data) => {
       try {
         const response = JSON.parse(data.toString());
+        
+        // CRITICAL: Handle user interruptions during AI speech
+        // This enables natural barge-in functionality
+        if (response.type === 'input_audio_buffer.speech_started') {
+          console.log('🎤 User started speaking - canceling AI response');
+          
+          // Cancel the current AI response immediately
+          openAiWs.send(JSON.stringify({
+            type: 'response.cancel'
+          }));
+          
+          // Clear Twilio's audio buffer to stop playing queued audio immediately
+          if (streamSid && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+              event: 'clear',
+              streamSid: streamSid
+            }));
+            console.log('✓ Cleared Twilio audio buffer - user can now speak');
+          }
+          
+          return; // Don't process other logic for this event
+        }
         
         // Handle different response types
         if (response.type === 'response.audio.delta' && response.delta) {

@@ -1,3 +1,26 @@
+/**
+ * ARCHITECTURE: Memory Interview Voice Edge Function
+ * 
+ * CRITICAL: This edge function ONLY generates TwiML instructions for Twilio.
+ * It does NOT handle WebSocket connections in production.
+ * 
+ * FLOW:
+ * 1. Twilio calls THIS edge function to get TwiML instructions
+ * 2. This function returns TwiML with WebSocket URL pointing to LOCAL SERVER (via ngrok)
+ * 3. Twilio connects to ngrok → local server → OpenAI
+ * 4. Local server handles real-time audio, interrupts, and AI conversation
+ * 
+ * WHY THIS ARCHITECTURE:
+ * - Edge function: Stateless TwiML generator
+ * - Local server: Stateful WebSocket handler with interrupt logic
+ * - Interrupt handling requires maintaining OpenAI WebSocket state
+ * - Local server allows rapid iteration and debugging without redeployment
+ * 
+ * WARNING: DO NOT change the WebSocket URL to point back to this edge function!
+ * The interrupt logic (response.cancel, clear audio buffer) will NOT work here.
+ * It MUST remain in the local server where the OpenAI connection lives.
+ */
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.54.0";
 
@@ -36,12 +59,18 @@ serve(async (req) => {
       );
     }
 
-    const wsUrlBase = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-voice`;
+    // CRITICAL: This URL must point to the LOCAL SERVER (via ngrok), NOT this edge function
+    // The local server handles real-time WebSocket connections and interrupt logic
+    // Architecture: Twilio → ngrok → local server → OpenAI
+    // DO NOT change this to point back to the Supabase edge function URL!
+    const wsUrlBase = Deno.env.get('NGROK_WEBSOCKET_URL') || 'wss://alonzo-unpropagandistic-nonsymbolically.ngrok-free.dev/media-stream';
+    
+    // Status callback can stay pointing to Supabase for logging
     const statusCallbackUrl = `https://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-stream-status`;
     
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Connect>\n    <Stream url=\"${wsUrlBase}\" statusCallback=\"${statusCallbackUrl}\" statusCallbackMethod=\"POST\">\n      <Parameter name=\"interview_id\" value=\"${interviewIdFromQuery}\"/>\n      ${callSid ? `<Parameter name=\"call_sid\" value=\"${callSid}\"/>` : ''}\n    </Stream>\n  </Connect>\n</Response>`;
 
-    console.log('Responding with TwiML to connect stream with status callback:', wsUrlBase, { interviewIdFromQuery, callSid });
+    console.log('Responding with TwiML to connect stream to LOCAL SERVER:', wsUrlBase, { interviewIdFromQuery, callSid });
     return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
   }
 
@@ -298,8 +327,11 @@ Current question to ask: ${questions[0].question_text}`;
               }, 15000); // Every 15 seconds
             }
           } else if (data.type === 'input_audio_buffer.speech_started') {
-            // User started speaking - interrupt the AI's current response
-            console.log('🎤 User started speaking - canceling AI response');
+            // NOTE: This interrupt logic is NOT USED in production!
+            // In production, Twilio connects to the local server (via ngrok), not this edge function.
+            // The interrupt handling is implemented in server/twilio-voice-server.js
+            // This code is kept here for reference and potential future direct WebSocket usage.
+            console.log('🎤 User started speaking - canceling AI response (EDGE FUNCTION - NOT USED IN PRODUCTION)');
             
             // Cancel the current AI response
             openaiWs!.send(JSON.stringify({
