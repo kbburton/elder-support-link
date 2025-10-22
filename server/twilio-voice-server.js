@@ -201,6 +201,21 @@ app.ws('/media-stream', async (ws, req) => {
               } else {
                 console.log('✅ Conversation saved to Supabase');
                 console.log('📝 Saved transcript entries:', conversationHistory.length);
+                
+                // Trigger story generation
+                console.log('🎨 Triggering story generation...');
+                const { data: storyData, error: storyError } = await supabase.functions.invoke(
+                  'generate-memory-story',
+                  {
+                    body: { interview_id: interviewId }
+                  }
+                );
+                
+                if (storyError) {
+                  console.error('❌ Error generating story:', storyError);
+                } else {
+                  console.log('✅ Story generation started:', storyData);
+                }
               }
             } catch (error) {
               console.error('❌ Error updating interview:', error);
