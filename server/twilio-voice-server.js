@@ -104,13 +104,33 @@ app.ws('/media-stream', async (ws, req) => {
             console.error('❌ Error fetching interview:', error);
           } else if (interview) {
             const recipientName = `${interview.care_groups.recipient_first_name} ${interview.care_groups.recipient_last_name}`;
-            const questionText = interview.interview_questions?.question_text;
+            let questionText = interview.interview_questions?.question_text ?? null;
+            
+            // Fallback: fetch by selected_question_id if relation didn't join
+            if (!questionText && interview.selected_question_id) {
+              try {
+                const { data: q, error: qErr } = await supabase
+                  .from('interview_questions')
+                  .select('question_text')
+                  .eq('id', interview.selected_question_id)
+                  .maybeSingle();
+                if (qErr) {
+                  console.error('❌ Error loading selected question:', qErr);
+                } else if (q?.question_text) {
+                  questionText = q.question_text;
+                }
+              } catch (qCatch) {
+                console.error('❌ Exception loading selected question:', qCatch);
+              }
+            }
             
             console.log('📋 Interview details loaded:', {
               recipient: recipientName,
-              question: questionText || 'None selected - AI will choose'
+              question: questionText || 'None selected - AI will choose',
+              selected_question_id: interview.selected_question_id || null,
             });
             
+            // Base instructions depending on question presence
             if (questionText) {
               instructions = `You are conducting a memory interview with ${recipientName}, born ${interview.care_groups.date_of_birth}.
 
@@ -139,6 +159,14 @@ Instructions:
 - Be empathetic, patient, and encouraging
 - Keep responses concise and conversational
 - Use their first name (${interview.care_groups.recipient_first_name}) occasionally`;
+            }
+
+            // Append any custom scheduler instructions
+            if (interview.custom_instructions) {
+              instructions += `
+
+Additional guidance from the scheduler (use respectfully and briefly):
+${interview.custom_instructions}`;
             }
           }
         } catch (err) {
