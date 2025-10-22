@@ -85,7 +85,11 @@ export function ScheduleInterviewForm({ careGroupId }: ScheduleInterviewFormProp
       scheduling_mode: "schedule",
       phone_number: "",
       scheduled_at: "",
+      selected_question_id: undefined,
+      custom_instructions: "",
       interview_type: "one_time",
+      recurring_frequency: undefined,
+      recurring_total_count: undefined,
       is_test: false,
     },
   });
@@ -173,7 +177,18 @@ export function ScheduleInterviewForm({ careGroupId }: ScheduleInterviewFormProp
         });
       }
 
-      form.reset();
+      // Reset form to clear all fields including question and custom instructions
+      form.reset({
+        scheduling_mode: "schedule",
+        phone_number: "",
+        scheduled_at: "",
+        selected_question_id: undefined,
+        custom_instructions: "",
+        interview_type: "one_time",
+        recurring_frequency: undefined,
+        recurring_total_count: undefined,
+        is_test: false,
+      });
     } catch (error: any) {
       console.error('Submit error:', error);
       toast({
