@@ -59,8 +59,12 @@ serve(async (req) => {
 
     // Validate transcript has meaningful user content
     const transcript = interview.raw_transcript;
-    const userLines = transcript.split('\n').filter((line: string) => line.startsWith('User:')).length;
-    const aiLines = transcript.split('\n').filter((line: string) => line.startsWith('AI:')).length;
+    const userLines = transcript.split('\n').filter((line: string) => 
+      line.includes('👤 User:') || line.includes('User:')
+    ).length;
+    const aiLines = transcript.split('\n').filter((line: string) => 
+      line.includes('🤖 Assistant:') || line.includes('AI:') || line.includes('Assistant:')
+    ).length;
     
     console.log('Transcript analysis:', { userLines, aiLines });
     console.log('First 500 chars of transcript:', transcript.substring(0, 500));
@@ -141,7 +145,7 @@ Please provide your response in JSON format with:
         care_group_id: interview.care_group_id,
         title: storyData.title,
         story_text: storyData.content,
-        status: 'draft'
+        status: 'pending_review'
       })
       .select()
       .single();
