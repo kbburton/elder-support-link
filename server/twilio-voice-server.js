@@ -64,6 +64,7 @@ app.ws('/media-stream', async (ws, req) => {
   let callSid = null;
   let interviewId = null;
   let conversationHistory = [];
+  let callStartTime = null;
 
   // Connect to OpenAI Realtime API
   const connectToOpenAI = () => {
@@ -300,6 +301,7 @@ ${interview.custom_instructions}`;
           streamSid = msg.start.streamSid;
           callSid = msg.start.callSid;
           interviewId = msg.start.customParameters?.interview_id;
+          callStartTime = Date.now();
           
           console.log('📞 Call started:', {
             streamSid,
@@ -325,6 +327,10 @@ ${interview.custom_instructions}`;
         case 'stop':
           console.log('📞 Call ended');
           
+          // Calculate call duration
+          const callDurationSeconds = callStartTime ? Math.floor((Date.now() - callStartTime) / 1000) : 0;
+          console.log(`⏱️  Call duration: ${callDurationSeconds} seconds`);
+          
           // Save conversation to Supabase
           if (interviewId && conversationHistory.length > 0) {
             try {
@@ -345,19 +351,23 @@ ${interview.custom_instructions}`;
                 console.log('✅ Conversation saved to Supabase');
                 console.log('📝 Saved transcript entries:', conversationHistory.length);
                 
-                // Trigger story generation
-                console.log('🎨 Triggering story generation...');
-                const { data: storyData, error: storyError } = await supabase.functions.invoke(
-                  'generate-memory-story',
-                  {
-                    body: { interview_id: interviewId }
+                // Only trigger story generation if call was at least 60 seconds
+                if (callDurationSeconds >= 60) {
+                  console.log('🎨 Triggering story generation...');
+                  const { data: storyData, error: storyError } = await supabase.functions.invoke(
+                    'generate-memory-story',
+                    {
+                      body: { interview_id: interviewId }
+                    }
+                  );
+                  
+                  if (storyError) {
+                    console.error('❌ Error generating story:', storyError);
+                  } else {
+                    console.log('✅ Story generation started:', storyData);
                   }
-                );
-                
-                if (storyError) {
-                  console.error('❌ Error generating story:', storyError);
                 } else {
-                  console.log('✅ Story generation started:', storyData);
+                  console.log('⏭️  Skipping story generation (call too short)');
                 }
               }
             } catch (error) {
