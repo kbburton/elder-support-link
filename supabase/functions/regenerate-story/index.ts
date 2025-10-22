@@ -23,7 +23,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { storyId, customPrompt } = await req.json();
+    const { storyId, promptId } = await req.json();
     
     if (!storyId) {
       throw new Error('Story ID is required');
@@ -56,24 +56,32 @@ serve(async (req) => {
       throw new Error('Interview transcript not found');
     }
 
-    // Use custom prompt if provided, otherwise use default
-    const systemPrompt = customPrompt || `You are a factual family biographer who writes short third-person vignettes about a person's life based on interview transcripts with an AI interviewer.
+    // Get the prompt to use
+    let systemPrompt: string;
+    let finalPromptId = promptId;
 
-Your job:
-- Write an engaging short story that feels human, warm, and vivid but always grounded in facts stated or logically inferred from the transcript.
-- You may infer timing and context (e.g., if he was six in 1942, mention wartime life), but you must not invent fictional people, dialogue, or events.
-- Treat each story as part of a larger biography but make it self-contained.
-- Never begin with birth details unless relevant to that vignette.
-- Maintain a consistent, respectful tone suitable for a family storybook.
-- If details are missing, write naturally around the gaps rather than fabricating content.
-- The narrator's voice is third-person.
+    if (promptId) {
+      // Use specified prompt
+      const { data: prompt, error: promptError } = await supabaseClient
+        .from('story_generation_prompts')
+        .select('prompt_text')
+        .eq('id', promptId)
+        .single();
 
-Return your response as a JSON object with this structure:
-{
-  "title": "A short, evocative title for the story",
-  "story": "The complete story text",
-  "memory_facts": ["fact1", "fact2", "fact3"]
-}`;
+      if (promptError) throw new Error(`Prompt not found: ${promptError.message}`);
+      systemPrompt = prompt.prompt_text;
+    } else {
+      // Get default prompt
+      const { data: defaultPrompt, error: defaultError } = await supabaseClient
+        .from('story_generation_prompts')
+        .select('id, prompt_text')
+        .eq('is_default', true)
+        .single();
+
+      if (defaultError) throw new Error(`No default prompt found: ${defaultError.message}`);
+      systemPrompt = defaultPrompt.prompt_text;
+      finalPromptId = defaultPrompt.id;
+    }
 
     const recipientName = interview.care_groups?.loved_one_first_name 
       ? `${interview.care_groups.loved_one_first_name} ${interview.care_groups.loved_one_last_name || ''}`.trim()
@@ -139,6 +147,8 @@ Remember to:
         story_text: newStoryText,
         memory_facts: memoryFacts,
         created_by: story.created_by,
+        prompt_id: finalPromptId,
+        prompt_text_used: systemPrompt,
       });
 
     if (versionError) {
@@ -153,6 +163,8 @@ Remember to:
         story_text: newStoryText,
         memory_facts: memoryFacts,
         current_version: (story.current_version || 1) + 1,
+        prompt_id: finalPromptId,
+        prompt_text_used: systemPrompt,
       })
       .eq('id', storyId);
 

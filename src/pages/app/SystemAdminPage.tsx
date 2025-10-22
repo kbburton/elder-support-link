@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Loader2, UserPlus, Shield, Trash2, Users, History, BarChart3, UserCheck, Search, Database } from "lucide-react";
+import { Loader2, UserPlus, Shield, Trash2, Users, History, BarChart3, UserCheck, Search, Database, MessageSquare } from "lucide-react";
 import { format } from "date-fns";
 import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
 import SystemUserManagement from "@/components/admin/SystemUserManagement";
@@ -652,6 +652,34 @@ const SystemAdminPage = () => {
               </CardContent>
             </Card>
           )}
+
+          {/* Story Generation Prompts Management */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5" />
+                Story Generation Prompts
+              </CardTitle>
+              <CardDescription>
+                Manage AI prompts used to generate memory stories from interview transcripts.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-4">
+                <p className="text-sm text-muted-foreground">
+                  Configure how the AI generates biographical stories from memory interview transcripts. 
+                  You can create multiple prompts with different tones and styles.
+                </p>
+                <Button 
+                  onClick={() => navigate('story-prompts')}
+                  variant="outline"
+                >
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  Manage Story Prompts
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="users" className="space-y-6">

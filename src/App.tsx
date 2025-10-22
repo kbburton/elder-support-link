@@ -33,6 +33,7 @@ import ActivityLogsCrud from "./pages/crud/ActivityLogsCrud";
 import SearchJobsPage from "./pages/app/SearchJobsPage";
 import AdminEmailPage from "./pages/app/AdminEmailPage";
 import SystemAdminPage from "./pages/app/SystemAdminPage";
+import StoryPromptsAdminPage from "./pages/app/StoryPromptsAdminPage";
 import ExtractionTester from "./pages/app/ExtractionTester";
 import ContactDetailPage from "./pages/app/ContactDetailPage";
 import ContactFormPage from "./pages/app/ContactFormPage";
@@ -99,6 +100,7 @@ const App = () => (
                 <Route path="admin/search-jobs" element={<SearchJobsPage />} />
                 <Route path="admin/email" element={<AdminEmailPage />} />
                 <Route path="system-admin" element={<SystemAdminPage />} />
+                <Route path="system-admin/story-prompts" element={<StoryPromptsAdminPage />} />
               </Route>
 
               {/* Catch-all for undefined routes */}

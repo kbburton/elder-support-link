@@ -29,6 +29,8 @@ import { Calendar, Phone, Clock } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { normalizePhoneToE164 } from "@/utils/phone";
+import { useStoryPrompts } from "@/hooks/useStoryPrompts";
+
 const formSchema = z.object({
   scheduling_mode: z.enum(["schedule", "call_now"]),
   phone_number: z.string().min(10, "Phone number must be at least 10 digits"),
@@ -39,6 +41,7 @@ const formSchema = z.object({
   recurring_frequency: z.enum(["weekly", "biweekly", "monthly"]).optional(),
   recurring_total_count: z.coerce.number().min(1).optional(),
   is_test: z.boolean().default(false),
+  prompt_id: z.string().optional(),
 }).refine((data) => {
   // If scheduling mode is "schedule", require scheduled_at
   if (data.scheduling_mode === "schedule" && !data.scheduled_at) {
@@ -79,6 +82,8 @@ export function ScheduleInterviewForm({ careGroupId }: ScheduleInterviewFormProp
     },
   });
 
+  const { data: prompts } = useStoryPrompts();
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -91,6 +96,7 @@ export function ScheduleInterviewForm({ careGroupId }: ScheduleInterviewFormProp
       recurring_frequency: undefined,
       recurring_total_count: undefined,
       is_test: false,
+      prompt_id: prompts?.find(p => p.is_default)?.id || undefined,
     },
   });
 
@@ -140,6 +146,7 @@ export function ScheduleInterviewForm({ careGroupId }: ScheduleInterviewFormProp
           recurring_frequency: values.recurring_frequency || null,
           recurring_total_count: values.recurring_total_count || null,
           is_test: values.is_test,
+          prompt_id: values.prompt_id || null,
         })
         .select()
         .single();
@@ -188,6 +195,7 @@ export function ScheduleInterviewForm({ careGroupId }: ScheduleInterviewFormProp
         recurring_frequency: undefined,
         recurring_total_count: undefined,
         is_test: false,
+        prompt_id: prompts?.find(p => p.is_default)?.id || undefined,
       });
     } catch (error: any) {
       console.error('Submit error:', error);
@@ -344,6 +352,35 @@ export function ScheduleInterviewForm({ careGroupId }: ScheduleInterviewFormProp
                 </FormControl>
                 <FormDescription>
                   Provide context or guidance for the AI during the interview
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="prompt_id"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Story Generation Prompt</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a prompt..." />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {prompts?.map((prompt) => (
+                      <SelectItem key={prompt.id} value={prompt.id}>
+                        {prompt.title}
+                        {prompt.is_default && ' (Default)'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormDescription>
+                  Choose how the AI will generate stories from interview transcripts
                 </FormDescription>
                 <FormMessage />
               </FormItem>

@@ -81,28 +81,49 @@ serve(async (req) => {
 
     const recipientName = `${interview.care_groups.recipient_first_name} ${interview.care_groups.recipient_last_name}`;
 
+    // Get the prompt to use for story generation
+    let storyPromptText: string;
+    let promptId = interview.prompt_id;
+
+    if (promptId) {
+      // Use the prompt specified in the interview
+      console.log('Using specified prompt ID:', promptId);
+      const { data: prompt, error: promptError } = await supabase
+        .from('story_generation_prompts')
+        .select('prompt_text')
+        .eq('id', promptId)
+        .single();
+
+      if (promptError) {
+        console.error('ERROR: Prompt not found, falling back to default');
+        throw new Error(`Prompt not found: ${promptError.message}`);
+      }
+      storyPromptText = prompt.prompt_text;
+    } else {
+      // Get default prompt
+      console.log('No prompt specified, using default');
+      const { data: defaultPrompt, error: defaultError } = await supabase
+        .from('story_generation_prompts')
+        .select('id, prompt_text')
+        .eq('is_default', true)
+        .single();
+
+      if (defaultError) {
+        console.error('ERROR: No default prompt found');
+        throw new Error(`No default prompt configured: ${defaultError.message}`);
+      }
+      storyPromptText = defaultPrompt.prompt_text;
+      promptId = defaultPrompt.id;
+    }
+
+    console.log('Using prompt ID:', promptId);
+
     // Generate story using GPT-4
     console.log('Calling OpenAI to generate story for:', recipientName);
-    const storyPrompt = `You are a skilled storyteller and biographer. You've just conducted a memory interview with ${recipientName}, born ${interview.care_groups.date_of_birth}.
-
-Based on the following interview transcript, create a beautiful, coherent story that captures their memories and life experiences. The story should:
-
-1. Be written in third person narrative style
-2. Organize the memories chronologically or thematically
-3. Maintain the warmth and authenticity of their voice
-4. Include specific details and anecdotes they shared
-5. Be between 800-1500 words
-6. Have a compelling title that captures the essence of their story
-7. Be emotionally resonant and suitable for family members to read
+    const storyPrompt = `${storyPromptText}
 
 Interview Transcript:
-${interview.raw_transcript}
-
-Please provide your response in JSON format with:
-{
-  "title": "The story title",
-  "content": "The full story text"
-}`;
+${interview.raw_transcript}`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -113,7 +134,7 @@ Please provide your response in JSON format with:
       body: JSON.stringify({
         model: 'gpt-4o',
         messages: [
-          { role: 'system', content: 'You are an expert biographer and storyteller who creates beautiful, moving narratives from interview transcripts.' },
+          { role: 'system', content: 'You are an expert biographer and storyteller who creates narratives from interview transcripts.' },
           { role: 'user', content: storyPrompt }
         ],
         response_format: { type: 'json_object' },
@@ -145,7 +166,9 @@ Please provide your response in JSON format with:
         care_group_id: interview.care_group_id,
         title: storyData.title,
         story_text: storyData.content,
-        status: 'published' // Auto-publish clean stories, only flag if concerns detected
+        status: 'published', // Auto-publish clean stories, only flag if concerns detected
+        prompt_id: promptId,
+        prompt_text_used: storyPromptText,
       })
       .select()
       .single();
@@ -166,7 +189,9 @@ Please provide your response in JSON format with:
         version_number: 1,
         title: storyData.title,
         story_text: storyData.content,
-        created_by_system: true
+        created_by_system: true,
+        prompt_id: promptId,
+        prompt_text_used: storyPromptText,
       });
 
     if (versionError) {
