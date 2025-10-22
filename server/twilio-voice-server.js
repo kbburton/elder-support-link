@@ -92,9 +92,6 @@ app.ws('/media-stream', async (ws, req) => {
           recipient_first_name,
           recipient_last_name,
           date_of_birth
-        ),
-        interview_questions (
-          question_text
         )
       `)
       .eq('id', interviewId)
