@@ -230,7 +230,7 @@ export type Database = {
           created_at: string
           details: Json | null
           id: string
-          ip_address: unknown | null
+          ip_address: unknown
           target_id: string | null
           target_type: string | null
           user_agent: string | null
@@ -242,7 +242,7 @@ export type Database = {
           created_at?: string
           details?: Json | null
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           target_id?: string | null
           target_type?: string | null
           user_agent?: string | null
@@ -254,7 +254,7 @@ export type Database = {
           created_at?: string
           details?: Json | null
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           target_id?: string | null
           target_type?: string | null
           user_agent?: string | null
@@ -1291,7 +1291,7 @@ export type Database = {
           document_id: string
           group_id: string
           id: string
-          ip_address: unknown | null
+          ip_address: unknown
           user_agent: string | null
           user_id: string
         }
@@ -1301,7 +1301,7 @@ export type Database = {
           document_id: string
           group_id: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           user_agent?: string | null
           user_id: string
         }
@@ -1311,7 +1311,7 @@ export type Database = {
           document_id?: string
           group_id?: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           user_agent?: string | null
           user_id?: string
         }
@@ -1792,7 +1792,7 @@ export type Database = {
           details: Json | null
           group_id: string
           id: string
-          ip_address: unknown | null
+          ip_address: unknown
           resource_id: string
           resource_type: string
           user_agent: string | null
@@ -1805,7 +1805,7 @@ export type Database = {
           details?: Json | null
           group_id: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           resource_id: string
           resource_type: string
           user_agent?: string | null
@@ -1818,7 +1818,7 @@ export type Database = {
           details?: Json | null
           group_id?: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           resource_id?: string
           resource_type?: string
           user_agent?: string | null
@@ -2110,6 +2110,8 @@ export type Database = {
       }
       memory_interviews: {
         Row: {
+          audio_duration_seconds: number | null
+          audio_url: string | null
           care_group_id: string
           completed_at: string | null
           created_at: string | null
@@ -2134,6 +2136,8 @@ export type Database = {
           voicemail_detected: boolean | null
         }
         Insert: {
+          audio_duration_seconds?: number | null
+          audio_url?: string | null
           care_group_id: string
           completed_at?: string | null
           created_at?: string | null
@@ -2158,6 +2162,8 @@ export type Database = {
           voicemail_detected?: boolean | null
         }
         Update: {
+          audio_duration_seconds?: number | null
+          audio_url?: string | null
           care_group_id?: string
           completed_at?: string | null
           created_at?: string | null
@@ -2578,7 +2584,7 @@ export type Database = {
           created_at: string | null
           entity_id: string
           entity_type: string
-          fts: unknown | null
+          fts: unknown
           id: string
           snippet: string | null
           title: string
@@ -2590,7 +2596,7 @@ export type Database = {
           created_at?: string | null
           entity_id: string
           entity_type: string
-          fts?: unknown | null
+          fts?: unknown
           id?: string
           snippet?: string | null
           title: string
@@ -2602,7 +2608,7 @@ export type Database = {
           created_at?: string | null
           entity_id?: string
           entity_type?: string
-          fts?: unknown | null
+          fts?: unknown
           id?: string
           snippet?: string | null
           title?: string
@@ -2984,13 +2990,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      accept_invitation: {
-        Args:
-          | { invitation_id: string }
-          | { invitation_id: string; p_relationship_to_recipient?: string }
-          | { invitation_id: string; user_id: string }
-        Returns: undefined
-      }
+      accept_invitation:
+        | {
+            Args: { invitation_id: string; user_id: string }
+            Returns: undefined
+          }
+        | { Args: { invitation_id: string }; Returns: string }
+        | {
+            Args: {
+              invitation_id: string
+              p_relationship_to_recipient?: string
+            }
+            Returns: string
+          }
       accept_invitation_by_token: {
         Args: { invitation_token: string }
         Returns: string
@@ -2999,14 +3011,8 @@ export type Database = {
         Args: { body_text?: string; snippet_text?: string; title_text?: string }
         Returns: unknown
       }
-      can_access_group: {
-        Args: { target_group_id: string }
-        Returns: boolean
-      }
-      confirm_role_promotion: {
-        Args: { p_token: string }
-        Returns: Json
-      }
+      can_access_group: { Args: { target_group_id: string }; Returns: boolean }
+      confirm_role_promotion: { Args: { p_token: string }; Returns: Json }
       create_appointment_activity_association: {
         Args: {
           p_activity_log_id: string
@@ -3071,10 +3077,7 @@ export type Database = {
         }
         Returns: string
       }
-      current_user_email: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
+      current_user_email: { Args: never; Returns: string }
       debug_associations: {
         Args: { p_entity_id: string; p_entity_type: string }
         Returns: {
@@ -3118,7 +3121,7 @@ export type Database = {
         }[]
       }
       get_search_jobs: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           created_at: string
           entity_id: string
@@ -3131,7 +3134,7 @@ export type Database = {
         }[]
       }
       get_system_logs: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           component: string
           created_at: string
@@ -3141,26 +3144,6 @@ export type Database = {
           metadata: Json
           operation: string
         }[]
-      }
-      gtrgm_compress: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      gtrgm_decompress: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      gtrgm_in: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      gtrgm_options: {
-        Args: { "": unknown }
-        Returns: undefined
-      }
-      gtrgm_out: {
-        Args: { "": unknown }
-        Returns: unknown
       }
       has_accessed_group_before: {
         Args: { p_group_id: string; p_user_id: string }
@@ -3174,18 +3157,9 @@ export type Database = {
         Args: { _group_id: string; _user_id: string }
         Returns: boolean
       }
-      is_platform_admin: {
-        Args: { user_uuid?: string }
-        Returns: boolean
-      }
-      is_system_admin: {
-        Args: { user_uuid?: string }
-        Returns: boolean
-      }
-      is_user_admin_of_group: {
-        Args: { group_uuid: string }
-        Returns: boolean
-      }
+      is_platform_admin: { Args: { user_uuid?: string }; Returns: boolean }
+      is_system_admin: { Args: { user_uuid?: string }; Returns: boolean }
+      is_user_admin_of_group: { Args: { group_uuid: string }; Returns: boolean }
       is_user_member_of_group: {
         Args: { group_uuid: string }
         Returns: boolean
@@ -3221,96 +3195,102 @@ export type Database = {
         }
         Returns: undefined
       }
-      log_group_access: {
-        Args: { p_group_id: string }
-        Returns: undefined
-      }
-      purge_soft_deleted: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      rebuild_search_index: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      log_group_access: { Args: { p_group_id: string }; Returns: undefined }
+      purge_soft_deleted: { Args: never; Returns: undefined }
+      rebuild_search_index: { Args: never; Returns: undefined }
       reindex_row: {
         Args: { p_entity_id: string; p_entity_type: string }
         Returns: undefined
       }
-      release_stale_note_locks: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      release_stale_note_locks: { Args: never; Returns: undefined }
       remove_from_index: {
         Args: { p_entity_id: string; p_entity_type: string }
         Returns: undefined
       }
-      restore_activity: {
-        Args:
-          | { p_activity_id: string }
-          | {
+      restore_activity:
+        | {
+            Args: {
+              p_activity_id: string
+              p_by_email: string
+              p_by_user_id: string
+            }
+            Returns: undefined
+          }
+        | { Args: { p_activity_id: string }; Returns: undefined }
+        | {
+            Args: {
               p_activity_id: string
               p_actor_email: string
               p_actor_user_id: string
             }
-          | { p_activity_id: string; p_by_email: string; p_by_user_id: string }
-        Returns: undefined
-      }
-      restore_appointment: {
-        Args:
-          | {
+            Returns: undefined
+          }
+      restore_appointment:
+        | {
+            Args: {
               p_actor_email: string
               p_actor_user_id: string
               p_appointment_id: string
             }
-          | { p_appointment_id: string }
-          | {
+            Returns: undefined
+          }
+        | { Args: { p_appointment_id: string }; Returns: undefined }
+        | {
+            Args: {
               p_appointment_id: string
               p_by_email: string
               p_by_user_id: string
             }
-        Returns: undefined
-      }
-      restore_contact: {
-        Args:
-          | {
+            Returns: undefined
+          }
+      restore_contact:
+        | {
+            Args: {
               p_actor_email: string
               p_actor_user_id: string
               p_contact_id: string
             }
-          | { p_contact_id: string }
-        Returns: undefined
-      }
-      restore_document: {
-        Args:
-          | {
+            Returns: undefined
+          }
+        | { Args: { p_contact_id: string }; Returns: undefined }
+      restore_document:
+        | {
+            Args: {
+              p_by_email: string
+              p_by_user_id: string
+              p_document_id: string
+            }
+            Returns: undefined
+          }
+        | { Args: { p_document_id: string }; Returns: undefined }
+        | {
+            Args: {
               p_actor_email: string
               p_actor_user_id: string
               p_document_id: string
             }
-          | { p_by_email: string; p_by_user_id: string; p_document_id: string }
-          | { p_document_id: string }
-        Returns: undefined
-      }
-      restore_task: {
-        Args:
-          | {
+            Returns: undefined
+          }
+      restore_task:
+        | {
+            Args: {
+              p_by_email: string
+              p_by_user_id: string
+              p_task_id: string
+            }
+            Returns: undefined
+          }
+        | {
+            Args: {
               p_actor_email: string
               p_actor_user_id: string
               p_task_id: string
             }
-          | { p_by_email: string; p_by_user_id: string; p_task_id: string }
-          | { p_task_id: string }
-        Returns: undefined
-      }
-      retry_search_job: {
-        Args: { p_job_id: string }
-        Returns: undefined
-      }
-      sanitize_input: {
-        Args: { input_text: string }
-        Returns: string
-      }
+            Returns: undefined
+          }
+        | { Args: { p_task_id: string }; Returns: undefined }
+      retry_search_job: { Args: { p_job_id: string }; Returns: undefined }
+      sanitize_input: { Args: { input_text: string }; Returns: string }
       search_all: {
         Args: { group_id: string; lim?: number; q: string }
         Returns: {
@@ -3322,75 +3302,83 @@ export type Database = {
           url_path: string
         }[]
       }
-      set_limit: {
-        Args: { "": number }
-        Returns: number
-      }
-      show_limit: {
-        Args: Record<PropertyKey, never>
-        Returns: number
-      }
-      show_trgm: {
-        Args: { "": string }
-        Returns: string[]
-      }
-      soft_delete_activity: {
-        Args:
-          | { p_activity_id: string }
-          | {
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
+      soft_delete_activity:
+        | { Args: { p_activity_id: string }; Returns: undefined }
+        | {
+            Args: {
               p_activity_id: string
               p_actor_email: string
               p_actor_user_id: string
             }
-          | { p_activity_id: string; p_by_email: string; p_by_user_id: string }
-        Returns: undefined
-      }
-      soft_delete_appointment: {
-        Args:
-          | { p_appointment_id: string }
-          | {
+            Returns: undefined
+          }
+        | {
+            Args: {
+              p_activity_id: string
+              p_by_email: string
+              p_by_user_id: string
+            }
+            Returns: undefined
+          }
+      soft_delete_appointment:
+        | { Args: { p_appointment_id: string }; Returns: undefined }
+        | {
+            Args: {
               p_appointment_id: string
               p_by_email: string
               p_by_user_id: string
             }
-        Returns: undefined
-      }
-      soft_delete_contact: {
-        Args:
-          | { p_by_email: string; p_by_user_id: string; p_contact_id: string }
-          | { p_contact_id: string }
-        Returns: undefined
-      }
-      soft_delete_document: {
-        Args:
-          | {
+            Returns: undefined
+          }
+      soft_delete_contact:
+        | { Args: { p_contact_id: string }; Returns: undefined }
+        | {
+            Args: {
+              p_by_email: string
+              p_by_user_id: string
+              p_contact_id: string
+            }
+            Returns: undefined
+          }
+      soft_delete_document:
+        | { Args: { p_document_id: string }; Returns: undefined }
+        | {
+            Args: {
               p_actor_email: string
               p_actor_user_id: string
               p_document_id: string
             }
-          | { p_by_email: string; p_by_user_id: string; p_document_id: string }
-          | { p_document_id: string }
-        Returns: undefined
-      }
-      soft_delete_task: {
-        Args:
-          | {
+            Returns: undefined
+          }
+        | {
+            Args: {
+              p_by_email: string
+              p_by_user_id: string
+              p_document_id: string
+            }
+            Returns: undefined
+          }
+      soft_delete_task:
+        | {
+            Args: {
               p_actor_email: string
               p_actor_user_id: string
               p_task_id: string
             }
-          | { p_by_email: string; p_by_user_id: string; p_task_id: string }
-          | { p_task_id: string }
-        Returns: undefined
-      }
-      unaccent: {
-        Args: { "": string }
-        Returns: string
-      }
-      unaccent_init: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
+            Returns: undefined
+          }
+        | { Args: { p_task_id: string }; Returns: undefined }
+        | {
+            Args: {
+              p_by_email: string
+              p_by_user_id: string
+              p_task_id: string
+            }
+            Returns: undefined
+          }
+      unaccent: { Args: { "": string }; Returns: string }
       validate_entity_exists: {
         Args: { p_entity_id: string; p_entity_type: string }
         Returns: boolean

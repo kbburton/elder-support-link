@@ -30,7 +30,55 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Invalid token' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    const { documentId } = await req.json();
+    const { documentId, path, bucket } = await req.json();
+    
+    // Handle memory interview audio
+    if (path && bucket === 'memory-interview-audio') {
+      // Extract care group ID from path: {care_group_id}/{interview_id}/{recording_sid}.mp3
+      const pathParts = path.split('/');
+      const careGroupId = pathParts[0];
+      
+      if (!careGroupId) {
+        return new Response(JSON.stringify({ error: 'Invalid audio path' }), { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
+      }
+      
+      // Verify group membership
+      const { data: membership } = await supabaseClient
+        .from('care_group_members')
+        .select('user_id')
+        .eq('group_id', careGroupId)
+        .eq('user_id', userData.user.id)
+        .maybeSingle();
+
+      if (!membership) {
+        return new Response(JSON.stringify({ error: 'Forbidden' }), { 
+          status: 403, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
+      }
+
+      // Create signed URL for audio
+      const { data: signed, error: signErr } = await supabaseClient
+        .storage
+        .from('memory-interview-audio')
+        .createSignedUrl(path, 600);
+
+      if (signErr || !signed?.signedUrl) {
+        return new Response(JSON.stringify({ error: 'Unable to obtain audio link' }), { 
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
+      }
+
+      return new Response(JSON.stringify({ signedUrl: signed.signedUrl }), { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    }
+    
+    // Handle document downloads (original functionality)
     if (!documentId) {
       return new Response(JSON.stringify({ error: 'Document ID is required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }

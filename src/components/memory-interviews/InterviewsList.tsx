@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDistanceToNow, format } from "date-fns";
-import { Calendar, Phone, Clock, CheckCircle, XCircle, AlertCircle, Globe, Sparkles, FileText } from "lucide-react";
+import { Calendar, Phone, Clock, CheckCircle, XCircle, AlertCircle, Globe, Sparkles, FileText, Volume2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -78,6 +78,26 @@ export function InterviewsList({ careGroupId }: InterviewsListProps) {
   const handleViewTranscript = (transcript: string) => {
     setSelectedTranscript(transcript);
     setTranscriptDialogOpen(true);
+  };
+
+  const handleDownloadAudio = async (audioUrl: string, interviewId: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('sign-document-download', {
+        body: { path: audioUrl, bucket: 'memory-interview-audio' }
+      });
+
+      if (error) throw error;
+
+      if (data?.signedUrl) {
+        window.open(data.signedUrl, '_blank');
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to download audio recording",
+        variant: "destructive",
+      });
+    }
   };
 
   if (isLoading) {
@@ -197,10 +217,21 @@ export function InterviewsList({ careGroupId }: InterviewsListProps) {
               )}
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               {interview.status === "scheduled" && (
                 <Button variant="outline" size="sm">
                   Reschedule
+                </Button>
+              )}
+              
+              {interview.status === "completed" && interview.audio_url && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => handleDownloadAudio(interview.audio_url, interview.id)}
+                >
+                  <Volume2 className="h-4 w-4 mr-2" />
+                  Download Audio
                 </Button>
               )}
               

@@ -1,5 +1,30 @@
 # Memory Interviews Feature - Product Requirements Document
 
+## Implementation Status
+**Last Updated**: 2025-01-21
+
+### ✅ Completed Features
+- Core interview scheduling and management
+- AI-powered phone interviews via Twilio + OpenAI Realtime API
+- Real-time transcript generation and storage
+- **Audio recording capture and storage** (Twilio → Supabase Storage)
+- Story generation from interview transcripts
+- Test mode for development interviews
+- UI for viewing interviews, transcripts, and downloading audio
+
+### 🚧 In Progress
+- Story review and approval workflow
+- Memory facts extraction and consolidation
+- Recurring interview automation
+
+### 📋 Planned
+- Voicemail detection and retry logic
+- Advanced safety guardrails (PII filtering, distress detection)
+- Story versioning and edit history
+- PDF export for stories
+
+---
+
 ## 1. Overview
 
 ### 1.1 Feature Name
@@ -196,7 +221,11 @@ Research-based questions organized by category (see Appendix A for full list):
 - **Question Asked**: The primary question that prompted this story
 - **First-Person Narrative**: Polished story text (editable)
 - **Full Transcript**: Complete Q&A transcript (read-only, preserved)
-- **Audio Recording**: Full call audio in MP3 format
+- **Audio Recording**: Full call audio in MP3 format, stored in Supabase Storage
+  - Downloaded from Twilio after call completion
+  - Stored in `memory-interview-audio` bucket with path: `{care_group_id}/{interview_id}/{recording_sid}.mp3`
+  - Accessible via secure signed URLs for download
+  - Subject to RLS policies (only care group members can access)
 - **Auto-Generated Tags**: AI suggests relevant tags based on content
 - **Memory Facts**: Extracted facts stored in consolidated JSONB field
 
@@ -304,35 +333,39 @@ CREATE TABLE memory_interviews (
   created_by_user_id UUID NOT NULL,
   
   -- Scheduling
-  scheduled_for TIMESTAMP WITH TIME ZONE,
-  scheduled_duration_minutes INTEGER NOT NULL CHECK (scheduled_duration_minutes IN (5, 10, 15, 20)),
-  is_recurring BOOLEAN DEFAULT FALSE,
-  recurrence_count INTEGER, -- Total number of times to repeat
-  recurrence_completed INTEGER DEFAULT 0, -- How many have been completed
+  scheduled_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  status TEXT NOT NULL DEFAULT 'scheduled' 
+    CHECK (status IN ('scheduled', 'in_progress', 'completed', 'failed', 'cancelled')),
   
   -- Interview Configuration
-  question_id UUID REFERENCES interview_questions(id), -- NULL if custom
-  custom_question TEXT, -- Only if question_id is NULL
-  special_instructions TEXT,
+  phone_number TEXT NOT NULL,
+  interview_type TEXT NOT NULL DEFAULT 'one_time' CHECK (interview_type IN ('one_time', 'recurring')),
+  recurring_frequency TEXT CHECK (recurring_frequency IN ('weekly', 'biweekly', 'monthly') OR recurring_frequency IS NULL),
+  recurring_total_count INTEGER CHECK (recurring_total_count > 0 OR recurring_total_count IS NULL),
+  recurring_completed_count INTEGER DEFAULT 0,
+  selected_question_id UUID,
+  custom_instructions TEXT,
+  is_test BOOLEAN DEFAULT false,
   
-  -- Call Status
-  status TEXT NOT NULL DEFAULT 'scheduled' 
-    CHECK (status IN ('scheduled', 'calling', 'in_progress', 'processing', 'completed', 'failed', 'cancelled')),
-  call_sid TEXT, -- Twilio Call SID
-  call_attempts INTEGER DEFAULT 0,
-  last_attempt_at TIMESTAMP WITH TIME ZONE,
-  is_test BOOLEAN DEFAULT FALSE, -- Flag for test interviews
+  -- Call Details
+  twilio_call_sid TEXT,
+  duration_seconds INTEGER,
+  voicemail_detected BOOLEAN DEFAULT false,
+  failure_reason TEXT,
   
-  -- Results
-  actual_duration_seconds INTEGER,
+  -- Recording & Transcript
+  audio_url TEXT, -- Supabase Storage path: {care_group_id}/{interview_id}/{recording_sid}.mp3
+  audio_duration_seconds INTEGER,
+  raw_transcript TEXT, -- Full conversation transcript
+  
+  -- Timestamps
   completed_at TIMESTAMP WITH TIME ZONE,
-  
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 CREATE INDEX idx_memory_interviews_care_group ON memory_interviews(care_group_id);
-CREATE INDEX idx_memory_interviews_scheduled ON memory_interviews(scheduled_for) WHERE status IN ('scheduled', 'failed');
+CREATE INDEX idx_memory_interviews_scheduled ON memory_interviews(scheduled_at) WHERE status = 'scheduled';
 CREATE INDEX idx_memory_interviews_status ON memory_interviews(status);
 ```
 
@@ -439,10 +472,12 @@ CREATE INDEX idx_interview_question_usage_care_group ON interview_question_usage
 #### 4.2.1 New Edge Functions Required
 1. **schedule-memory-interview**: Schedule new interviews, handle recurring setup
 2. **memory-interview-webhook**: Twilio webhook for call status updates
-3. **memory-interview-voice**: Main AI conversation handler (extends existing voice chat architecture)
-4. **process-memory-story**: Generate story, extract facts, create transcript after call ends
-5. **retry-failed-interview**: Cron job to retry failed interviews
-6. **generate-next-recurring-interview**: Cron job to create next interview in recurring series
+3. **memory-interview-voice**: Main AI conversation handler with WebSocket support for real-time audio
+4. **memory-interview-recording-callback**: Handles Twilio recording completion callbacks, downloads audio from Twilio and uploads to Supabase Storage
+5. **process-memory-story**: Generate story, extract facts, create transcript after call ends
+6. **generate-memory-story**: Generates polished first-person narrative from interview transcript
+7. **retry-failed-interview**: Cron job to retry failed interviews
+8. **generate-next-recurring-interview**: Cron job to create next interview in recurring series
 
 #### 4.2.2 Enhanced Existing Functions
 - **enhanced-twilio-voice-chat**: Extend to support memory interview mode with specialized prompts
@@ -551,13 +586,13 @@ All memory-related tables must have RLS policies enforcing:
 │ └───────────────────────────────────────────┘  │
 │                                                 │
 │ ┌───────────────────────────────────────────┐  │
-│ │ ✅ Completed Mar 10, 2024                 │  │
-│ │ Q: "How did you meet your spouse?"        │  │
-│ │ Duration: 18 minutes                      │  │
-│ │ Status: Published                         │  │
-│ │ Story: "A Chance Meeting at the Dance"    │  │
-│ │                    [View Story]           │  │
-│ └───────────────────────────────────────────┘  │
+ │ │ ✅ Completed Mar 10, 2024                 │  │
+ │ │ Q: "How did you meet your spouse?"        │  │
+ │ │ Duration: 18 minutes                      │  │
+ │ │ Status: Published                         │  │
+ │ │ Story: "A Chance Meeting at the Dance"    │  │
+ │ │    [🔊 Audio] [📄 Transcript] [View Story] │  │
+ │ └───────────────────────────────────────────┘  │
 │                                                 │
 │ ┌───────────────────────────────────────────┐  │
 │ │ 🚫 Failed Mar 8, 2024                     │  │
