@@ -140,7 +140,7 @@ Please provide your response in JSON format with:
         interview_id: interview_id,
         care_group_id: interview.care_group_id,
         title: storyData.title,
-        content: storyData.content,
+        story_text: storyData.content,
         status: 'draft'
       })
       .select()
@@ -161,7 +161,7 @@ Please provide your response in JSON format with:
         story_id: story.id,
         version_number: 1,
         title: storyData.title,
-        content: storyData.content,
+        story_text: storyData.content,
         created_by_system: true
       });
 
