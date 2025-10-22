@@ -1,16 +1,22 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDistanceToNow, format } from "date-fns";
-import { Calendar, Phone, Clock, CheckCircle, XCircle, AlertCircle, Globe } from "lucide-react";
+import { Calendar, Phone, Clock, CheckCircle, XCircle, AlertCircle, Globe, Sparkles } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
 
 interface InterviewsListProps {
   careGroupId: string;
 }
 
 export function InterviewsList({ careGroupId }: InterviewsListProps) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [generatingStoryFor, setGeneratingStoryFor] = useState<string | null>(null);
+
   const { data: interviews, isLoading } = useQuery({
     queryKey: ["memory-interviews", careGroupId],
     queryFn: async () => {
@@ -44,6 +50,40 @@ export function InterviewsList({ careGroupId }: InterviewsListProps) {
       </Card>
     );
   }
+
+  const generateStoryMutation = useMutation({
+    mutationFn: async (interviewId: string) => {
+      const { data, error } = await supabase.functions.invoke('generate-memory-story', {
+        body: { interview_id: interviewId }
+      });
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data, interviewId) => {
+      toast({
+        title: "Story Generation Started",
+        description: "The story is being generated. It may take a minute to appear in the Stories tab.",
+      });
+      setGeneratingStoryFor(null);
+      // Invalidate queries to refresh both interviews and stories
+      queryClient.invalidateQueries({ queryKey: ["memory-interviews", careGroupId] });
+      queryClient.invalidateQueries({ queryKey: ["memory-stories", careGroupId] });
+    },
+    onError: (error: any, interviewId) => {
+      toast({
+        title: "Error Generating Story",
+        description: error.message || "Failed to generate story. Please try again.",
+        variant: "destructive",
+      });
+      setGeneratingStoryFor(null);
+    },
+  });
+
+  const handleGenerateStory = (interviewId: string) => {
+    setGeneratingStoryFor(interviewId);
+    generateStoryMutation.mutate(interviewId);
+  };
 
   const getStatusBadge = (status: string, voicemailDetected: boolean) => {
     if (voicemailDetected) {
@@ -134,11 +174,25 @@ export function InterviewsList({ careGroupId }: InterviewsListProps) {
               )}
             </div>
 
-            {interview.status === "scheduled" && (
-              <Button variant="outline" size="sm">
-                Reschedule
-              </Button>
-            )}
+            <div className="flex gap-2">
+              {interview.status === "scheduled" && (
+                <Button variant="outline" size="sm">
+                  Reschedule
+                </Button>
+              )}
+              
+              {interview.status === "completed" && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => handleGenerateStory(interview.id)}
+                  disabled={generatingStoryFor === interview.id}
+                >
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  {generatingStoryFor === interview.id ? "Generating..." : "Generate Story"}
+                </Button>
+              )}
+            </div>
           </div>
         </Card>
       ))}
