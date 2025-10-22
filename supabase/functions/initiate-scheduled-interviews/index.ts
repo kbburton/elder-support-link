@@ -46,9 +46,11 @@ serve(async (req) => {
             recipient_last_name,
             date_of_birth
           ),
-          interview_questions (
-            id,
-            question_text
+          interview_question_usage (
+            interview_questions (
+              id,
+              question_text
+            )
           )
         `)
         .eq('id', body.interview_id)
@@ -85,9 +87,11 @@ serve(async (req) => {
             recipient_last_name,
             date_of_birth
           ),
-          interview_questions (
-            id,
-            question_text
+          interview_question_usage (
+            interview_questions (
+              id,
+              question_text
+            )
           )
         `)
         .eq('status', 'scheduled')
@@ -114,7 +118,7 @@ serve(async (req) => {
         console.log(`Initiating call for interview ${interview.id} to ${maskedPhone}`);
         
         // Get question text if one was selected
-        const questionText = interview.interview_questions?.question_text || null;
+        const questionText = interview.interview_question_usage?.[0]?.interview_questions?.question_text || null;
         const recipientName = `${interview.care_groups.recipient_first_name} ${interview.care_groups.recipient_last_name}`;
         
         // Construct the TwiML URL that Twilio will fetch when the call is answered
