@@ -4,9 +4,10 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDistanceToNow, format } from "date-fns";
-import { Calendar, Phone, Clock, CheckCircle, XCircle, AlertCircle, Globe, Sparkles } from "lucide-react";
+import { Calendar, Phone, Clock, CheckCircle, XCircle, AlertCircle, Globe, Sparkles, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 interface InterviewsListProps {
   careGroupId: string;
@@ -16,6 +17,8 @@ export function InterviewsList({ careGroupId }: InterviewsListProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [generatingStoryFor, setGeneratingStoryFor] = useState<string | null>(null);
+  const [transcriptDialogOpen, setTranscriptDialogOpen] = useState(false);
+  const [selectedTranscript, setSelectedTranscript] = useState<string>("");
 
   const { data: interviews, isLoading } = useQuery({
     queryKey: ["memory-interviews", careGroupId],
@@ -72,6 +75,11 @@ export function InterviewsList({ careGroupId }: InterviewsListProps) {
     generateStoryMutation.mutate(interviewId);
   };
 
+  const handleViewTranscript = (transcript: string) => {
+    setSelectedTranscript(transcript);
+    setTranscriptDialogOpen(true);
+  };
+
   if (isLoading) {
     return <div className="text-center text-muted-foreground">Loading interviews...</div>;
   }
@@ -107,8 +115,23 @@ export function InterviewsList({ careGroupId }: InterviewsListProps) {
   };
 
   return (
-    <div className="space-y-4">
-      {interviews.map((interview) => (
+    <>
+      <Dialog open={transcriptDialogOpen} onOpenChange={setTranscriptDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Interview Transcript</DialogTitle>
+            <DialogDescription>
+              Full conversation transcript from the memory interview
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4 space-y-2 font-mono text-sm whitespace-pre-wrap">
+            {selectedTranscript}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <div className="space-y-4">
+        {interviews.map((interview) => (
         <Card key={interview.id} className="p-6">
           <div className="flex items-start justify-between">
             <div className="space-y-2 flex-1">
@@ -181,6 +204,17 @@ export function InterviewsList({ careGroupId }: InterviewsListProps) {
                 </Button>
               )}
               
+              {interview.status === "completed" && interview.raw_transcript && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => handleViewTranscript(interview.raw_transcript)}
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  View Transcript
+                </Button>
+              )}
+              
               {interview.status === "completed" && (
                 <Button 
                   variant="outline" 
@@ -195,7 +229,8 @@ export function InterviewsList({ careGroupId }: InterviewsListProps) {
             </div>
           </div>
         </Card>
-      ))}
-    </div>
+        ))}
+      </div>
+    </>
   );
 }
