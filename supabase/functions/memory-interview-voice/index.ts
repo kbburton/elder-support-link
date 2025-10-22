@@ -37,10 +37,11 @@ serve(async (req) => {
     }
 
     const wsUrlBase = `wss://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-voice`;
+    const statusCallbackUrl = `https://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-stream-status`;
     
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Connect>\n    <Stream url=\"${wsUrlBase}\">\n      <Parameter name=\"interview_id\" value=\"${interviewIdFromQuery}\"/>\n      ${callSid ? `<Parameter name=\"call_sid\" value=\"${callSid}\"/>` : ''}\n    </Stream>\n  </Connect>\n</Response>`;
+    const twiml = `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Connect>\n    <Stream url=\"${wsUrlBase}\" statusCallback=\"${statusCallbackUrl}\" statusCallbackMethod=\"POST\">\n      <Parameter name=\"interview_id\" value=\"${interviewIdFromQuery}\"/>\n      ${callSid ? `<Parameter name=\"call_sid\" value=\"${callSid}\"/>` : ''}\n    </Stream>\n  </Connect>\n</Response>`;
 
-    console.log('Responding with TwiML to connect stream with recording:', wsUrlBase, { interviewIdFromQuery, callSid });
+    console.log('Responding with TwiML to connect stream with status callback:', wsUrlBase, { interviewIdFromQuery, callSid });
     return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
   }
 
