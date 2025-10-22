@@ -13,7 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle, XCircle, Download } from "lucide-react";
+import { CheckCircle, XCircle, Download, RefreshCw } from "lucide-react";
+import { StoryRegenerationModal } from "./StoryRegenerationModal";
 
 interface StoryViewerModalProps {
   storyId: string;
@@ -24,6 +25,7 @@ export function StoryViewerModal({ storyId, onClose }: StoryViewerModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [reviewNotes, setReviewNotes] = useState("");
+  const [showRegenerateModal, setShowRegenerateModal] = useState(false);
 
   const { data: story, isLoading } = useQuery({
     queryKey: ["memory-story", storyId],
@@ -195,9 +197,29 @@ export function StoryViewerModal({ storyId, onClose }: StoryViewerModalProps) {
                 Download Transcript
               </Button>
             )}
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setShowRegenerateModal(true)}
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Regenerate Story
+            </Button>
           </div>
         </div>
       </DialogContent>
+
+      {showRegenerateModal && (
+        <StoryRegenerationModal
+          isOpen={showRegenerateModal}
+          onClose={() => setShowRegenerateModal(false)}
+          storyId={storyId}
+          onComplete={(newStory) => {
+            queryClient.invalidateQueries({ queryKey: ["memory-story", storyId] });
+            queryClient.invalidateQueries({ queryKey: ["memory-stories"] });
+          }}
+        />
+      )}
     </Dialog>
   );
 }

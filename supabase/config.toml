@@ -12,6 +12,9 @@ verify_jwt = false
 [functions.generate-memory-story]
 verify_jwt = false
 
+[functions.regenerate-story]
+verify_jwt = true
+
 [functions.process-document-v2]
 verify_jwt = true
 
