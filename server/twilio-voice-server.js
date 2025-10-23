@@ -84,6 +84,7 @@ app.ws('/media-stream', async (ws, req) => {
       
       // Fetch interview details to get the selected question
       let instructions = 'You are conducting a memory interview. Ask thoughtful questions about the person\'s life experiences and memories. Be empathetic and engaging.';
+      let careGroupId = null;
       
       if (interviewId) {
         try {
@@ -92,6 +93,7 @@ app.ws('/media-stream', async (ws, req) => {
       .select(`
         *,
         care_groups (
+          id,
           recipient_first_name,
           recipient_last_name,
           date_of_birth
@@ -103,6 +105,7 @@ app.ws('/media-stream', async (ws, req) => {
           if (error) {
             console.error('❌ Error fetching interview:', error);
           } else if (interview) {
+            careGroupId = interview.care_groups.id;
             const recipientName = `${interview.care_groups.recipient_first_name} ${interview.care_groups.recipient_last_name}`;
             let questionText = interview.interview_questions?.question_text ?? null;
             
@@ -200,12 +203,17 @@ ${interview.custom_instructions}`;
       const temperature = voiceConfig?.temperature ?? 0.7;
       const responseStyleInstructions = voiceConfig?.response_style_instructions ?? '';
 
-      console.log('Voice config loaded:', {
-        vadThreshold,
-        silenceDurationMs,
-        prefixPaddingMs,
-        temperature
-      });
+      console.log('╔═══════════════════════════════════════════════════════════════╗');
+      console.log('║              VOICE CONFIGURATION SETTINGS                     ║');
+      console.log('╠═══════════════════════════════════════════════════════════════╣');
+      console.log('║ Care Group ID:', careGroupId || 'N/A');
+      console.log('║ Config Found:', voiceConfig ? '✅ YES' : '❌ NO (using defaults)');
+      console.log('║ VAD Threshold:', vadThreshold);
+      console.log('║ Silence Duration:', silenceDurationMs, 'ms');
+      console.log('║ Prefix Padding:', prefixPaddingMs, 'ms');
+      console.log('║ Temperature:', temperature);
+      console.log('║ Response Style:', responseStyleInstructions ? responseStyleInstructions : '(none - using default)');
+      console.log('╚═══════════════════════════════════════════════════════════════╝');
 
       // Add response style to instructions
       const enhancedInstructions = responseStyleInstructions 
@@ -213,7 +221,7 @@ ${interview.custom_instructions}`;
         : instructions;
 
       // Configure the session with voice config values
-      openAiWs.send(JSON.stringify({
+      const sessionConfig = {
         type: 'session.update',
         session: {
           turn_detection: { 
@@ -232,7 +240,17 @@ ${interview.custom_instructions}`;
             model: 'whisper-1'
           }
         }
-      }));
+      };
+
+      console.log('');
+      console.log('╔═══════════════════════════════════════════════════════════════╗');
+      console.log('║         OPENAI SESSION CONFIGURATION (FULL PAYLOAD)           ║');
+      console.log('╠═══════════════════════════════════════════════════════════════╣');
+      console.log(JSON.stringify(sessionConfig, null, 2));
+      console.log('╚═══════════════════════════════════════════════════════════════╝');
+      console.log('');
+
+      openAiWs.send(JSON.stringify(sessionConfig));
 
       // Set up 5-second timeout for AI to greet if user doesn't speak
       console.log('⏳ Waiting 5 seconds for user to speak...');

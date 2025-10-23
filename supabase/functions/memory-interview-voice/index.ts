@@ -293,18 +293,23 @@ Current question to ask: ${questions[0].question_text}`;
             const temperature = voiceConfig?.temperature ?? 0.7;
             const responseStyleInstructions = voiceConfig?.response_style_instructions ?? '';
 
-            console.log('Voice config loaded:', {
-              vadThreshold,
-              silenceDurationMs,
-              prefixPaddingMs,
-              temperature
-            });
+            console.log('╔═══════════════════════════════════════════════════════════════╗');
+            console.log('║              VOICE CONFIGURATION SETTINGS                     ║');
+            console.log('╠═══════════════════════════════════════════════════════════════╣');
+            console.log('║ Care Group ID:', interview.care_group_id || 'N/A');
+            console.log('║ Config Found:', voiceConfig ? '✅ YES' : '❌ NO (using defaults)');
+            console.log('║ VAD Threshold:', vadThreshold);
+            console.log('║ Silence Duration:', silenceDurationMs, 'ms');
+            console.log('║ Prefix Padding:', prefixPaddingMs, 'ms');
+            console.log('║ Temperature:', temperature);
+            console.log('║ Response Style:', responseStyleInstructions ? responseStyleInstructions : '(none - using default)');
+            console.log('╚═══════════════════════════════════════════════════════════════╝');
 
             const enhancedInstructions = responseStyleInstructions
               ? `${systemInstructions}\n\nResponse Style: ${responseStyleInstructions}`
               : systemInstructions;
 
-            openaiWs!.send(JSON.stringify({
+            const sessionConfig = {
               type: 'session.update',
               session: {
                 modalities: ['text', 'audio'],
@@ -322,7 +327,17 @@ Current question to ask: ${questions[0].question_text}`;
                 temperature: temperature,
                 max_response_output_tokens: 'inf'
               }
-            }));
+            };
+
+            console.log('');
+            console.log('╔═══════════════════════════════════════════════════════════════╗');
+            console.log('║         OPENAI SESSION CONFIGURATION (FULL PAYLOAD)           ║');
+            console.log('╠═══════════════════════════════════════════════════════════════╣');
+            console.log(JSON.stringify(sessionConfig, null, 2));
+            console.log('╚═══════════════════════════════════════════════════════════════╝');
+            console.log('');
+
+            openaiWs!.send(JSON.stringify(sessionConfig));
           } else if (data.type === 'session.updated') {
             console.log('✓ OpenAI session.updated');
             openaiConfigured = true;
