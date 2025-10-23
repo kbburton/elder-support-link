@@ -140,6 +140,87 @@ Enable care teams to schedule AI-powered phone interviews with care recipients t
 - **Fact Extraction**: After each interview, AI extracts key facts (names, dates, places, relationships) and stores in JSONB field
 - **Story Continuity**: AI can reference past stories to build connections (e.g., "Last time you mentioned your father was a teacher...")
 
+#### 3.2.5 Voice Interview Configuration (Per Care Group)
+
+Each care group has configurable voice interview settings that control how the AI conducts interviews. These settings are managed by care group admins and system admins through the Group Settings page under the "Voice Interview Settings" tab.
+
+**Configuration Settings:**
+
+1. **VAD Threshold** (0.0 - 1.0, default: 0.5)
+   - Controls voice detection sensitivity
+   - Lower values = more sensitive (picks up quieter speech, may interrupt more)
+   - Higher values = less sensitive (requires louder/clearer speech, may miss quiet responses)
+   - Technical: OpenAI Realtime API `turn_detection.threshold` parameter
+
+2. **Silence Duration** (500ms - 10000ms, default: 2500ms)
+   - How long AI waits after person stops speaking before responding
+   - Shorter = AI jumps in faster (may interrupt storytelling)
+   - Longer = AI waits more patiently (better for elderly/hard-of-hearing)
+   - Technical: OpenAI Realtime API `turn_detection.silence_duration_ms` parameter
+
+3. **Prefix Padding** (100ms - 2000ms, default: 500ms)
+   - Extra audio buffer captured before speech detection
+   - Longer = catches more of first word (better for soft-spoken individuals)
+   - Shorter = faster response but may cut off beginning of speech
+   - Technical: OpenAI Realtime API `turn_detection.prefix_padding_ms` parameter
+
+4. **Temperature** (0.0 - 1.0, default: 0.7)
+   - Controls AI creativity and variability
+   - Lower = more focused, predictable, concise responses
+   - Higher = more varied, conversational, creative responses
+   - Technical: OpenAI Chat Completions API `temperature` parameter
+
+5. **Response Style Instructions** (text, max 500 chars)
+   - Custom instructions for AI behavior during interviews
+   - Added to base system prompt
+   - Default: "Keep your responses brief - maximum 1-2 sentences. Ask one focused follow-up question at a time. Wait patiently for the person to finish their thoughts."
+   - Technical: Appended to OpenAI `instructions` parameter
+
+**Database Schema:**
+
+```sql
+CREATE TABLE voice_interview_config (
+  id UUID PRIMARY KEY,
+  care_group_id UUID NOT NULL UNIQUE REFERENCES care_groups(id) ON DELETE CASCADE,
+  vad_threshold DECIMAL(3,2) NOT NULL DEFAULT 0.5 CHECK (vad_threshold >= 0.0 AND vad_threshold <= 1.0),
+  vad_silence_duration_ms INTEGER NOT NULL DEFAULT 2500 CHECK (vad_silence_duration_ms >= 500 AND vad_silence_duration_ms <= 10000),
+  vad_prefix_padding_ms INTEGER NOT NULL DEFAULT 500 CHECK (vad_prefix_padding_ms >= 100 AND vad_prefix_padding_ms <= 2000),
+  temperature DECIMAL(3,2) NOT NULL DEFAULT 0.7 CHECK (temperature >= 0.0 AND temperature <= 1.0),
+  response_style_instructions TEXT NOT NULL DEFAULT '...',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  last_modified_by_user_id UUID REFERENCES auth.users(id)
+);
+```
+
+**Access Control:**
+- Care group admins and system admins can modify voice interview settings
+- All care group members can view current settings
+- Settings are stored per care group (not per interview) - enforced by UNIQUE constraint on `care_group_id`
+- All interviews for a care group use the same voice configuration
+
+**Default Configuration:**
+When a care group is created, default settings are automatically initialized via database trigger with values optimized for patient storytelling with elderly care recipients.
+
+**Safety Guardrails:**
+- All numeric settings have enforced min/max constraints via CHECK constraints
+- UI displays warnings when settings deviate significantly from defaults
+- "Reset to Defaults" button available to restore recommended values
+- Changes are tracked with `last_modified_by_user_id` and `updated_at` timestamps
+
+**User Interface:**
+Voice interview settings are accessible through:
+`Group Settings → Voice Interview Settings tab`
+(Care group admin and system admin access, similar to Voice PIN and Invite Others tabs)
+
+The UI includes:
+- Warning banner about advanced settings
+- Slider controls for all numeric settings with real-time value display
+- Visual warnings (⚠️) when values deviate from defaults or fall into risky ranges
+- Detailed explanations for each setting
+- Character-limited textarea for custom instructions (max 500 characters)
+- "Save Settings" and "Reset to Defaults" buttons
+
 ### 3.3 Interview Questions
 
 #### 3.3.1 Pre-Written Question Bank (30 Questions)
@@ -213,6 +294,19 @@ Research-based questions organized by category (see Appendix A for full list):
 - **Transcript First**: Generate full transcript immediately after call
 - **Story Generation**: AI processes transcript to create narrative story
 - **Fact Extraction**: Extract key facts (names, dates, places, relationships) for memory bank
+
+**AI Response Format:**
+- OpenAI responds with JSON containing two fields: `title` and `story`
+- The `story` field contains the full narrative text
+- System validates both fields are present and non-empty before saving
+- Uses GPT-4o model with `response_format: { type: 'json_object' }` for structured output
+- Example response:
+```json
+{
+  "title": "A Chance Meeting at the USO Dance",
+  "story": "I met my husband at a USO dance in 1952..."
+}
+```
 
 #### 3.4.3 Story Components
 - **Title**: AI-generated descriptive title (editable)
