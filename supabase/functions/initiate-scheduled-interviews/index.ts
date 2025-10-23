@@ -134,11 +134,16 @@ serve(async (req) => {
         const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Calls.json`;
         const twilioAuth = btoa(`${twilioAccountSid}:${twilioAuthToken}`);
         
+        const recordingCallbackUrl = `${supabaseUrl}/functions/v1/memory-interview-recording-callback`;
+        
         const formData = new URLSearchParams({
           To: interview.recipient_phone,
           From: twilioPhoneNumber,
           Url: voiceUrl.toString(),
           Method: 'POST',
+          Record: 'true',
+          RecordingStatusCallback: recordingCallbackUrl,
+          RecordingStatusCallbackMethod: 'POST',
         });
 
         const callResponse = await fetch(twilioUrl, {
