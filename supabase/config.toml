@@ -95,3 +95,6 @@ verify_jwt = false
 
 [functions.initiate-scheduled-interviews]
 verify_jwt = false
+
+[functions.memory-interview-recording-callback]
+verify_jwt = false
