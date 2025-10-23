@@ -136,7 +136,6 @@ app.ws('/media-stream', async (ws, req) => {
             });
             
             // Fetch voice config for this care group
-            let voiceConfig = null;
             try {
               const { data: configData, error: configError } = await supabase
                 .from('voice_interview_config')
