@@ -67,6 +67,7 @@ app.ws('/media-stream', async (ws, req) => {
   let callStartTime = null;
   let greetingTimeout = null;
   let userHasSpoken = false;
+  let isAiSpeaking = false;
 
   // Connect to OpenAI Realtime API
   const connectToOpenAI = () => {
@@ -267,10 +268,20 @@ ${interview.custom_instructions}`;
       try {
         const response = JSON.parse(data.toString());
         
+        // Track when AI starts speaking
+        if (response.type === 'response.audio.delta') {
+          isAiSpeaking = true;
+        }
+        
+        // Track when AI stops speaking
+        if (response.type === 'response.audio.done') {
+          isAiSpeaking = false;
+        }
+        
         // CRITICAL: Handle user interruptions during AI speech
         // This enables natural barge-in functionality
         if (response.type === 'input_audio_buffer.speech_started') {
-          console.log('🎤 User started speaking - canceling AI response');
+          console.log('🎤 User started speaking');
           
           // Mark that user has spoken (cancel greeting timeout)
           if (greetingTimeout) {
@@ -280,18 +291,24 @@ ${interview.custom_instructions}`;
           }
           userHasSpoken = true;
           
-          // Cancel the current AI response immediately
-          openAiWs.send(JSON.stringify({
-            type: 'response.cancel'
-          }));
-          
-          // Clear Twilio's audio buffer to stop playing queued audio immediately
-          if (streamSid && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({
-              event: 'clear',
-              streamSid: streamSid
+          // Only cancel AI response if AI is actually speaking
+          if (isAiSpeaking) {
+            console.log('🛑 Interrupting AI response');
+            // Cancel the current AI response immediately
+            openAiWs.send(JSON.stringify({
+              type: 'response.cancel'
             }));
-            console.log('✓ Cleared Twilio audio buffer - user can now speak');
+            
+            // Clear Twilio's audio buffer to stop playing queued audio immediately
+            if (streamSid && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({
+                event: 'clear',
+                streamSid: streamSid
+              }));
+              console.log('✓ Cleared Twilio audio buffer - user can now speak');
+            }
+            
+            isAiSpeaking = false;
           }
           
           return; // Don't process other logic for this event
