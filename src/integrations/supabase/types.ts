@@ -3051,6 +3051,60 @@ export type Database = {
           },
         ]
       }
+      voice_interview_config: {
+        Row: {
+          care_group_id: string
+          created_at: string | null
+          id: string
+          last_modified_by_user_id: string | null
+          response_style_instructions: string
+          temperature: number
+          updated_at: string | null
+          vad_prefix_padding_ms: number
+          vad_silence_duration_ms: number
+          vad_threshold: number
+        }
+        Insert: {
+          care_group_id: string
+          created_at?: string | null
+          id?: string
+          last_modified_by_user_id?: string | null
+          response_style_instructions?: string
+          temperature?: number
+          updated_at?: string | null
+          vad_prefix_padding_ms?: number
+          vad_silence_duration_ms?: number
+          vad_threshold?: number
+        }
+        Update: {
+          care_group_id?: string
+          created_at?: string | null
+          id?: string
+          last_modified_by_user_id?: string | null
+          response_style_instructions?: string
+          temperature?: number
+          updated_at?: string | null
+          vad_prefix_padding_ms?: number
+          vad_silence_duration_ms?: number
+          vad_threshold?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_care_group"
+            columns: ["care_group_id"]
+            isOneToOne: true
+            referencedRelation: "care_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voice_interview_config_care_group_id_fkey"
+            columns: ["care_group_id"]
+            isOneToOne: true
+            referencedRelation: "care_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
