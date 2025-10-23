@@ -307,10 +307,17 @@ ${interview.custom_instructions}`;
         
         if (response.type === 'response.audio.done') {
           console.log('🎵 [OpenAI] response.audio.done at', new Date().toISOString());
-          hasActiveResponse = false;
+          // Don't set hasActiveResponse = false here - response is still active until response.done
         }
         
         if (response.type === 'response.done') {
+          console.log('✅ [OpenAI] response.done - AI finished generating at', new Date().toISOString());
+          hasActiveResponse = false;
+        }
+        
+        // Handle response cancellation acknowledgment
+        if (response.type === 'response.cancelled') {
+          console.log('🚫 [OpenAI] response.cancelled - cancellation confirmed at', new Date().toISOString());
           hasActiveResponse = false;
         }
         
