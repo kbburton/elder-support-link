@@ -71,20 +71,19 @@ serve(async (req) => {
     // Recording callback for when the recording is complete
     const recordingCallbackUrl = `${supabaseUrl}/functions/v1/memory-interview-recording-callback`;
     
-    // Use Start/Stop for media streaming combined with Record
-    // This allows both media streaming AND recording to work together
+    // Use Connect with recordingStatusCallback - this is the correct pattern!
+    // Connect keeps call open, recordingStatusCallback triggers recording automatically
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Start>
+  <Connect recordingStatusCallback="${recordingCallbackUrl}" recordingStatusCallbackMethod="POST">
     <Stream url="${wsUrlBase}" statusCallback="${statusCallbackUrl}" statusCallbackMethod="POST">
       <Parameter name="interview_id" value="${interviewIdFromQuery}"/>
       ${callSid ? `<Parameter name="call_sid" value="${callSid}"/>` : ''}
     </Stream>
-  </Start>
-  <Record maxLength="3600" recordingStatusCallback="${recordingCallbackUrl}" recordingStatusCallbackMethod="POST"/>
+  </Connect>
 </Response>`;
 
-    console.log('Responding with TwiML (Stream + Record) to LOCAL SERVER:', wsUrlBase, { interviewIdFromQuery, callSid });
+    console.log('Responding with TwiML (Connect + Recording) to LOCAL SERVER:', wsUrlBase, { interviewIdFromQuery, callSid });
     return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
   }
 
