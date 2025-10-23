@@ -68,14 +68,16 @@ serve(async (req) => {
     // Status callback can stay pointing to Supabase for logging
     const statusCallbackUrl = `https://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-stream-status`;
     
-    // Recording callback for when the recording is complete
-    const recordingCallbackUrl = `${supabaseUrl}/functions/v1/memory-interview-recording-callback`;
+    // Recording callback for when the recording is complete (must use the functions domain, not supabaseUrl)
+    const recordingCallbackUrl = `https://yfwgegapmggwywrnzqvg.functions.supabase.co/functions/v1/memory-interview-recording-callback`;
     
-    // Use Connect with record="record-from-answer" to record the call
-    // This records from answer time and calls recordingStatusCallback when done
+    // Start a call recording explicitly, then connect the media stream
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Connect record="record-from-answer" recordingStatusCallback="${recordingCallbackUrl}" recordingStatusCallbackMethod="POST">
+  <Start>
+    <Recording recordingStatusCallback="${recordingCallbackUrl}" recordingStatusCallbackEvent="completed" recordingStatusCallbackMethod="POST" />
+  </Start>
+  <Connect>
     <Stream url="${wsUrlBase}" statusCallback="${statusCallbackUrl}" statusCallbackMethod="POST">
       <Parameter name="interview_id" value="${interviewIdFromQuery}"/>
       ${callSid ? `<Parameter name="call_sid" value="${callSid}"/>` : ''}
@@ -83,7 +85,7 @@ serve(async (req) => {
   </Connect>
 </Response>`;
 
-    console.log('Responding with TwiML (Connect + Recording) to LOCAL SERVER:', wsUrlBase, { interviewIdFromQuery, callSid });
+    console.log('Responding with TwiML (Start Recording + Connect Stream) to LOCAL SERVER:', wsUrlBase, { interviewIdFromQuery, callSid });
     return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
   }
 
