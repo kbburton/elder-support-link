@@ -194,9 +194,32 @@ serve(async (req) => {
         // Build system instructions
         recipientInfo = interview.care_groups;
         recipientName = recipientInfo.recipient_first_name;
+        
+        // Fetch voice config for this care group
+        let voiceConfig = null;
+        try {
+          const { data: configData, error: configError } = await supabase
+            .from('voice_interview_config')
+            .select('*')
+            .eq('care_group_id', interview.care_group_id)
+            .single();
+          
+          if (configError) {
+            console.error('Error fetching voice config:', configError);
+          } else {
+            voiceConfig = configData;
+          }
+        } catch (err) {
+          console.error('Failed to load voice config:', err);
+        }
+
+        // Use config values or defaults
+        const aiName = voiceConfig?.ai_introduction_name || 'ChatGPT';
+        const instructionsTemplate = voiceConfig?.interview_instructions_template || '- Start by introducing yourself warmly and explaining you\'ll be asking them about their life\n- Ask the question naturally, not reading it word-for-word\n- Listen actively and ask gentle follow-up questions to encourage them to share more details\n- Be empathetic, patient, and encouraging\n- If they seem confused, gently rephrase the question\n- Keep responses concise and conversational\n- Use their first name occasionally to make it personal\n- When they\'ve fully answered and you\'ve explored the memory with follow-ups, thank them warmly';
+        
         const questionsList = questions.map((q: any, idx: number) => `${idx + 1}. ${q.question_text}`).join('\n');
 
-        systemInstructions = `You are conducting a memory interview with ${recipientName}, born ${recipientInfo.date_of_birth}.
+        systemInstructions = `You are ${aiName} conducting a memory interview with ${recipientName}, born ${recipientInfo.date_of_birth}.
 
 Background: ${recipientInfo.profile_description || 'No additional background provided.'}
 
@@ -205,14 +228,7 @@ Your goal is to ask the following questions and capture their memories in a warm
 ${questionsList}
 
 Instructions:
-- Start by introducing yourself warmly and explaining you'll be asking them about their life
-- Ask ONE question at a time
-- Listen actively and ask gentle follow-up questions to encourage them to share more details
-- Be empathetic, patient, and encouraging
-- If they seem confused, gently rephrase the question
-- After asking all questions, thank them warmly and let them know their memories will be preserved
-- Keep responses concise and conversational
-- Use their first name occasionally to make it personal
+${instructionsTemplate}
 
 Current question to ask: ${questions[0].question_text}`;
 
@@ -269,13 +285,14 @@ Current question to ask: ${questions[0].question_text}`;
           } else if (data.type === 'session.created') {
             console.log('✓ OpenAI session.created - sending session.update');
             
-            // Fetch voice config for this care group
+            // Fetch voice config for this care group (already fetched earlier in initializeSession)
+            // Re-fetch here for session config as we need it in this scope
             let voiceConfig = null;
             try {
-              const { data: configData, error: configError } = await supabaseClient
+              const { data: configData, error: configError } = await supabase
                 .from('voice_interview_config')
                 .select('*')
-                .eq('care_group_id', careGroupId)
+                .eq('care_group_id', interview.care_group_id)
                 .single();
               
               if (configError) {
@@ -292,12 +309,15 @@ Current question to ask: ${questions[0].question_text}`;
             const prefixPaddingMs = voiceConfig?.vad_prefix_padding_ms ?? 500;
             const temperature = voiceConfig?.temperature ?? 0.7;
             const responseStyleInstructions = voiceConfig?.response_style_instructions ?? '';
+            const voiceId = voiceConfig?.voice || 'alloy';
 
             console.log('╔═══════════════════════════════════════════════════════════════╗');
             console.log('║              VOICE CONFIGURATION SETTINGS                     ║');
             console.log('╠═══════════════════════════════════════════════════════════════╣');
             console.log('║ Care Group ID:', interview.care_group_id || 'N/A');
             console.log('║ Config Found:', voiceConfig ? '✅ YES' : '❌ NO (using defaults)');
+            console.log('║ AI Name:', voiceConfig?.ai_introduction_name || 'ChatGPT');
+            console.log('║ Voice:', voiceId);
             console.log('║ VAD Threshold:', vadThreshold);
             console.log('║ Silence Duration:', silenceDurationMs, 'ms');
             console.log('║ Prefix Padding:', prefixPaddingMs, 'ms');
@@ -314,7 +334,7 @@ Current question to ask: ${questions[0].question_text}`;
               session: {
                 modalities: ['text', 'audio'],
                 instructions: enhancedInstructions,
-                voice: 'alloy',
+                voice: voiceId,
                 input_audio_format: 'g711_ulaw',
                 output_audio_format: 'g711_ulaw',
                 input_audio_transcription: { model: 'whisper-1' },

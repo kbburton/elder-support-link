@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertCircle, RotateCcw } from 'lucide-react';
 
 interface Props {
@@ -18,7 +20,10 @@ export function VoiceInterviewSettingsForm({ groupId }: Props) {
     vad_silence_duration_ms: 2500,
     vad_prefix_padding_ms: 500,
     temperature: 0.7,
-    response_style_instructions: 'Keep your responses brief - maximum 1-2 sentences. Ask one focused follow-up question at a time. Wait patiently for the person to finish their thoughts.'
+    response_style_instructions: 'Keep your responses brief - maximum 1-2 sentences. Ask one focused follow-up question at a time. Wait patiently for the person to finish their thoughts.',
+    ai_introduction_name: 'ChatGPT',
+    interview_instructions_template: '- Start by introducing yourself warmly and explaining you\'ll be asking them about their life\n- Ask the question naturally, not reading it word-for-word\n- Listen actively and ask gentle follow-up questions to encourage them to share more details\n- Be empathetic, patient, and encouraging\n- If they seem confused, gently rephrase the question\n- Keep responses concise and conversational\n- Use their first name occasionally to make it personal\n- When they\'ve fully answered and you\'ve explored the memory with follow-ups, thank them warmly',
+    voice: 'alloy'
   });
 
   useEffect(() => {
@@ -28,7 +33,10 @@ export function VoiceInterviewSettingsForm({ groupId }: Props) {
         vad_silence_duration_ms: config.vad_silence_duration_ms,
         vad_prefix_padding_ms: config.vad_prefix_padding_ms,
         temperature: config.temperature,
-        response_style_instructions: config.response_style_instructions
+        response_style_instructions: config.response_style_instructions,
+        ai_introduction_name: config.ai_introduction_name,
+        interview_instructions_template: config.interview_instructions_template,
+        voice: config.voice
       });
     }
   }, [config]);
@@ -57,6 +65,86 @@ export function VoiceInterviewSettingsForm({ groupId }: Props) {
 
   return (
     <div className="space-y-6">
+      {/* AI Introduction Name */}
+      <div className="space-y-3">
+        <Label className="text-base font-medium">AI Introduction Name</Label>
+        <Input
+          value={formData.ai_introduction_name}
+          onChange={(e) => setFormData({ ...formData, ai_introduction_name: e.target.value })}
+          maxLength={100}
+          placeholder="ChatGPT"
+        />
+        <p className="text-sm text-muted-foreground">
+          How the AI introduces itself during the call (e.g., "ChatGPT", "Sarah from the memory team").
+        </p>
+      </div>
+
+      {/* Voice Selection */}
+      <div className="space-y-3">
+        <Label className="text-base font-medium">AI Voice</Label>
+        <Select
+          value={formData.voice}
+          onValueChange={(value) => setFormData({ ...formData, voice: value })}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="alloy">Alloy (Neutral and balanced)</SelectItem>
+            <SelectItem value="echo">Echo (Male, clear and direct)</SelectItem>
+            <SelectItem value="fable">Fable (British accent, warm)</SelectItem>
+            <SelectItem value="onyx">Onyx (Deep male voice)</SelectItem>
+            <SelectItem value="nova">Nova (Friendly female voice)</SelectItem>
+            <SelectItem value="shimmer">Shimmer (Soft and gentle)</SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-sm text-muted-foreground">
+          Choose the AI voice for interviews.
+        </p>
+      </div>
+
+      {/* Interview Instructions Template */}
+      <div className="space-y-3">
+        <Label className="text-base font-medium">Interview Instructions Template</Label>
+        <Textarea
+          value={formData.interview_instructions_template}
+          onChange={(e) => setFormData({ ...formData, interview_instructions_template: e.target.value })}
+          rows={10}
+          maxLength={1000}
+          placeholder="- Start by introducing yourself warmly..."
+          className="font-mono text-sm"
+        />
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Core instructions for how to conduct the interview. These are the bullet points the AI follows.
+          </p>
+          <span className="text-xs text-muted-foreground">
+            {formData.interview_instructions_template.length}/1000
+          </span>
+        </div>
+      </div>
+
+      {/* Response Style Instructions */}
+      <div className="space-y-3">
+        <Label className="text-base font-medium">Response Style Instructions</Label>
+        <Textarea
+          value={formData.response_style_instructions}
+          onChange={(e) => setFormData({ ...formData, response_style_instructions: e.target.value })}
+          rows={4}
+          maxLength={500}
+          placeholder="Keep your responses brief - maximum 1-2 sentences. Ask one focused follow-up question at a time. Wait patiently for the person to finish their thoughts."
+          className="font-mono text-sm"
+        />
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Additional style instructions for response pacing and format.
+          </p>
+          <span className="text-xs text-muted-foreground">
+            {formData.response_style_instructions.length}/500
+          </span>
+        </div>
+      </div>
+
       {/* VAD Threshold */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
@@ -166,29 +254,6 @@ export function VoiceInterviewSettingsForm({ groupId }: Props) {
             </span>
           )}
         </p>
-      </div>
-
-      {/* Response Style Instructions */}
-      <div className="space-y-3">
-        <Label className="text-base font-medium">
-          Custom AI Instructions
-        </Label>
-        <Textarea
-          value={formData.response_style_instructions}
-          onChange={(e) => setFormData({ ...formData, response_style_instructions: e.target.value })}
-          rows={4}
-          maxLength={500}
-          placeholder="Keep your responses brief - maximum 1-2 sentences. Ask one focused follow-up question at a time. Wait patiently for the person to finish their thoughts."
-          className="font-mono text-sm"
-        />
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            Additional instructions for how the AI should behave during interviews. These are added to the base interview prompt. Be specific and concise.
-          </p>
-          <span className="text-xs text-muted-foreground">
-            {formData.response_style_instructions.length}/500
-          </span>
-        </div>
       </div>
 
       {/* Action Buttons */}

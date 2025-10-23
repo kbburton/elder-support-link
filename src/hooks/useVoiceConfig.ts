@@ -10,6 +10,9 @@ export interface VoiceConfig {
   vad_prefix_padding_ms: number;
   temperature: number;
   response_style_instructions: string;
+  ai_introduction_name: string;
+  interview_instructions_template: string;
+  voice: string;
   created_at: string;
   updated_at: string;
   last_modified_by_user_id: string | null;
@@ -94,6 +97,9 @@ export function useVoiceConfig(careGroupId: string | undefined) {
           vad_prefix_padding_ms: 500,
           temperature: 0.7,
           response_style_instructions: 'Keep your responses brief - maximum 1-2 sentences. Ask one focused follow-up question at a time. Wait patiently for the person to finish their thoughts.',
+          ai_introduction_name: 'ChatGPT',
+          interview_instructions_template: '- Start by introducing yourself warmly and explaining you\'ll be asking them about their life\n- Ask the question naturally, not reading it word-for-word\n- Listen actively and ask gentle follow-up questions to encourage them to share more details\n- Be empathetic, patient, and encouraging\n- If they seem confused, gently rephrase the question\n- Keep responses concise and conversational\n- Use their first name occasionally to make it personal\n- When they\'ve fully answered and you\'ve explored the memory with follow-ups, thank them warmly',
+          voice: 'alloy',
           last_modified_by_user_id: user.user?.id,
           updated_at: new Date().toISOString()
         })

@@ -134,42 +134,52 @@ app.ws('/media-stream', async (ws, req) => {
               custom_instructions: interview.custom_instructions || 'None'
             });
             
+            // Fetch voice config for this care group
+            let voiceConfig = null;
+            try {
+              const { data: configData, error: configError } = await supabase
+                .from('voice_interview_config')
+                .select('*')
+                .eq('care_group_id', careGroupId)
+                .single();
+              
+              if (configError) {
+                console.error('Error fetching voice config:', configError);
+              } else {
+                voiceConfig = configData;
+              }
+            } catch (err) {
+              console.error('Failed to load voice config:', err);
+            }
+
+            // Use config values or defaults
+            const aiName = voiceConfig?.ai_introduction_name || 'ChatGPT';
+            const instructionsTemplate = voiceConfig?.interview_instructions_template || '- Start by introducing yourself warmly and explaining you\'ll be asking them about their life\n- Ask the question naturally, not reading it word-for-word\n- Listen actively and ask gentle follow-up questions to encourage them to share more details\n- Be empathetic, patient, and encouraging\n- If they seem confused, gently rephrase the question\n- Keep responses concise and conversational\n- Use their first name occasionally to make it personal\n- When they\'ve fully answered and you\'ve explored the memory with follow-ups, thank them warmly';
+            
             // Base instructions depending on question presence
             if (questionText) {
-              instructions = `You are conducting a memory interview with ${recipientName}, born ${interview.care_groups.date_of_birth}.
+              instructions = `You are ${aiName} conducting a memory interview with ${recipientName}, born ${interview.care_groups.date_of_birth}.
 
 Your goal is to ask them about this specific memory and capture their story in a warm, conversational way:
 
 "${questionText}"
 
 Instructions:
-- Start by introducing yourself warmly and explaining you'll be asking them about their life
-- Ask the question naturally, not reading it word-for-word
-- Listen actively and ask gentle follow-up questions to encourage them to share more details
-- Be empathetic, patient, and encouraging
-- If they seem confused, gently rephrase the question
-- Keep responses concise and conversational
-- Use their first name (${interview.care_groups.recipient_first_name}) occasionally to make it personal
-- When they've fully answered and you've explored the memory with follow-ups, thank them warmly`;
+${instructionsTemplate}`;
             } else {
-              instructions = `You are conducting a memory interview with ${recipientName}, born ${interview.care_groups.date_of_birth}.
+              instructions = `You are ${aiName} conducting a memory interview with ${recipientName}, born ${interview.care_groups.date_of_birth}.
 
 Your goal is to ask them about their life experiences and capture their memories in a warm, conversational way.
 
 Instructions:
-- Start by introducing yourself warmly
-- Ask thoughtful questions about their childhood, family, life milestones, or meaningful experiences
-- Listen actively and ask gentle follow-up questions
-- Be empathetic, patient, and encouraging
-- Keep responses concise and conversational
-- Use their first name (${interview.care_groups.recipient_first_name}) occasionally`;
+${instructionsTemplate}`;
             }
 
-            // Append any custom scheduler instructions
+            // Append custom scheduler instructions if present
             if (interview.custom_instructions) {
               instructions += `
 
-Additional guidance from the scheduler (use respectfully and briefly):
+Additional guidance from the scheduler:
 ${interview.custom_instructions}`;
             }
           }
@@ -178,36 +188,21 @@ ${interview.custom_instructions}`;
         }
       }
       
-      // Fetch voice config for this care group
-      let voiceConfig = null;
-      try {
-        const { data: configData, error: configError } = await supabase
-          .from('voice_interview_config')
-          .select('*')
-          .eq('care_group_id', careGroupId)
-          .single();
-        
-        if (configError) {
-          console.error('Error fetching voice config:', configError);
-        } else {
-          voiceConfig = configData;
-        }
-      } catch (err) {
-        console.error('Failed to load voice config:', err);
-      }
-
-      // Use config values or fallback to defaults
+      // Use config values or fallback to defaults (voiceConfig fetched earlier)
       const vadThreshold = voiceConfig?.vad_threshold ?? 0.5;
       const silenceDurationMs = voiceConfig?.vad_silence_duration_ms ?? 2500;
       const prefixPaddingMs = voiceConfig?.vad_prefix_padding_ms ?? 500;
       const temperature = voiceConfig?.temperature ?? 0.7;
       const responseStyleInstructions = voiceConfig?.response_style_instructions ?? '';
+      const voiceId = voiceConfig?.voice || 'alloy';
 
       console.log('╔═══════════════════════════════════════════════════════════════╗');
       console.log('║              VOICE CONFIGURATION SETTINGS                     ║');
       console.log('╠═══════════════════════════════════════════════════════════════╣');
       console.log('║ Care Group ID:', careGroupId || 'N/A');
       console.log('║ Config Found:', voiceConfig ? '✅ YES' : '❌ NO (using defaults)');
+      console.log('║ AI Name:', voiceConfig?.ai_introduction_name || 'ChatGPT');
+      console.log('║ Voice:', voiceId);
       console.log('║ VAD Threshold:', vadThreshold);
       console.log('║ Silence Duration:', silenceDurationMs, 'ms');
       console.log('║ Prefix Padding:', prefixPaddingMs, 'ms');
@@ -232,7 +227,7 @@ ${interview.custom_instructions}`;
           },
           input_audio_format: 'g711_ulaw',
           output_audio_format: 'g711_ulaw',
-          voice: 'alloy',
+          voice: voiceId,
           instructions: enhancedInstructions,
           modalities: ['text', 'audio'],
           temperature: temperature,

@@ -3053,9 +3053,11 @@ export type Database = {
       }
       voice_interview_config: {
         Row: {
+          ai_introduction_name: string | null
           care_group_id: string
           created_at: string | null
           id: string
+          interview_instructions_template: string | null
           last_modified_by_user_id: string | null
           response_style_instructions: string
           temperature: number
@@ -3063,11 +3065,14 @@ export type Database = {
           vad_prefix_padding_ms: number
           vad_silence_duration_ms: number
           vad_threshold: number
+          voice: string | null
         }
         Insert: {
+          ai_introduction_name?: string | null
           care_group_id: string
           created_at?: string | null
           id?: string
+          interview_instructions_template?: string | null
           last_modified_by_user_id?: string | null
           response_style_instructions?: string
           temperature?: number
@@ -3075,11 +3080,14 @@ export type Database = {
           vad_prefix_padding_ms?: number
           vad_silence_duration_ms?: number
           vad_threshold?: number
+          voice?: string | null
         }
         Update: {
+          ai_introduction_name?: string | null
           care_group_id?: string
           created_at?: string | null
           id?: string
+          interview_instructions_template?: string | null
           last_modified_by_user_id?: string | null
           response_style_instructions?: string
           temperature?: number
@@ -3087,6 +3095,7 @@ export type Database = {
           vad_prefix_padding_ms?: number
           vad_silence_duration_ms?: number
           vad_threshold?: number
+          voice?: string | null
         }
         Relationships: [
           {
