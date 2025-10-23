@@ -332,24 +332,24 @@ ${interview.custom_instructions}`;
           }
           userHasSpoken = true;
           
-          // Only cancel if there's an active response to cancel
+          // Cancel OpenAI response generation if actively generating
           if (hasActiveResponse) {
-            console.log('📤 [Sending] response.cancel at', new Date().toISOString());
+            console.log('📤 [Sending] response.cancel to OpenAI at', new Date().toISOString());
             openAiWs.send(JSON.stringify({
               type: 'response.cancel'
             }));
             hasActiveResponse = false;
-            
-            // Clear Twilio's audio buffer to stop playing queued audio immediately
-            if (streamSid && ws.readyState === WebSocket.OPEN) {
-              ws.send(JSON.stringify({
-                event: 'clear',
-                streamSid: streamSid
-              }));
-              console.log('✓ Cleared Twilio audio buffer - user can now speak');
-            }
           } else {
-            console.log('ℹ️  No active response to cancel');
+            console.log('ℹ️  No active OpenAI response to cancel (may still be Twilio buffer playing)');
+          }
+          
+          // ALWAYS clear Twilio's audio buffer so any queued assistant audio stops immediately
+          if (streamSid && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+              event: 'clear',
+              streamSid: streamSid
+            }));
+            console.log('✓ Cleared Twilio audio buffer - user can now speak');
           }
           
           // REMOVED: Don't return early - let audio continue to be processed
