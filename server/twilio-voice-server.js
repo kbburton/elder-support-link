@@ -85,6 +85,7 @@ app.ws('/media-stream', async (ws, req) => {
       // Fetch interview details to get the selected question
       let instructions = 'You are conducting a memory interview. Ask thoughtful questions about the person\'s life experiences and memories. Be empathetic and engaging.';
       let careGroupId = null;
+      let voiceConfig = null;
       
       if (interviewId) {
         try {
