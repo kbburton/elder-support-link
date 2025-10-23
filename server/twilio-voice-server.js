@@ -67,6 +67,7 @@ app.ws('/media-stream', async (ws, req) => {
   let callStartTime = null;
   let greetingTimeout = null;
   let userHasSpoken = false;
+  let hasActiveResponse = false; // Track if AI is currently generating a response
 
   // Connect to OpenAI Realtime API
   const connectToOpenAI = () => {
@@ -301,10 +302,16 @@ ${interview.custom_instructions}`;
         // ===== DIAGNOSTIC LOGGING: Response Generation Events =====
         if (response.type === 'response.created') {
           console.log('🎬 [OpenAI] response.created - AI starting to generate at', new Date().toISOString());
+          hasActiveResponse = true;
         }
         
         if (response.type === 'response.audio.done') {
           console.log('🎵 [OpenAI] response.audio.done at', new Date().toISOString());
+          hasActiveResponse = false;
+        }
+        
+        if (response.type === 'response.done') {
+          hasActiveResponse = false;
         }
         
         // ===== DIAGNOSTIC LOGGING: Errors =====
@@ -315,7 +322,7 @@ ${interview.custom_instructions}`;
         // CRITICAL: Handle user interruptions during AI speech
         // This enables natural barge-in functionality
         if (response.type === 'input_audio_buffer.speech_started') {
-          console.log('🎤 User started speaking - canceling AI response');
+          console.log('🎤 User started speaking');
           
           // Mark that user has spoken (cancel greeting timeout)
           if (greetingTimeout) {
@@ -325,19 +332,24 @@ ${interview.custom_instructions}`;
           }
           userHasSpoken = true;
           
-          // Cancel the current AI response immediately
-          console.log('📤 [Sending] response.cancel at', new Date().toISOString());
-          openAiWs.send(JSON.stringify({
-            type: 'response.cancel'
-          }));
-          
-          // Clear Twilio's audio buffer to stop playing queued audio immediately
-          if (streamSid && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({
-              event: 'clear',
-              streamSid: streamSid
+          // Only cancel if there's an active response to cancel
+          if (hasActiveResponse) {
+            console.log('📤 [Sending] response.cancel at', new Date().toISOString());
+            openAiWs.send(JSON.stringify({
+              type: 'response.cancel'
             }));
-            console.log('✓ Cleared Twilio audio buffer - user can now speak');
+            hasActiveResponse = false;
+            
+            // Clear Twilio's audio buffer to stop playing queued audio immediately
+            if (streamSid && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({
+                event: 'clear',
+                streamSid: streamSid
+              }));
+              console.log('✓ Cleared Twilio audio buffer - user can now speak');
+            }
+          } else {
+            console.log('ℹ️  No active response to cancel');
           }
           
           // REMOVED: Don't return early - let audio continue to be processed

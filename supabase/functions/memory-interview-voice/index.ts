@@ -71,11 +71,11 @@ serve(async (req) => {
     // Recording callback for when the recording is complete
     const recordingCallbackUrl = `${supabaseUrl}/functions/v1/memory-interview-recording-callback`;
     
-    // Use Connect with recordingStatusCallback - this is the correct pattern!
-    // Connect keeps call open, recordingStatusCallback triggers recording automatically
+    // Use Connect with record="record-from-answer" to record the call
+    // This records from answer time and calls recordingStatusCallback when done
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Connect recordingStatusCallback="${recordingCallbackUrl}" recordingStatusCallbackMethod="POST">
+  <Connect record="record-from-answer" recordingStatusCallback="${recordingCallbackUrl}" recordingStatusCallbackMethod="POST">
     <Stream url="${wsUrlBase}" statusCallback="${statusCallbackUrl}" statusCallbackMethod="POST">
       <Parameter name="interview_id" value="${interviewIdFromQuery}"/>
       ${callSid ? `<Parameter name="call_sid" value="${callSid}"/>` : ''}
