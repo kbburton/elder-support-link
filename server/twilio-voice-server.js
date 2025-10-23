@@ -70,7 +70,7 @@ app.ws('/media-stream', async (ws, req) => {
 
   // Connect to OpenAI Realtime API
   const connectToOpenAI = () => {
-    const url = 'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01';
+    const url = 'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17';
     
     openAiWs = new WebSocket(url, {
       headers: {
