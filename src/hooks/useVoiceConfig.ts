@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
-interface VoiceConfig {
+export interface VoiceConfig {
   id: string;
   care_group_id: string;
   vad_threshold: number;
@@ -25,14 +25,19 @@ export function useVoiceConfig(careGroupId: string | undefined) {
     queryFn: async () => {
       if (!careGroupId) return null;
       
-      const { data, error } = await supabase
-        .from('voice_interview_config')
-        .select('*')
-        .eq('care_group_id', careGroupId)
-        .single();
-      
-      if (error) throw error;
-      return data as VoiceConfig;
+      try {
+        const { data, error } = await supabase
+          .from('voice_interview_config' as any)
+          .select('*')
+          .eq('care_group_id', careGroupId)
+          .single();
+        
+        if (error) throw error;
+        return data ? (data as any) as VoiceConfig : null;
+      } catch (err) {
+        console.error('Error fetching voice config:', err);
+        return null;
+      }
     },
     enabled: !!careGroupId
   });
@@ -45,7 +50,7 @@ export function useVoiceConfig(careGroupId: string | undefined) {
       const { data: user } = await supabase.auth.getUser();
       
       const { data, error } = await supabase
-        .from('voice_interview_config')
+        .from('voice_interview_config' as any)
         .update({
           ...updates,
           last_modified_by_user_id: user.user?.id,
@@ -82,7 +87,7 @@ export function useVoiceConfig(careGroupId: string | undefined) {
       const { data: user } = await supabase.auth.getUser();
       
       const { data, error } = await supabase
-        .from('voice_interview_config')
+        .from('voice_interview_config' as any)
         .update({
           vad_threshold: 0.5,
           vad_silence_duration_ms: 2500,
