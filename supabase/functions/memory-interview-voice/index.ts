@@ -268,22 +268,58 @@ Current question to ask: ${questions[0].question_text}`;
             console.log('[AI transcript delta]:', data.delta);
           } else if (data.type === 'session.created') {
             console.log('✓ OpenAI session.created - sending session.update');
+            
+            // Fetch voice config for this care group
+            let voiceConfig = null;
+            try {
+              const { data: configData, error: configError } = await supabaseClient
+                .from('voice_interview_config')
+                .select('*')
+                .eq('care_group_id', careGroupId)
+                .single();
+              
+              if (configError) {
+                console.error('Error fetching voice config:', configError);
+              } else {
+                voiceConfig = configData;
+              }
+            } catch (err) {
+              console.error('Failed to load voice config:', err);
+            }
+
+            const vadThreshold = voiceConfig?.vad_threshold ?? 0.5;
+            const silenceDurationMs = voiceConfig?.vad_silence_duration_ms ?? 2500;
+            const prefixPaddingMs = voiceConfig?.vad_prefix_padding_ms ?? 500;
+            const temperature = voiceConfig?.temperature ?? 0.7;
+            const responseStyleInstructions = voiceConfig?.response_style_instructions ?? '';
+
+            console.log('Voice config loaded:', {
+              vadThreshold,
+              silenceDurationMs,
+              prefixPaddingMs,
+              temperature
+            });
+
+            const enhancedInstructions = responseStyleInstructions
+              ? `${systemInstructions}\n\nResponse Style: ${responseStyleInstructions}`
+              : systemInstructions;
+
             openaiWs!.send(JSON.stringify({
               type: 'session.update',
               session: {
                 modalities: ['text', 'audio'],
-                instructions: systemInstructions,
+                instructions: enhancedInstructions,
                 voice: 'alloy',
                 input_audio_format: 'g711_ulaw',
                 output_audio_format: 'g711_ulaw',
                 input_audio_transcription: { model: 'whisper-1' },
                 turn_detection: {
                   type: 'server_vad',
-                  threshold: 0.5,
-                  prefix_padding_ms: 300,
-                  silence_duration_ms: 1000
+                  threshold: vadThreshold,
+                  prefix_padding_ms: prefixPaddingMs,
+                  silence_duration_ms: silenceDurationMs
                 },
-                temperature: 0.8,
+                temperature: temperature,
                 max_response_output_tokens: 'inf'
               }
             }));

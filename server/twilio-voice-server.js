@@ -175,17 +175,59 @@ ${interview.custom_instructions}`;
         }
       }
       
-      // Configure the session with the instructions
+      // Fetch voice config for this care group
+      let voiceConfig = null;
+      try {
+        const { data: configData, error: configError } = await supabase
+          .from('voice_interview_config')
+          .select('*')
+          .eq('care_group_id', careGroupId)
+          .single();
+        
+        if (configError) {
+          console.error('Error fetching voice config:', configError);
+        } else {
+          voiceConfig = configData;
+        }
+      } catch (err) {
+        console.error('Failed to load voice config:', err);
+      }
+
+      // Use config values or fallback to defaults
+      const vadThreshold = voiceConfig?.vad_threshold ?? 0.5;
+      const silenceDurationMs = voiceConfig?.vad_silence_duration_ms ?? 2500;
+      const prefixPaddingMs = voiceConfig?.vad_prefix_padding_ms ?? 500;
+      const temperature = voiceConfig?.temperature ?? 0.7;
+      const responseStyleInstructions = voiceConfig?.response_style_instructions ?? '';
+
+      console.log('Voice config loaded:', {
+        vadThreshold,
+        silenceDurationMs,
+        prefixPaddingMs,
+        temperature
+      });
+
+      // Add response style to instructions
+      const enhancedInstructions = responseStyleInstructions 
+        ? `${instructions}\n\nResponse Style: ${responseStyleInstructions}`
+        : instructions;
+
+      // Configure the session with voice config values
       openAiWs.send(JSON.stringify({
         type: 'session.update',
         session: {
-          turn_detection: { type: 'server_vad' },
+          turn_detection: { 
+            type: 'server_vad',
+            threshold: vadThreshold,
+            prefix_padding_ms: prefixPaddingMs,
+            silence_duration_ms: silenceDurationMs
+          },
           input_audio_format: 'g711_ulaw',
           output_audio_format: 'g711_ulaw',
           voice: 'alloy',
-          instructions: instructions,
+          instructions: enhancedInstructions,
           modalities: ['text', 'audio'],
-          temperature: 0.8,
+          temperature: temperature,
           input_audio_transcription: {
             model: 'whisper-1'
           }

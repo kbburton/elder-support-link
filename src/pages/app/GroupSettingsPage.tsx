@@ -3,7 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
-import { LogOut, Users, Mail, Calendar, Trash2, RotateCcw, AlertTriangle, UserPlus, Phone } from "lucide-react";
+import { LogOut, Users, Mail, Calendar, Trash2, RotateCcw, AlertTriangle, UserPlus, Phone, Mic } from "lucide-react";
 import SEO from "@/components/layout/SEO";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { RecentlyDeletedTable } from "@/components/delete/RecentlyDeletedTable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { VoiceInterviewSettingsForm } from "@/components/settings/VoiceInterviewSettingsForm";
 
 export default function GroupSettingsPage() {
   const { groupId } = useParams();
@@ -363,10 +364,11 @@ const handleSignOut = async () => {
       </header>
 
       <Tabs defaultValue="notifications" className="space-y-6">
-        <TabsList className="grid grid-cols-4 lg:w-[500px]">
+        <TabsList className="grid grid-cols-5 lg:w-[600px]">
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           {isAdmin && <TabsTrigger value="invite">Invite Others</TabsTrigger>}
           {isAdmin && <TabsTrigger value="voice">Voice PIN</TabsTrigger>}
+          {isAdmin && <TabsTrigger value="voice-interview">Voice Interview</TabsTrigger>}
           <TabsTrigger value="deleted">Recently Deleted</TabsTrigger>
         </TabsList>
 
@@ -547,6 +549,35 @@ const handleSignOut = async () => {
                     Save PIN
                   </Button>
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+
+        {isAdmin && (
+          <TabsContent value="voice-interview" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Mic className="h-5 w-5" />
+                  Voice Interview Settings
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Warning Banner */}
+                <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg">
+                  <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+                      Advanced Settings - Use with Caution
+                    </p>
+                    <p className="text-sm text-amber-800 dark:text-amber-200">
+                      These settings control how the AI conducts memory interviews. Only adjust if you understand the impact of each setting. Incorrect values may cause poor interview experiences.
+                    </p>
+                  </div>
+                </div>
+
+                <VoiceInterviewSettingsForm groupId={groupId!} />
               </CardContent>
             </Card>
           </TabsContent>
