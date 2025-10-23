@@ -90,12 +90,14 @@ export function VoiceInterviewSettingsForm({ groupId }: Props) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="alloy">Alloy (Neutral and balanced)</SelectItem>
-            <SelectItem value="echo">Echo (Male, clear and direct)</SelectItem>
-            <SelectItem value="fable">Fable (British accent, warm)</SelectItem>
-            <SelectItem value="onyx">Onyx (Deep male voice)</SelectItem>
-            <SelectItem value="nova">Nova (Friendly female voice)</SelectItem>
-            <SelectItem value="shimmer">Shimmer (Soft and gentle)</SelectItem>
+            <SelectItem value="alloy">Alloy - Neutral, balanced</SelectItem>
+            <SelectItem value="ash">Ash - Confident, authoritative (masculine)</SelectItem>
+            <SelectItem value="ballad">Ballad - Expressive, emotive (neutral)</SelectItem>
+            <SelectItem value="coral">Coral - Warm, engaging (feminine)</SelectItem>
+            <SelectItem value="echo">Echo - Clear, articulate (masculine)</SelectItem>
+            <SelectItem value="sage">Sage - Wise, thoughtful (neutral)</SelectItem>
+            <SelectItem value="shimmer">Shimmer - Soft, gentle (feminine)</SelectItem>
+            <SelectItem value="verse">Verse - Pleasant, conversational (neutral)</SelectItem>
           </SelectContent>
         </Select>
         <p className="text-sm text-muted-foreground">
