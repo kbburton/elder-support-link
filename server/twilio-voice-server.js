@@ -154,7 +154,15 @@ app.ws('/media-stream', async (ws, req) => {
 
             // Use config values or defaults
             const aiName = voiceConfig?.ai_introduction_name || 'ChatGPT';
-            const instructionsTemplate = voiceConfig?.interview_instructions_template || '- Start by introducing yourself warmly and explaining you\'ll be asking them about their life\n- Ask the question naturally, not reading it word-for-word\n- Listen actively and ask gentle follow-up questions to encourage them to share more details\n- Be empathetic, patient, and encouraging\n- If they seem confused, gently rephrase the question\n- Keep responses concise and conversational\n- Use their first name occasionally to make it personal\n- When they\'ve fully answered and you\'ve explored the memory with follow-ups, thank them warmly';
+            const recipientFirstName = interview.care_groups.recipient_first_name;
+            const instructionsTemplate = voiceConfig?.interview_instructions_template || `- Start by introducing yourself warmly and explaining you'll be asking them about their life
+- Ask the question naturally, not reading it word-for-word
+- Listen actively and ask gentle follow-up questions to encourage them to share more details
+- Be empathetic, patient, and encouraging
+- If they seem confused, gently rephrase the question
+- Keep responses concise and conversational
+- Use their first name (${recipientFirstName}) occasionally to make it personal
+- When they've fully answered and you've explored the memory with follow-ups, thank them warmly`;
             
             // Base instructions depending on question presence
             if (questionText) {
@@ -252,6 +260,7 @@ ${interview.custom_instructions}`;
       greetingTimeout = setTimeout(() => {
         if (!userHasSpoken && openAiWs && openAiWs.readyState === WebSocket.OPEN) {
           console.log('🤖 User silent for 5 seconds, AI starting conversation...');
+          console.log('📤 [Sending] response.create (greeting timeout) at', new Date().toISOString());
           openAiWs.send(JSON.stringify({
             type: 'response.create',
             response: {
@@ -265,6 +274,43 @@ ${interview.custom_instructions}`;
     openAiWs.on('message', (data) => {
       try {
         const response = JSON.parse(data.toString());
+        
+        // ===== DIAGNOSTIC LOGGING: Session Lifecycle =====
+        if (response.type === 'session.created') {
+          console.log('📋 [OpenAI] session.created received at', new Date().toISOString());
+        }
+        
+        if (response.type === 'session.updated') {
+          console.log('✅ [OpenAI] session.updated confirmed at', new Date().toISOString());
+        }
+        
+        // ===== DIAGNOSTIC LOGGING: Audio Buffer & VAD Events =====
+        if (response.type === 'input_audio_buffer.speech_stopped') {
+          console.log('🛑 [OpenAI] speech_stopped at', new Date().toISOString());
+        }
+        
+        if (response.type === 'input_audio_buffer.committed') {
+          console.log('💾 [OpenAI] input_audio_buffer.committed at', new Date().toISOString());
+        }
+        
+        // ===== DIAGNOSTIC LOGGING: Transcription Events =====
+        if (response.type === 'conversation.item.input_audio_transcription.delta') {
+          console.log('📝 [OpenAI] transcription.delta:', response.delta);
+        }
+        
+        // ===== DIAGNOSTIC LOGGING: Response Generation Events =====
+        if (response.type === 'response.created') {
+          console.log('🎬 [OpenAI] response.created - AI starting to generate at', new Date().toISOString());
+        }
+        
+        if (response.type === 'response.audio.done') {
+          console.log('🎵 [OpenAI] response.audio.done at', new Date().toISOString());
+        }
+        
+        // ===== DIAGNOSTIC LOGGING: Errors =====
+        if (response.type === 'error') {
+          console.error('❌ [OpenAI] Error event:', JSON.stringify(response, null, 2));
+        }
         
         // CRITICAL: Handle user interruptions during AI speech
         // This enables natural barge-in functionality
@@ -280,6 +326,7 @@ ${interview.custom_instructions}`;
           userHasSpoken = true;
           
           // Cancel the current AI response immediately
+          console.log('📤 [Sending] response.cancel at', new Date().toISOString());
           openAiWs.send(JSON.stringify({
             type: 'response.cancel'
           }));
@@ -299,6 +346,12 @@ ${interview.custom_instructions}`;
         
         // Handle different response types
         if (response.type === 'response.audio.delta' && response.delta) {
+          // Log first audio delta to confirm streaming started
+          if (!response._audioStartLogged) {
+            console.log('🎵 [OpenAI] First audio.delta received - streaming audio at', new Date().toISOString());
+            response._audioStartLogged = true;
+          }
+          
           // Send audio back to Twilio
           if (ws.readyState === WebSocket.OPEN) {
             const audioData = {
@@ -358,8 +411,10 @@ ${interview.custom_instructions}`;
       console.error('❌ OpenAI WebSocket error:', error);
     });
 
-    openAiWs.on('close', () => {
+    openAiWs.on('close', (code, reason) => {
       console.log('🔌 OpenAI connection closed');
+      console.log('   Close Code:', code);
+      console.log('   Close Reason:', reason ? reason.toString() : '(none)');
       if (greetingTimeout) {
         clearTimeout(greetingTimeout);
       }
